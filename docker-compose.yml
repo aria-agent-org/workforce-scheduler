@@ -1,0 +1,134 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shavtzak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shavtzak
+      POSTGRES_USER: shavtzak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shavtzak_dev_2026}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shavtzak"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: shavtzak-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shavtzak-api
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shavtzak
+      POSTGRES_USER: shavtzak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shavtzak_dev_2026}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod-abcdef123456}
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,https://shavtzak.site"
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        cd /app &&
+        alembic upgrade head 2>/dev/null || true &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --log-level info
+      "
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shavtzak-celery-worker
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shavtzak
+      POSTGRES_USER: shavtzak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shavtzak_dev_2026}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod-abcdef123456}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shavtzak-celery-beat
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shavtzak
+      POSTGRES_USER: shavtzak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shavtzak_dev_2026}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod-abcdef123456}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shavtzak-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,29 @@
+{
+  "title": "עובדים",
+  "addEmployee": "הוסף עובד",
+  "searchPlaceholder": "חיפוש עובד...",
+  "employeeNumber": "מספר עובד",
+  "fullName": "שם מלא",
+  "status": "סטטוס",
+  "role": "תפקיד",
+  "phone": "טלפון",
+  "active": "פעיל",
+  "inactive": "לא פעיל",
+  "noEmployees": "אין עובדים",
+  "editEmployee": "עריכת עובד",
+  "deleteConfirm": "האם אתה בטוח שברצונך למחוק את העובד?",
+  "bulkImport": "ייבוא עובדים",
+  "exportList": "ייצוא רשימה",
+  "filters": {
+    "all": "הכל",
+    "active": "פעילים",
+    "inactive": "לא פעילים"
+  },
+  "details": {
+    "personalInfo": "פרטים אישיים",
+    "schedule": "שיבוצים",
+    "preferences": "העדפות",
+    "notifications": "הגדרות התראות",
+    "history": "היסטוריה"
+  }
+}

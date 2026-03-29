@@ -1,0 +1,38 @@
+{
+  "title": "שיבוצים",
+  "scheduleWindows": "לוחות עבודה",
+  "createWindow": "צור לוח חדש",
+  "missions": "משימות",
+  "createMission": "צור משימה",
+  "autoAssign": "שיבוץ אוטומטי",
+  "publish": "פרסם לוח",
+  "dailyBoard": "לוח יומי",
+  "weeklyView": "תצוגה שבועית",
+  "missionTypes": "סוגי משימות",
+  "templates": "תבניות",
+  "status": {
+    "draft": "טיוטה",
+    "active": "פעיל",
+    "paused": "מושהה",
+    "archived": "בארכיון",
+    "proposed": "מוצע",
+    "approved": "מאושר",
+    "completed": "הושלם",
+    "cancelled": "בוטל"
+  },
+  "conflicts": {
+    "title": "התנגשויות",
+    "hard": "התנגשות חמורה",
+    "soft": "אזהרה",
+    "noConflicts": "אין התנגשויות",
+    "override": "עקוף",
+    "overrideReason": "סיבה לעקיפה"
+  },
+  "swap": {
+    "title": "בקשות החלפה",
+    "request": "בקש החלפה",
+    "approve": "אשר",
+    "reject": "דחה",
+    "pending": "ממתין"
+  }
+}

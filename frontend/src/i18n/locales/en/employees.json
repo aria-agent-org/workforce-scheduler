@@ -1,0 +1,29 @@
+{
+  "title": "Employees",
+  "addEmployee": "Add Employee",
+  "searchPlaceholder": "Search employee...",
+  "employeeNumber": "Employee Number",
+  "fullName": "Full Name",
+  "status": "Status",
+  "role": "Role",
+  "phone": "Phone",
+  "active": "Active",
+  "inactive": "Inactive",
+  "noEmployees": "No employees",
+  "editEmployee": "Edit Employee",
+  "deleteConfirm": "Are you sure you want to delete this employee?",
+  "bulkImport": "Bulk Import",
+  "exportList": "Export List",
+  "filters": {
+    "all": "All",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "details": {
+    "personalInfo": "Personal Info",
+    "schedule": "Schedule",
+    "preferences": "Preferences",
+    "notifications": "Notification Settings",
+    "history": "History"
+  }
+}

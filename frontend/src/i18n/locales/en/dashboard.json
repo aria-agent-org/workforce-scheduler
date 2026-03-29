@@ -1,0 +1,21 @@
+{
+  "title": "Dashboard",
+  "welcome": "Hello, {{name}}",
+  "todaySchedule": "Today's Schedule",
+  "activeEmployees": "Active Employees",
+  "pendingSwaps": "Pending Swap Requests",
+  "upcomingMissions": "Upcoming Missions",
+  "noMissionsToday": "No missions today",
+  "quickActions": "Quick Actions",
+  "viewFullSchedule": "View Full Schedule",
+  "addEmployee": "Add Employee",
+  "createMission": "Create Mission",
+  "recentActivity": "Recent Activity",
+  "stats": {
+    "totalEmployees": "Total Employees",
+    "present": "Present",
+    "onLeave": "On Leave",
+    "missionsToday": "Missions Today",
+    "conflicts": "Conflicts"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "title": "Scheduling",
+  "scheduleWindows": "Schedule Windows",
+  "createWindow": "Create New Window",
+  "missions": "Missions",
+  "createMission": "Create Mission",
+  "autoAssign": "Auto-Assign",
+  "publish": "Publish Schedule",
+  "dailyBoard": "Daily Board",
+  "weeklyView": "Weekly View",
+  "missionTypes": "Mission Types",
+  "templates": "Templates",
+  "status": {
+    "draft": "Draft",
+    "active": "Active",
+    "paused": "Paused",
+    "archived": "Archived",
+    "proposed": "Proposed",
+    "approved": "Approved",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "conflicts": {
+    "title": "Conflicts",
+    "hard": "Hard Conflict",
+    "soft": "Warning",
+    "noConflicts": "No conflicts",
+    "override": "Override",
+    "overrideReason": "Override reason"
+  },
+  "swap": {
+    "title": "Swap Requests",
+    "request": "Request Swap",
+    "approve": "Approve",
+    "reject": "Reject",
+    "pending": "Pending"
+  }
+}

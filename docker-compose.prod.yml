@@ -1,0 +1,72 @@
+version: "3.9"
+
+# Production-like overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /opt/shavtzak/data/postgres:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  redis:
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - /opt/shavtzak/data/redis:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  backend:
+    environment:
+      DEBUG: "false"
+      LOG_LEVEL: WARNING
+      SECRET_KEY: ${SECRET_KEY}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      CORS_ORIGINS: "https://shavtzak.site,https://www.shavtzak.site"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    command: >
+      sh -c "
+        cd /app &&
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level warning
+      "
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+
+  celery-worker:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+    command: celery -A app.tasks.celery_app worker --loglevel=warning --concurrency=4
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  celery-beat:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+    command: celery -A app.tasks.celery_app beat --loglevel=warning
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"

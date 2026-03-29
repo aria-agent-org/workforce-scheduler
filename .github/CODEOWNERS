@@ -1,0 +1,13 @@
+# CISO reviews all code before merge
+* @aria-agent-org/ciso
+
+# CTO owns infrastructure
+docker-compose*.yml @aria-agent-org/cto
+.github/ @aria-agent-org/cto
+Makefile @aria-agent-org/cto
+
+# Backend
+backend/ @aria-agent-org/backend-dev @aria-agent-org/cto
+
+# Frontend
+frontend/ @aria-agent-org/frontend-dev @aria-agent-org/cto

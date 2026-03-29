@@ -1,0 +1,21 @@
+{
+  "title": "לוח בקרה",
+  "welcome": "שלום, {{name}}",
+  "todaySchedule": "שיבוצים להיום",
+  "activeEmployees": "עובדים פעילים",
+  "pendingSwaps": "בקשות החלפה ממתינות",
+  "upcomingMissions": "משימות קרובות",
+  "noMissionsToday": "אין משימות להיום",
+  "quickActions": "פעולות מהירות",
+  "viewFullSchedule": "צפה בלוח מלא",
+  "addEmployee": "הוסף עובד",
+  "createMission": "צור משימה",
+  "recentActivity": "פעילות אחרונה",
+  "stats": {
+    "totalEmployees": "סה\"כ עובדים",
+    "present": "נוכחים",
+    "onLeave": "בחופשה",
+    "missionsToday": "משימות היום",
+    "conflicts": "התנגשויות"
+  }
+}
