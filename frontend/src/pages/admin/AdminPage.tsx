@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +21,17 @@ type AdminTab = "tenants" | "plans" | "users" | "health";
 
 export default function AdminPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<AdminTab>("tenants");
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") as AdminTab | null;
+  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl && ["tenants", "plans", "users", "health"].includes(tabFromUrl) ? tabFromUrl : "tenants");
   const [loading, setLoading] = useState(true);
+
+  // Sync tab with URL
+  useEffect(() => {
+    if (tabFromUrl && ["tenants", "plans", "users", "health"].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   // Tenants
   const [tenants, setTenants] = useState<any[]>([]);

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Users, Calendar, ClipboardList, ShieldCheck,
   Bell, BarChart3, Settings, ArrowLeftRight, History, Shield,
-  HelpCircle, UserCircle,
+  HelpCircle, UserCircle, Building2, CreditCard, Activity, UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -28,9 +28,22 @@ const secondaryItems = [
   { key: "myPortal", path: "/my/schedule", icon: UserCircle },
 ];
 
-const adminItems = [
-  { key: "admin", path: "/admin", icon: Shield },
+const adminNavItems = [
+  { key: "adminTenants", path: "/admin", icon: Building2, label: "ניהול טננטים", hash: "tenants" },
+  { key: "adminPlans", path: "/admin", icon: CreditCard, label: "ניהול מנויים", hash: "plans" },
+  { key: "adminUsers", path: "/admin", icon: UserCog, label: "ניהול משתמשים", hash: "users" },
+  { key: "adminHealth", path: "/admin", icon: Activity, label: "בריאות מערכת", hash: "health" },
 ];
+
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+    "hover:bg-accent hover:text-accent-foreground",
+    "active:scale-[0.98]",
+    isActive
+      ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
+      : "text-muted-foreground"
+  );
 
 export default function Sidebar() {
   const { t } = useTranslation();
@@ -39,23 +52,19 @@ export default function Sidebar() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    // Check if user is admin by trying to load admin endpoint
-    // Also check by role name from user data
-    const checkAdmin = async () => {
-      try {
-        // Try fetching tenants — if it works, user is admin
-        await api.get("/admin/tenants");
-        setIsAdmin(true);
-      } catch {
-        // User is not admin — that's fine
-        setIsAdmin(false);
-      }
-    };
-    if (user) checkAdmin();
+    if (!user) return;
+    // Check admin: first by tenant_id (null = super admin), then try API as fallback
+    if (user.tenant_id === null || user.tenant_id === undefined) {
+      setIsAdmin(true);
+    } else {
+      // Fallback: try admin endpoint
+      api.get("/admin/tenants").then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
+    }
   }, [user]);
 
   // Load counts for sidebar badges
   useEffect(() => {
+    if (!user) return;
     const loadCounts = async () => {
       try {
         const today = new Date().toISOString().split("T")[0];
@@ -69,7 +78,7 @@ export default function Sidebar() {
         });
       } catch { /* ignore */ }
     };
-    if (user) loadCounts();
+    loadCounts();
   }, [user]);
 
   return (
@@ -81,20 +90,7 @@ export default function Sidebar() {
       </div>
       <nav className="mt-2 flex-1 space-y-0.5 px-3 overflow-y-auto">
         {navItems.map(({ key, path, icon: Icon }) => (
-          <NavLink
-            key={key}
-            to={path}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                "hover:bg-accent hover:text-accent-foreground",
-                "active:scale-[0.98]",
-                isActive
-                  ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
-                  : "text-muted-foreground"
-              )
-            }
-          >
+          <NavLink key={key} to={path} className={linkClass}>
             <Icon className="h-5 w-5 flex-shrink-0" />
             <span className="flex-1">{t(`nav.${key}`)}</span>
             {counts[key] != null && counts[key] > 0 && (
@@ -106,20 +102,7 @@ export default function Sidebar() {
         ))}
         <div className="my-3 border-t" />
         {secondaryItems.map(({ key, path, icon: Icon }) => (
-          <NavLink
-            key={key}
-            to={path}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                "hover:bg-accent hover:text-accent-foreground",
-                "active:scale-[0.98]",
-                isActive
-                  ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
-                  : "text-muted-foreground"
-              )
-            }
-          >
+          <NavLink key={key} to={path} className={linkClass}>
             <Icon className="h-5 w-5 flex-shrink-0" />
             <span className="flex-1">{t(`nav.${key}`)}</span>
             {counts[key] != null && counts[key] > 0 && (
@@ -129,25 +112,34 @@ export default function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {/* Admin Section - always visible for admin users */}
         {isAdmin && (
           <>
             <div className="my-3 border-t" />
-            {adminItems.map(({ key, path, icon: Icon }) => (
+            <div className="px-3 py-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5" />
+                ניהול מערכת
+              </span>
+            </div>
+            {adminNavItems.map(({ key, path, icon: Icon, label, hash }) => (
               <NavLink
                 key={key}
-                to={path}
+                to={`${path}?tab=${hash}`}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                     "hover:bg-accent hover:text-accent-foreground",
+                    "active:scale-[0.98]",
                     isActive
-                      ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
+                      ? "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300 shadow-sm"
                       : "text-muted-foreground"
                   )
                 }
               >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                <span>{t(`nav.${key}`)}</span>
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                <span className="flex-1">{label}</span>
               </NavLink>
             ))}
           </>
