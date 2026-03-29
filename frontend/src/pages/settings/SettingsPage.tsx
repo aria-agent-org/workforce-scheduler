@@ -97,7 +97,7 @@ export default function SettingsPage() {
     { key: "general", label: "כללי", icon: Settings },
     { key: "users", label: "משתמשים", icon: Users },
     { key: "registration", label: "קודי הרשמה", icon: KeyRound },
-    { key: "work-roles", label: "תפקידי עבודה", icon: Users },
+    { key: "work-roles", label: "תפקידים", icon: Users },
     { key: "attendance-statuses", label: "סטטוסי נוכחות", icon: ClipboardList },
     { key: "board-template", label: "תבנית לוח", icon: LayoutTemplate },
     { key: "google-sheets", label: "Google Sheets", icon: Sheet },

@@ -422,6 +422,66 @@ async def seed() -> None:
         await db.flush()
         print("  ✅ Schedule window created")
 
+        # === Mission Templates ===
+        template_patrol = MissionTemplate(
+            tenant_id=tenant.id,
+            schedule_window_id=window.id,
+            mission_type_id=mt_patrol.id,
+            name="משמרת סיור יומית",
+            recurrence={"type": "daily", "interval": 1},
+            time_slots=[
+                {"label": "בוקר", "start": "07:00", "end": "15:00"},
+                {"label": "צהריים", "start": "15:00", "end": "23:00"},
+                {"label": "לילה", "start": "23:00", "end": "07:00"},
+            ],
+            is_active=True,
+        )
+        template_standby = MissionTemplate(
+            tenant_id=tenant.id,
+            schedule_window_id=window.id,
+            mission_type_id=mt_standby.id,
+            name="כוננות יומית",
+            recurrence={"type": "daily", "interval": 1},
+            time_slots=[
+                {"label": "כוננות 24 שעות", "start": "00:00", "end": "00:00"},
+            ],
+            is_active=True,
+        )
+        db.add_all([template_patrol, template_standby])
+        await db.flush()
+        print("  ✅ Mission templates created")
+
+        # === Generate Missions from Templates (first 7 days) ===
+        from app.models.scheduling import Mission
+        templates_to_gen = [template_patrol, template_standby]
+        gen_start = date(2026, 4, 1)
+        gen_end = date(2026, 4, 7)
+        mission_count = 0
+        for tmpl in templates_to_gen:
+            slots = tmpl.time_slots or []
+            current_date = gen_start
+            while current_date <= gen_end:
+                for slot in slots:
+                    start_parts = slot.get("start", "08:00").split(":")
+                    end_parts = slot.get("end", "16:00").split(":")
+                    mission = Mission(
+                        tenant_id=tenant.id,
+                        schedule_window_id=window.id,
+                        mission_type_id=tmpl.mission_type_id,
+                        template_id=tmpl.id,
+                        name=f"{tmpl.name} - {slot.get('label', '')} - {current_date.isoformat()}",
+                        date=current_date,
+                        start_time=time(int(start_parts[0]), int(start_parts[1])),
+                        end_time=time(int(end_parts[0]), int(end_parts[1])),
+                        status="draft",
+                        created_by=admin_user.id,
+                    )
+                    db.add(mission)
+                    mission_count += 1
+                current_date += timedelta(days=1)
+        await db.flush()
+        print(f"  ✅ {mission_count} missions generated (Apr 1-7)")
+
         # === Event Type Definitions ===
         event_types = [
             ("mission_assigned", {"he": "שובצת למשימה", "en": "Mission Assigned"}, True),
