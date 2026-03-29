@@ -45,7 +45,10 @@
     "settings": "Settings",
     "admin": "Admin",
     "auditLog": "Audit Log",
-    "swaps": "Swaps"
+    "swaps": "Swaps",
+    "more": "More",
+    "employees": "Employees",
+    "onboarding": "Setup"
   },
   "pagination": {
     "page": "Page",

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./i18n";
 import "./index.css";
+import { registerServiceWorker, setupInstallPrompt, setupOfflineTracking } from "./lib/pwa";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,11 +23,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
-// Register PWA Service Worker
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // SW registration failed - OK in dev
-    });
-  });
-}
+// PWA Setup
+registerServiceWorker();
+setupInstallPrompt();
+setupOfflineTracking();

@@ -1,8 +1,11 @@
-"""Settings endpoints: tenant settings, work roles, role definitions."""
+"""Settings endpoints: tenant settings, work roles, role definitions, bot tokens."""
 
+import secrets
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,12 +13,24 @@ from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
 from app.models.tenant import TenantSetting
 from app.models.resource import WorkRole, RoleDefinition
+from app.models.bot import BotRegistrationToken
 from app.models.audit import AuditLog
 from app.schemas.settings import (
     TenantSettingUpdate, TenantSettingResponse,
     WorkRoleCreate, WorkRoleUpdate, WorkRoleResponse,
     RoleDefinitionCreate, RoleDefinitionUpdate, RoleDefinitionResponse,
 )
+
+
+class SettingCreateRequest(BaseModel):
+    key: str
+    value: dict | str | bool | int | float | list | None = None
+    group: str = "general"
+
+
+class BotTokenCreateRequest(BaseModel):
+    count: int = 1
+    platform: str = "whatsapp"
 
 router = APIRouter()
 
@@ -131,6 +146,126 @@ async def update_role_definition(
 # ═══════════════════════════════════════════
 # Tenant Settings (catch-all at the end)
 # ═══════════════════════════════════════════
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_setting(
+    data: SettingCreateRequest, tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create or upsert a tenant setting."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id, TenantSetting.key == data.key,
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        setting.value = data.value if isinstance(data.value, dict) else {"_v": data.value}
+        setting.group = data.group
+    else:
+        val = data.value if isinstance(data.value, dict) else {"_v": data.value}
+        setting = TenantSetting(
+            tenant_id=tenant.id, key=data.key, value=val,
+            value_type="json", label={"he": data.key, "en": data.key},
+            group=data.group,
+        )
+        db.add(setting)
+    await db.flush()
+    await db.refresh(setting)
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="create_setting",
+        entity_type="setting", entity_id=setting.id,
+        after_state={"key": data.key},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return TenantSettingResponse.model_validate(setting).model_dump()
+
+
+# ═══════════════════════════════════════════
+# Bot Registration Tokens
+# ═══════════════════════════════════════════
+
+@router.get("/bot-tokens")
+async def list_bot_tokens(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    from app.models.employee import Employee
+    result = await db.execute(
+        select(BotRegistrationToken, Employee)
+        .join(Employee, BotRegistrationToken.employee_id == Employee.id)
+        .where(Employee.tenant_id == tenant.id)
+        .order_by(BotRegistrationToken.created_at.desc())
+    )
+    return [
+        {
+            "id": str(tok.id),
+            "token": tok.token,
+            "employee_id": str(tok.employee_id),
+            "employee_name": emp.full_name,
+            "platform": tok.platform,
+            "expires_at": str(tok.expires_at),
+            "used_at": str(tok.used_at) if tok.used_at else None,
+        }
+        for tok, emp in result.all()
+    ]
+
+
+@router.post("/bot-tokens", status_code=status.HTTP_201_CREATED)
+async def create_bot_tokens(
+    data: BotTokenCreateRequest, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Generate bot registration tokens. Creates generic tokens not tied to a specific employee."""
+    from app.models.employee import Employee
+    # Get first employee as placeholder (tokens are generic)
+    emp_result = await db.execute(
+        select(Employee).where(Employee.tenant_id == tenant.id, Employee.is_active.is_(True)).limit(1)
+    )
+    emp = emp_result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=400, detail="צריך לפחות עובד אחד פעיל ליצירת טוקנים")
+
+    tokens = []
+    for _ in range(min(data.count, 100)):
+        token = BotRegistrationToken(
+            token=secrets.token_urlsafe(32),
+            employee_id=emp.id,
+            platform=data.platform,
+            expires_at=datetime.utcnow() + timedelta(days=7),
+        )
+        db.add(token)
+        await db.flush()
+        await db.refresh(token)
+        tokens.append({
+            "id": str(token.id),
+            "token": token.token,
+            "employee_id": str(token.employee_id),
+            "platform": token.platform,
+            "expires_at": str(token.expires_at),
+            "used_at": None,
+        })
+
+    await db.commit()
+    return tokens
+
+
+@router.delete("/bot-tokens/{token_id}", status_code=204)
+async def delete_bot_token(
+    token_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    from app.models.employee import Employee
+    result = await db.execute(
+        select(BotRegistrationToken)
+        .join(Employee, BotRegistrationToken.employee_id == Employee.id)
+        .where(BotRegistrationToken.id == token_id, Employee.tenant_id == tenant.id)
+    )
+    token = result.scalar_one_or_none()
+    if token:
+        await db.delete(token)
+        await db.commit()
+
 
 @router.get("")
 async def list_settings(

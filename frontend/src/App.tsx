@@ -1,11 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AppLayout from "./components/layout/AppLayout";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 import { ToastProvider } from "./components/ui/toast";
+import { useThemeStore } from "./stores/themeStore";
+import { KeyboardShortcutsProvider } from "./components/common/KeyboardShortcuts";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,10 +28,14 @@ const AuditLogPage = lazy(() => import("./pages/audit/AuditLogPage"));
 const SwapRequestsPage = lazy(() => import("./pages/swaps/SwapRequestsPage"));
 const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const OnboardingWizard = lazy(() => import("./pages/onboarding/OnboardingWizard"));
 
 function App() {
   const { i18n } = useTranslation();
   const dir = i18n.language === "he" ? "rtl" : "ltr";
+  const initTheme = useThemeStore(s => s.initialize);
+
+  useEffect(() => { initTheme(); }, [initTheme]);
 
   document.documentElement.dir = dir;
   document.documentElement.lang = i18n.language;
@@ -38,10 +44,12 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
       <ToastProvider>
+        <KeyboardShortcutsProvider>
         <BrowserRouter>
             <Suspense fallback={<LoadingSpinner />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/onboarding" element={<OnboardingWizard />} />
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
@@ -61,6 +69,7 @@ function App() {
               </Routes>
             </Suspense>
           </BrowserRouter>
+        </KeyboardShortcutsProvider>
         </ToastProvider>
       </QueryClientProvider>
     </ErrorBoundary>

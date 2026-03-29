@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, Calendar, ClipboardList, ShieldCheck,
-  Bell, BarChart3, Settings, ArrowLeftRight, History, Shield, Mail,
+  Bell, BarChart3, Settings, ArrowLeftRight, History, Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -36,24 +36,26 @@ export default function Sidebar() {
     <aside className="hidden w-64 flex-shrink-0 border-e bg-card md:flex md:flex-col">
       <div className="flex h-16 items-center justify-center border-b px-4">
         <h1 className="text-xl font-bold text-primary-500">
-          {t("appName")}
+          🎯 {t("appName")}
         </h1>
       </div>
-      <nav className="mt-4 flex-1 space-y-1 px-3">
+      <nav className="mt-2 flex-1 space-y-0.5 px-3 overflow-y-auto">
         {navItems.map(({ key, path, icon: Icon }) => (
           <NavLink
             key={key}
             to={path}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                "hover:bg-accent hover:text-accent-foreground",
+                "active:scale-[0.98]",
                 isActive
-                  ? "bg-primary-50 text-primary-700"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
+                  : "text-muted-foreground"
               )
             }
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-5 w-5 flex-shrink-0" />
             <span>{t(`nav.${key}`)}</span>
           </NavLink>
         ))}
@@ -64,14 +66,16 @@ export default function Sidebar() {
             to={path}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                "hover:bg-accent hover:text-accent-foreground",
+                "active:scale-[0.98]",
                 isActive
-                  ? "bg-primary-50 text-primary-700"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
+                  : "text-muted-foreground"
               )
             }
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-5 w-5 flex-shrink-0" />
             <span>{t(`nav.${key}`)}</span>
           </NavLink>
         ))}
@@ -84,14 +88,15 @@ export default function Sidebar() {
                 to={path}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    "hover:bg-accent hover:text-accent-foreground",
                     isActive
-                      ? "bg-primary-50 text-primary-700"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 shadow-sm"
+                      : "text-muted-foreground"
                   )
                 }
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-5 w-5 flex-shrink-0" />
                 <span>{t(`nav.${key}`)}</span>
               </NavLink>
             ))}

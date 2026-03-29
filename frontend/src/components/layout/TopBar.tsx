@@ -2,16 +2,17 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useThemeStore } from "@/stores/themeStore";
 import { Button } from "../ui/button";
 import {
   LogOut, Globe, Menu, X, LayoutDashboard, Users, Calendar,
-  ClipboardList, ShieldCheck, Bell, BarChart3, Settings,
+  ClipboardList, ShieldCheck, Bell, BarChart3, Settings, Sun, Moon, Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const mobileNav = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { key: "employees", path: "/employees", icon: Users },
+  { key: "soldiers", path: "/soldiers", icon: Users },
   { key: "scheduling", path: "/scheduling", icon: Calendar },
   { key: "attendance", path: "/attendance", icon: ClipboardList },
   { key: "rules", path: "/rules", icon: ShieldCheck },
@@ -23,6 +24,7 @@ const mobileNav = [
 export default function TopBar() {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useThemeStore();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggleLanguage = () => {
@@ -31,6 +33,15 @@ export default function TopBar() {
     document.documentElement.dir = newLang === "he" ? "rtl" : "ltr";
     document.documentElement.lang = newLang;
   };
+
+  const cycleTheme = () => {
+    const order: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
+    const idx = order.indexOf(theme);
+    setTheme(order[(idx + 1) % order.length]);
+  };
+
+  const themeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+  const ThemeIcon = themeIcon;
 
   return (
     <>
@@ -42,6 +53,10 @@ export default function TopBar() {
           <span className="text-sm text-muted-foreground">{user?.email}</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Dark Mode Toggle */}
+          <Button variant="ghost" size="sm" onClick={cycleTheme} title={`Theme: ${theme}`}>
+            <ThemeIcon className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={toggleLanguage}>
             <Globe className="me-1 h-4 w-4" />
             {i18n.language === "he" ? "EN" : "עב"}
@@ -70,7 +85,7 @@ export default function TopBar() {
                     cn(
                       "flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-primary-50 text-primary-700"
+                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
                         : "text-muted-foreground hover:bg-accent"
                     )
                   }

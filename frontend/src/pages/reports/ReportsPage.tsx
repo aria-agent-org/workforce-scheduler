@@ -3,23 +3,30 @@ import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// Label unused but kept for future use
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { BarChart3, Download, Users, Calendar, DollarSign, ClipboardList } from "lucide-react";
+import { Download, Users, Calendar, DollarSign, ClipboardList } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  AreaChart, Area,
+} from "recharts";
+import * as XLSX from "xlsx";
 
 type ReportType = "workload" | "missions" | "attendance" | "costs";
 
-export default function ReportsPage() {
-  const { t } = useTranslation();
-  const { toast } = useToast();
+const COLORS = ["#2563eb", "#22c55e", "#ef4444", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
 
+export default function ReportsPage() {
+  const { t, i18n } = useTranslation();
+  const { toast } = useToast();
   const [activeReport, setActiveReport] = useState<ReportType>("workload");
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7);
+    const d = new Date(); d.setDate(d.getDate() - 30);
     return d.toISOString().split("T")[0];
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split("T")[0]);
@@ -40,19 +47,54 @@ export default function ReportsPage() {
 
   useEffect(() => { loadReport(activeReport); }, [activeReport, dateFrom, dateTo]);
 
+  const exportExcel = () => {
+    if (!data) return;
+    let rows: any[] = [];
+    if (activeReport === "workload" && data.employees) {
+      rows = data.employees.map((e: any) => ({
+        "שם": e.employee_name,
+        "מספר עובד": e.employee_number,
+        "שיבוצים": e.assignments_count,
+        "שעות": e.total_hours,
+      }));
+    } else if (activeReport === "missions") {
+      rows = Object.entries(data.by_status || {}).map(([status, count]) => ({
+        "סטטוס": status, "כמות": count,
+      }));
+    } else if (activeReport === "attendance") {
+      rows = Object.entries(data.by_status || {}).map(([status, count]) => ({
+        "סטטוס": status, "כמות": count,
+      }));
+    } else if (activeReport === "costs") {
+      rows = Object.entries(data.by_channel || {}).map(([channel, info]: [string, any]) => ({
+        "ערוץ": channel, "הודעות": info.count, "עלות $": info.cost_usd,
+      }));
+    }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, activeReport);
+    XLSX.writeFile(wb, `report-${activeReport}-${dateFrom}-${dateTo}.xlsx`);
+  };
+
   const exportCSV = () => {
     if (!data) return;
-    let csv = "";
+    let csv = "\uFEFF";
     if (activeReport === "workload" && data.employees) {
-      csv = "שם,מספר עובד,שיבוצים,שעות\n";
-      csv += data.employees.map((e: any) => `${e.employee_name},${e.employee_number},${e.assignments_count},${e.total_hours}`).join("\n");
+      csv += "שם,מספר עובד,שיבוצים,שעות\n";
+      csv += data.employees.map((e: any) =>
+        `${e.employee_name},${e.employee_number},${e.assignments_count},${e.total_hours}`
+      ).join("\n");
     } else {
       csv = JSON.stringify(data, null, 2);
     }
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `report-${activeReport}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `report-${activeReport}.csv`; a.click();
+  };
+
+  const exportPDF = () => {
+    toast("info", "ייצוא PDF — יפתח חלון הדפסה");
+    window.print();
   };
 
   const reports: { key: ReportType; label: string; icon: any }[] = [
@@ -64,18 +106,26 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{t("nav.reports")}</h1>
-        <Button variant="outline" size="sm" onClick={exportCSV}>
-          <Download className="me-1 h-4 w-4" />ייצוא
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportCSV}>
+            <Download className="me-1 h-4 w-4" />CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportExcel}>
+            <Download className="me-1 h-4 w-4" />Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportPDF}>
+            <Download className="me-1 h-4 w-4" />PDF
+          </Button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="flex gap-2">
           {reports.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setActiveReport(key)}
-              className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm ${
+              className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm transition-colors ${
                 activeReport === key ? "bg-primary-500 text-white" : "bg-muted text-muted-foreground hover:bg-accent"
               }`}>
               <Icon className="h-4 w-4" />{label}
@@ -93,12 +143,13 @@ export default function ReportsPage() {
         <>
           {/* Workload Report */}
           {activeReport === "workload" && data && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-6">
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <Card>
                   <CardContent className="p-4 text-center">
                     <p className="text-sm text-muted-foreground">ממוצע שעות</p>
-                    <p className="text-3xl font-bold">{data.average_hours}</p>
+                    <p className="text-3xl font-bold text-primary-500">{data.average_hours}</p>
                   </CardContent>
                 </Card>
                 <Card>
@@ -107,36 +158,76 @@ export default function ReportsPage() {
                     <p className="text-3xl font-bold">{data.total_hours}</p>
                   </CardContent>
                 </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-sm text-muted-foreground">עובדים</p>
+                    <p className="text-3xl font-bold">{data.employees?.length || 0}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-sm text-muted-foreground">תקופה</p>
+                    <p className="text-sm font-medium">{data.period?.from} → {data.period?.to}</p>
+                  </CardContent>
+                </Card>
               </div>
+
+              {/* Workload Bar Chart */}
               <Card>
-                <CardContent className="p-0">
+                <CardHeader><CardTitle className="text-lg">עומס שעות לעובד</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart data={data.employees?.slice(0, 20) || []} layout="vertical" margin={{ left: 100 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="employee_name" type="category" width={100} tick={{ fontSize: 12 }} />
+                      <RechartsTooltip formatter={(value: any) => [`${value} שעות`, "שעות"]} />
+                      <Bar dataKey="total_hours" fill="#2563eb" radius={[0, 4, 4, 0]}>
+                        {(data.employees || []).map((_: any, i: number) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Heatmap-like table */}
+              <Card>
+                <CardHeader><CardTitle className="text-lg">מפת חום — עומסים</CardTitle></CardHeader>
+                <CardContent className="p-0 overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50 text-sm">
                         <th className="px-4 py-3 text-start">עובד</th>
-                        <th className="px-4 py-3 text-start">מספר</th>
                         <th className="px-4 py-3 text-center">שיבוצים</th>
                         <th className="px-4 py-3 text-center">שעות</th>
-                        <th className="px-4 py-3 text-start">פילוג</th>
+                        <th className="px-4 py-3 text-start">עומס</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.employees?.map((emp: any) => (
-                        <tr key={emp.employee_id} className="border-b">
-                          <td className="px-4 py-3">{emp.employee_name}</td>
-                          <td className="px-4 py-3 font-mono text-sm">{emp.employee_number}</td>
-                          <td className="px-4 py-3 text-center">{emp.assignments_count}</td>
-                          <td className="px-4 py-3 text-center">{emp.total_hours}</td>
-                          <td className="px-4 py-3">
-                            <div className="h-2 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className="h-full bg-primary-500 rounded-full"
-                                style={{ width: `${Math.min(100, (emp.total_hours / (data.average_hours * 2 || 1)) * 100)}%` }}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {data.employees?.map((emp: any) => {
+                        const ratio = data.average_hours > 0 ? emp.total_hours / (data.average_hours * 2) : 0;
+                        const hue = ratio > 0.7 ? 0 : ratio > 0.4 ? 40 : 120; // red → yellow → green
+                        return (
+                          <tr key={emp.employee_id} className="border-b">
+                            <td className="px-4 py-3">{emp.employee_name}</td>
+                            <td className="px-4 py-3 text-center">{emp.assignments_count}</td>
+                            <td className="px-4 py-3 text-center font-bold">{emp.total_hours}</td>
+                            <td className="px-4 py-3">
+                              <div className="h-4 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${Math.min(100, ratio * 100)}%`,
+                                    backgroundColor: `hsl(${hue}, 70%, 50%)`,
+                                  }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </CardContent>
@@ -146,17 +237,74 @@ export default function ReportsPage() {
 
           {/* Missions Report */}
           {activeReport === "missions" && data && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <Card>
                 <CardContent className="p-4 text-center">
                   <p className="text-sm text-muted-foreground">סה"כ משימות</p>
                   <p className="text-3xl font-bold">{data.total_missions}</p>
                 </CardContent>
               </Card>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Pie Chart */}
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">פילוג לפי סטטוס</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, value }))}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          label={({ name, percent }: any) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
+                          dataKey="value"
+                        >
+                          {Object.keys(data.by_status || {}).map((_, i) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                {/* Bar Chart */}
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">היסטוגרמה</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, count: value }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                          {Object.keys(data.by_status || {}).map((_, i) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Status Cards */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {Object.entries(data.by_status || {}).map(([status, count]) => (
+                {Object.entries(data.by_status || {}).map(([status, count], i) => (
                   <Card key={status}>
                     <CardContent className="p-4 text-center">
+                      <div className="h-2 w-full rounded-full mb-2" style={{ backgroundColor: COLORS[i % COLORS.length] + "40" }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${data.total_missions > 0 ? ((count as number) / data.total_missions * 100) : 0}%`,
+                            backgroundColor: COLORS[i % COLORS.length],
+                          }}
+                        />
+                      </div>
                       <p className="text-sm text-muted-foreground capitalize">{status}</p>
                       <p className="text-2xl font-bold">{count as number}</p>
                     </CardContent>
@@ -168,19 +316,65 @@ export default function ReportsPage() {
 
           {/* Attendance Report */}
           {activeReport === "attendance" && data && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <Card>
                 <CardContent className="p-4 text-center">
                   <p className="text-sm text-muted-foreground">סה"כ עובדים פעילים</p>
                   <p className="text-3xl font-bold">{data.total_employees}</p>
                 </CardContent>
               </Card>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Pie */}
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">פילוג נוכחות</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, value }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          label={({ name, value }) => `${name}: ${value}`}
+                          dataKey="value"
+                        >
+                          {Object.keys(data.by_status || {}).map((_, i) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                {/* Area Chart */}
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">דפוסי נוכחות</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, count: value }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Area type="monotone" dataKey="count" stroke="#2563eb" fill="#2563eb30" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Status Grid */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                {Object.entries(data.by_status || {}).map(([status, count]) => (
+                {Object.entries(data.by_status || {}).map(([status, count], i) => (
                   <Card key={status}>
                     <CardContent className="p-4 text-center">
                       <p className="text-sm text-muted-foreground">{status}</p>
-                      <p className="text-2xl font-bold">{count as number}</p>
+                      <p className="text-2xl font-bold" style={{ color: COLORS[i % COLORS.length] }}>{count as number}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -190,20 +384,77 @@ export default function ReportsPage() {
 
           {/* Costs Report */}
           {activeReport === "costs" && data && (
-            <div className="space-y-4">
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-sm text-muted-foreground">סה"כ עלות</p>
-                  <p className="text-3xl font-bold">${data.total_cost_usd}</p>
-                </CardContent>
-              </Card>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-sm text-muted-foreground">סה"כ עלות</p>
+                    <p className="text-3xl font-bold text-red-500">${data.total_cost_usd}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-sm text-muted-foreground">ערוצים</p>
+                    <p className="text-3xl font-bold">{Object.keys(data.by_channel || {}).length}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Cost Pie */}
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">עלות לפי ערוץ</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(data.by_channel || {}).map(([name, info]: [string, any]) => ({
+                            name, value: info.cost_usd,
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          label={({ name, value }) => `${name}: $${value}`}
+                          dataKey="value"
+                        >
+                          {Object.keys(data.by_channel || {}).map((_, i) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                {/* Messages Bar */}
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">הודעות לפי ערוץ</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={Object.entries(data.by_channel || {}).map(([name, info]: [string, any]) => ({
+                        name, messages: info.count, cost: info.cost_usd,
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Legend />
+                        <Bar dataKey="messages" fill="#2563eb" name="הודעות" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Channel Detail Cards */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                {Object.entries(data.by_channel || {}).map(([channel, info]: [string, any]) => (
+                {Object.entries(data.by_channel || {}).map(([channel, info]: [string, any], i) => (
                   <Card key={channel}>
                     <CardContent className="p-4 text-center">
                       <p className="text-sm text-muted-foreground capitalize">{channel}</p>
                       <p className="text-xl font-bold">{info.count} הודעות</p>
-                      <p className="text-sm">${info.cost_usd}</p>
+                      <p className="text-sm" style={{ color: COLORS[i % COLORS.length] }}>${info.cost_usd}</p>
                     </CardContent>
                   </Card>
                 ))}

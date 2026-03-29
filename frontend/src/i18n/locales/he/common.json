@@ -45,7 +45,10 @@
     "settings": "הגדרות",
     "admin": "ניהול מערכת",
     "auditLog": "יומן פעולות",
-    "swaps": "החלפות"
+    "swaps": "החלפות",
+    "more": "עוד",
+    "employees": "עובדים",
+    "onboarding": "הגדרה ראשונית"
   },
   "pagination": {
     "page": "עמוד",

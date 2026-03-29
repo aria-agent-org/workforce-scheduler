@@ -10,10 +10,18 @@ import { useToast } from "@/components/ui/toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Settings, Users, Shield, Plus, Pencil, Trash2, Palette } from "lucide-react";
+import {
+  Settings, Users, Shield, Plus, Pencil, Trash2, Palette,
+  ClipboardList, Sheet, Bot, LayoutTemplate,
+} from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import BilingualRoleName from "@/components/common/BilingualRoleName";
+import AttendanceStatusesPage from "./AttendanceStatusesPage";
+import GoogleSheetsPage from "./GoogleSheetsPage";
+import BotConfigPage from "./BotConfigPage";
+import BoardTemplateEditor from "./BoardTemplateEditor";
 
-type Tab = "general" | "work-roles" | "role-definitions";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template";
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -85,20 +93,25 @@ export default function SettingsPage() {
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "general", label: "כללי", icon: Settings },
     { key: "work-roles", label: "תפקידי עבודה", icon: Users },
+    { key: "attendance-statuses", label: "סטטוסי נוכחות", icon: ClipboardList },
+    { key: "board-template", label: "תבנית לוח", icon: LayoutTemplate },
+    { key: "google-sheets", label: "Google Sheets", icon: Sheet },
+    { key: "bot-config", label: "בוט", icon: Bot },
     { key: "role-definitions", label: "הרשאות", icon: Shield },
   ];
-
-  if (loading) return <TableSkeleton rows={5} cols={3} />;
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("nav.settings")}</h1>
 
-      <div className="flex gap-2 border-b pb-2">
+      {/* Tab Navigation - horizontal scroll on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm ${
-              activeTab === key ? "bg-primary-500 text-white" : "bg-muted text-muted-foreground hover:bg-accent"
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-all active:scale-95 min-h-[44px] ${
+              activeTab === key
+                ? "bg-primary-500 text-white shadow-md"
+                : "bg-muted text-muted-foreground hover:bg-accent"
             }`}>
             <Icon className="h-4 w-4" />{label}
           </button>
@@ -107,11 +120,12 @@ export default function SettingsPage() {
 
       {/* General Settings */}
       {activeTab === "general" && (
+        loading ? <TableSkeleton rows={5} cols={3} /> : (
         <div className="space-y-3">
           {settings.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground">אין הגדרות מוגדרות</CardContent></Card>
           ) : settings.map(s => (
-            <Card key={s.id}>
+            <Card key={s.id} className="hover:shadow-sm transition-shadow">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-medium">{s.label?.[lang] || s.label?.he || s.key}</h3>
@@ -119,48 +133,50 @@ export default function SettingsPage() {
                     קבוצה: {s.group} · סוג: {s.value_type}
                   </p>
                 </div>
-                <div className="text-sm font-mono">
+                <div className="text-sm font-mono max-w-[200px] truncate">
                   {JSON.stringify(s.value)?.slice(0, 50)}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-      )}
+      ))}
 
       {/* Work Roles */}
       {activeTab === "work-roles" && (
+        loading ? <TableSkeleton rows={4} cols={3} /> : (
         <div className="space-y-4">
           <div className="flex justify-end">
             <Button size="sm" onClick={() => {
               setEditingWR(null);
               setWrForm({ name_he: "", name_en: "", color: "#3b82f6" });
               setShowWRModal(true);
-            }}>
+            }} className="min-h-[44px]">
               <Plus className="me-1 h-4 w-4" />תפקיד חדש
             </Button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {workRoles.map(wr => (
-              <Card key={wr.id}>
+              <Card key={wr.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full" style={{ backgroundColor: wr.color || "#ccc" }} />
+                      <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: wr.color || "#ccc" }}>
+                        {(wr.name?.he || "?")[0]}
+                      </div>
                       <div>
-                        <h3 className="font-medium">{wr.name?.[lang] || wr.name?.he}</h3>
-                        <p className="text-xs text-muted-foreground">{wr.name?.en}</p>
+                        <BilingualRoleName name={wr.name} className="font-medium" showBoth />
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => {
+                      <Button size="sm" variant="ghost" className="min-h-[44px] min-w-[44px]" onClick={() => {
                         setEditingWR(wr);
                         setWrForm({ name_he: wr.name?.he || "", name_en: wr.name?.en || "", color: wr.color || "#3b82f6" });
                         setShowWRModal(true);
                       }}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => deleteWorkRole(wr.id)}>
+                      <Button size="sm" variant="ghost" className="min-h-[44px] min-w-[44px]" onClick={() => deleteWorkRole(wr.id)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
@@ -170,13 +186,26 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
-      )}
+      ))}
+
+      {/* Attendance Statuses - Dedicated sub-page */}
+      {activeTab === "attendance-statuses" && <AttendanceStatusesPage />}
+
+      {/* Board Template Editor */}
+      {activeTab === "board-template" && <BoardTemplateEditor />}
+
+      {/* Google Sheets Integration */}
+      {activeTab === "google-sheets" && <GoogleSheetsPage />}
+
+      {/* Bot Configuration */}
+      {activeTab === "bot-config" && <BotConfigPage />}
 
       {/* Role Definitions */}
       {activeTab === "role-definitions" && (
+        loading ? <TableSkeleton rows={3} cols={3} /> : (
         <div className="space-y-3">
           {roleDefinitions.map(rd => (
-            <Card key={rd.id}>
+            <Card key={rd.id} className="hover:shadow-sm transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -193,26 +222,35 @@ export default function SettingsPage() {
             </Card>
           ))}
         </div>
-      )}
+      ))}
 
       {/* Work Role Modal */}
       <Dialog open={showWRModal} onOpenChange={setShowWRModal}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingWR ? "עריכת תפקיד" : "תפקיד חדש"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label>שם (עברית)</Label><Input value={wrForm.name_he} onChange={e => setWrForm({...wrForm, name_he: e.target.value})} /></div>
-            <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={wrForm.name_en} onChange={e => setWrForm({...wrForm, name_en: e.target.value})} /></div>
+            <div className="space-y-2">
+              <Label>שם (עברית)</Label>
+              <Input value={wrForm.name_he} onChange={e => setWrForm({...wrForm, name_he: e.target.value})} className="min-h-[44px]" />
+            </div>
+            <div className="space-y-2">
+              <Label>שם (אנגלית)</Label>
+              <Input value={wrForm.name_en} onChange={e => setWrForm({...wrForm, name_en: e.target.value})} className="min-h-[44px]" />
+            </div>
             <div className="space-y-2">
               <Label>צבע</Label>
               <div className="flex items-center gap-3">
-                <Input type="color" value={wrForm.color} onChange={e => setWrForm({...wrForm, color: e.target.value})} className="w-16 h-10" />
+                <Input type="color" value={wrForm.color} onChange={e => setWrForm({...wrForm, color: e.target.value})} className="w-16 h-12" />
                 <span className="text-sm font-mono">{wrForm.color}</span>
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white font-bold" style={{ backgroundColor: wrForm.color }}>
+                  {(wrForm.name_he || "?")[0]}
+                </div>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowWRModal(false)}>ביטול</Button>
-            <Button onClick={saveWorkRole}>שמור</Button>
+            <Button variant="outline" onClick={() => setShowWRModal(false)} className="min-h-[44px]">ביטול</Button>
+            <Button onClick={saveWorkRole} className="min-h-[44px]">שמור</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

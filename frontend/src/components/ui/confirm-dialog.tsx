@@ -6,34 +6,45 @@ import { Button } from "./button";
 
 interface ConfirmDialogProps {
   open: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   onConfirm: () => void;
+  onCancel?: () => void;
   title: string;
-  description: string;
+  description?: string;
+  message?: string;
   confirmText?: string;
+  confirmLabel?: string;
   cancelText?: string;
+  cancelLabel?: string;
   variant?: "destructive" | "default";
 }
 
 export function ConfirmDialog({
-  open, onClose, onConfirm, title, description,
-  confirmText = "אישור", cancelText = "ביטול",
+  open, onClose, onConfirm, onCancel, title,
+  description, message,
+  confirmText, confirmLabel,
+  cancelText, cancelLabel,
   variant = "default",
 }: ConfirmDialogProps) {
+  const handleClose = () => { (onCancel || onClose)?.(); };
+  const desc = description || message || "";
+  const cText = confirmText || confirmLabel || "אישור";
+  const xText = cancelText || cancelLabel || "ביטול";
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          {desc && <DialogDescription>{desc}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>{cancelText}</Button>
+          <Button variant="outline" onClick={handleClose}>{xText}</Button>
           <Button
             variant={variant === "destructive" ? "destructive" : "default"}
-            onClick={() => { onConfirm(); onClose(); }}
+            onClick={() => { onConfirm(); handleClose(); }}
           >
-            {confirmText}
+            {cText}
           </Button>
         </DialogFooter>
       </DialogContent>

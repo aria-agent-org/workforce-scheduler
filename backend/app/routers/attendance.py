@@ -366,6 +366,22 @@ async def list_sync_conflicts(
     ]
 
 
+@router.post("/sync")
+async def trigger_sync(
+    data: dict,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Trigger a Google Sheets sync (placeholder — actual sync via Celery task)."""
+    # In production, this would enqueue a Celery task
+    return {
+        "status": "queued",
+        "message": "סנכרון נשלח לתור עיבוד",
+        "spreadsheet_id": data.get("spreadsheet_id", ""),
+    }
+
+
 @router.post("/conflicts/{conflict_id}/resolve")
 async def resolve_conflict(
     conflict_id: UUID, resolution: dict,
