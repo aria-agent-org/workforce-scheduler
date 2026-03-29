@@ -101,13 +101,11 @@ async def unsubscribe_push(
 
 @router.post("/test")
 async def send_test_push(
-    data: PushTestRequest | None = None,
-    user: CurrentUser = Depends(),
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Send a test push notification to the current user."""
-    if not data:
-        data = PushTestRequest()
+    data = PushTestRequest()
 
     result = await db.execute(
         select(PushSubscription).where(PushSubscription.user_id == user.id)
