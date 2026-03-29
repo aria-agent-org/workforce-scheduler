@@ -9,8 +9,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models.resource import RoleDefinition
+from app.models.tenant import Tenant
 from app.models.user import User, UserSession
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import LoginResponse, TokenResponse, UserResponse
 
 settings = get_settings()
 
@@ -57,8 +59,39 @@ class AuthService:
         }
         return jwt.encode(payload, settings.secret_key, algorithm="HS256")
 
-    async def authenticate(self, email: str, password: str) -> TokenResponse | None:
-        """Authenticate a user and return tokens."""
+    async def build_user_response(self, user: User) -> UserResponse:
+        """Build a UserResponse with role_name and tenant_slug resolved."""
+        role_name: str | None = None
+        tenant_slug: str | None = None
+
+        if user.role_definition_id:
+            result = await self.db.execute(
+                select(RoleDefinition.name).where(RoleDefinition.id == user.role_definition_id)
+            )
+            role_name = result.scalar_one_or_none()
+
+        if user.tenant_id:
+            result = await self.db.execute(
+                select(Tenant.slug).where(Tenant.id == user.tenant_id)
+            )
+            tenant_slug = result.scalar_one_or_none()
+
+        return UserResponse(
+            id=user.id,
+            email=user.email,
+            tenant_id=user.tenant_id,
+            tenant_slug=tenant_slug,
+            role_name=role_name,
+            employee_id=user.employee_id,
+            preferred_language=user.preferred_language,
+            is_active=user.is_active,
+            two_factor_enabled=user.two_factor_enabled,
+            last_login=user.last_login,
+            created_at=user.created_at,
+        )
+
+    async def authenticate(self, email: str, password: str) -> LoginResponse | None:
+        """Authenticate a user and return tokens + user info."""
         result = await self.db.execute(
             select(User).where(User.email == email, User.is_active.is_(True))
         )
@@ -84,10 +117,13 @@ class AuthService:
         user.last_login = datetime.now(timezone.utc)
         await self.db.flush()
 
-        return TokenResponse(
+        user_response = await self.build_user_response(user)
+
+        return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             expires_in=expires_in,
+            user=user_response,
         )
 
     async def refresh(self, refresh_token: str) -> TokenResponse | None:

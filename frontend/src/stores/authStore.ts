@@ -6,6 +6,9 @@ interface User {
   id: string;
   email: string;
   tenant_id: string | null;
+  tenant_slug: string | null;
+  role_name: string | null;
+  employee_id: string | null;
   preferred_language: string;
   is_active: boolean;
   two_factor_enabled: boolean;
@@ -18,9 +21,10 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
+  isAdmin: () => boolean;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: isAuthenticated(),
   isLoading: false,
@@ -30,8 +34,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { data } = await api.post("/auth/login", { email, password });
       setTokens(data.access_token, data.refresh_token);
-      const userRes = await api.get("/auth/me");
-      set({ user: userRes.data, isAuthenticated: true, isLoading: false });
+      set({ user: data.user, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -58,5 +61,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       clearTokens();
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
+  },
+
+  isAdmin: () => {
+    const user = get().user;
+    if (!user) return false;
+    return user.role_name === "super_admin" || user.role_name === "tenant_admin";
   },
 }));

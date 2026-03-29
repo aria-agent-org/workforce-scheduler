@@ -9,6 +9,7 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    LoginResponse,
     RefreshRequest,
     ResetPasswordRequest,
     TokenResponse,
@@ -21,11 +22,11 @@ from app.services.auth_service import AuthService
 router = APIRouter()
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=LoginResponse)
 async def login(
     request: LoginRequest,
     db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
+) -> LoginResponse:
     """Authenticate with email and password."""
     service = AuthService(db)
     result = await service.authenticate(request.email, request.password)
@@ -74,9 +75,13 @@ async def logout_all(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(user: CurrentUser) -> UserResponse:
-    """Get current user info."""
-    return UserResponse.model_validate(user)
+async def get_current_user_info(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Get current user info with role and tenant details."""
+    service = AuthService(db)
+    return await service.build_user_response(user)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

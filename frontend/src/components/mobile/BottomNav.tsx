@@ -6,7 +6,8 @@ import {
   HelpCircle, Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useAuthStore } from "@/stores/authStore";
 
 const primaryNav = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard, label: "בית" },
@@ -31,8 +32,14 @@ export default function BottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const isAdmin = useAuthStore((s) => s.isAdmin());
 
-  const isMoreActive = moreNav.some(n => location.pathname.startsWith(n.path));
+  const filteredMoreNav = useMemo(() => {
+    if (isAdmin) return moreNav;
+    return moreNav.filter(n => n.key !== "admin");
+  }, [isAdmin]);
+
+  const isMoreActive = filteredMoreNav.some(n => location.pathname.startsWith(n.path));
 
   // Close overlay on route change
   useEffect(() => {
@@ -53,7 +60,7 @@ export default function BottomNav() {
             onClick={e => e.stopPropagation()}
           >
             <div className="grid grid-cols-4 gap-1">
-              {moreNav.map(({ key, path, icon: Icon, label }) => (
+              {filteredMoreNav.map(({ key, path, icon: Icon, label }) => (
                 <NavLink
                   key={key}
                   to={path}

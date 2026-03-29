@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
-import api, { tenantApi } from "@/lib/api";
+import { tenantApi } from "@/lib/api";
+import api from "@/lib/api";
 
 const navItems = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -48,19 +49,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export default function Sidebar() {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = useAuthStore((s) => s.isAdmin());
   const [counts, setCounts] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    if (!user) return;
-    // Check admin: first by tenant_id (null = super admin), then try API as fallback
-    if (user.tenant_id === null || user.tenant_id === undefined) {
-      setIsAdmin(true);
-    } else {
-      // Fallback: try admin endpoint
-      api.get("/admin/tenants").then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
-    }
-  }, [user]);
 
   // Load counts for sidebar badges
   useEffect(() => {
