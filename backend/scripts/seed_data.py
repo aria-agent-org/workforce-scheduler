@@ -173,7 +173,7 @@ async def seed() -> None:
             tenant_id=tenant.id,
             email="admin@shavtzak.site",
             password_hash=AuthService.hash_password("Admin123!"),
-            role_definition_id=role_tenant_admin.id,
+            role_definition_id=role_super_admin.id,
             preferred_language="he",
             is_active=True,
         )

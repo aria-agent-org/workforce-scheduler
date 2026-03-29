@@ -48,7 +48,11 @@
     "swaps": "החלפות",
     "more": "עוד",
     "employees": "עובדים",
-    "onboarding": "הגדרה ראשונית"
+    "onboarding": "הגדרה ראשונית",
+    "help": "מרכז עזרה",
+    "myPortal": "הפורטל שלי",
+    "users": "משתמשים",
+    "registration": "קודי הרשמה"
   },
   "pagination": {
     "page": "עמוד",

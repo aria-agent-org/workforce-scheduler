@@ -20,8 +20,11 @@ import AttendanceStatusesPage from "./AttendanceStatusesPage";
 import GoogleSheetsPage from "./GoogleSheetsPage";
 import BotConfigPage from "./BotConfigPage";
 import BoardTemplateEditor from "./BoardTemplateEditor";
+import UsersSettingsPage from "./UsersSettingsPage";
+import RegistrationCodesPage from "./RegistrationCodesPage";
+import { KeyRound } from "lucide-react";
 
-type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration";
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -92,6 +95,8 @@ export default function SettingsPage() {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "general", label: "כללי", icon: Settings },
+    { key: "users", label: "משתמשים", icon: Users },
+    { key: "registration", label: "קודי הרשמה", icon: KeyRound },
     { key: "work-roles", label: "תפקידי עבודה", icon: Users },
     { key: "attendance-statuses", label: "סטטוסי נוכחות", icon: ClipboardList },
     { key: "board-template", label: "תבנית לוח", icon: LayoutTemplate },
@@ -117,6 +122,12 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* Users Management */}
+      {activeTab === "users" && <UsersSettingsPage />}
+
+      {/* Registration Codes */}
+      {activeTab === "registration" && <RegistrationCodesPage />}
 
       {/* General Settings */}
       {activeTab === "general" && (

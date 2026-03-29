@@ -7,8 +7,10 @@ import { Button } from "../ui/button";
 import {
   LogOut, Globe, Menu, X, LayoutDashboard, Users, Calendar,
   ClipboardList, ShieldCheck, Bell, BarChart3, Settings, Sun, Moon, Monitor,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import GlobalSearch from "../common/GlobalSearch";
 
 const mobileNav = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -50,9 +52,10 @@ export default function TopBar() {
           <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
             {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
-          <span className="text-sm text-muted-foreground">{user?.email}</span>
+          <span className="text-sm text-muted-foreground hidden sm:inline">{user?.email}</span>
         </div>
         <div className="flex items-center gap-2">
+          <GlobalSearch />
           {/* Dark Mode Toggle */}
           <Button variant="ghost" size="sm" onClick={cycleTheme} title={`Theme: ${theme}`}>
             <ThemeIcon className="h-4 w-4" />

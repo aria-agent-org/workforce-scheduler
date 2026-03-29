@@ -13,7 +13,7 @@ from app.models.scheduling import (
     ScheduleWindow, ScheduleWindowEmployee, MissionType, MissionTemplate,
     Mission, MissionAssignment, SwapRequest,
 )
-from app.models.employee import Employee
+from app.models.employee import Employee, EmployeeWorkRole
 from app.models.audit import AuditLog
 from app.schemas.scheduling import (
     ScheduleWindowCreate, ScheduleWindowUpdate, ScheduleWindowResponse,
@@ -793,6 +793,135 @@ async def remove_assignment(
         raise HTTPException(status_code=404, detail="שיבוץ לא נמצא")
     ma.status = "replaced"
     await db.commit()
+
+
+# ═══════════════════════════════════════════
+# Smart Manual Assignment — Eligible Soldiers
+# ═══════════════════════════════════════════
+
+@router.get("/missions/{mission_id}/eligible-soldiers/{slot_id}")
+async def get_eligible_soldiers(
+    mission_id: UUID, slot_id: str,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Get eligible soldiers for a mission slot, scored and sorted."""
+    # Get mission
+    m_result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    mission = m_result.scalar_one_or_none()
+    if not mission:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+
+    # Get mission type to find slot's required work_role
+    mt_result = await db.execute(select(MissionType).where(MissionType.id == mission.mission_type_id))
+    mt = mt_result.scalar_one_or_none()
+    required_work_role_id = None
+    if mt and mt.required_slots:
+        for slot in mt.required_slots:
+            if slot.get("slot_id") == slot_id:
+                required_work_role_id = slot.get("work_role_id")
+                break
+
+    # Get employees in the schedule window
+    emp_query = (
+        select(Employee)
+        .join(ScheduleWindowEmployee, ScheduleWindowEmployee.employee_id == Employee.id)
+        .where(
+            ScheduleWindowEmployee.schedule_window_id == mission.schedule_window_id,
+            Employee.is_active.is_(True),
+        )
+    )
+    emp_result = await db.execute(emp_query)
+    employees = emp_result.scalars().all()
+
+    # If required_work_role_id, filter by work role
+    if required_work_role_id:
+        wr_result = await db.execute(
+            select(EmployeeWorkRole.employee_id).where(
+                EmployeeWorkRole.work_role_id == required_work_role_id
+            )
+        )
+        valid_emp_ids = {row[0] for row in wr_result.all()}
+        employees = [e for e in employees if e.id in valid_emp_ids]
+
+    # Filter by attendance (present or returning)
+    employees = [e for e in employees if e.status in ("present", "returning_home", "training")]
+
+    results = []
+    for emp in employees:
+        warnings = []
+        score = 100
+
+        # Check time conflicts on same day
+        conflict_result = await db.execute(
+            select(MissionAssignment, Mission)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == emp.id,
+                Mission.date == mission.date,
+                MissionAssignment.status != "replaced",
+            )
+        )
+        day_assignments = conflict_result.all()
+        has_hard_conflict = False
+
+        for ma, existing_m in day_assignments:
+            # Check time overlap
+            if existing_m.start_time < mission.end_time and existing_m.end_time > mission.start_time:
+                has_hard_conflict = True
+                break
+            score -= 10  # Penalty per existing assignment
+
+        if has_hard_conflict:
+            continue  # Skip soldiers with hard time conflicts
+
+        # Check rest hours since last mission (look at yesterday + today)
+        yesterday = mission.date - timedelta(days=1)
+        recent_result = await db.execute(
+            select(Mission)
+            .join(MissionAssignment, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == emp.id,
+                Mission.date.in_([yesterday, mission.date]),
+                MissionAssignment.status != "replaced",
+            )
+            .order_by(Mission.date.desc(), Mission.end_time.desc())
+        )
+        recent_missions = recent_result.scalars().all()
+        if recent_missions:
+            last = recent_missions[0]
+            # Calculate hours since last mission ended
+            last_end = datetime.combine(last.date, last.end_time)
+            this_start = datetime.combine(mission.date, mission.start_time)
+            hours_rest = (this_start - last_end).total_seconds() / 3600
+            if hours_rest < 16:
+                score -= 30
+                warnings.append(f"{hours_rest:.0f} שעות מנוחה בלבד (מינימום 16)")
+            elif hours_rest < 18:
+                score -= 20
+                warnings.append(f"{hours_rest:.0f} שעות מנוחה בלבד (מינימום 18)")
+
+        # Already assigned today count
+        if len(day_assignments) > 0:
+            warnings.append(f"כבר משובץ ל-{len(day_assignments)} משימות היום")
+
+        is_recommended = score >= 70 and len(warnings) == 0
+
+        results.append({
+            "employee_id": str(emp.id),
+            "employee_name": emp.full_name,
+            "employee_number": emp.employee_number,
+            "score": max(0, score),
+            "warnings": warnings,
+            "is_recommended": is_recommended,
+            "status": emp.status,
+        })
+
+    # Sort by score descending
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results
 
 
 # ═══════════════════════════════════════════

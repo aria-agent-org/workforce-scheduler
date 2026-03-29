@@ -14,6 +14,9 @@ from app.routers import auth, admin, health, employees, scheduling, attendance, 
 from app.routers import settings as settings_router
 from app.routers import audit as audit_router
 from app.routers import invitations as invitations_router
+from app.routers import users as users_router
+from app.routers import self_service as self_service_router
+from app.routers import registration as registration_router
 
 settings = get_settings()
 
@@ -104,6 +107,28 @@ def create_app() -> FastAPI:
         invitations_router.router,
         prefix="/api/v1/{tenant_slug}/invitations",
         tags=["invitations"],
+    )
+    app.include_router(
+        users_router.router,
+        prefix="/api/v1/{tenant_slug}/users",
+        tags=["users"],
+    )
+    app.include_router(
+        self_service_router.router,
+        prefix="/api/v1/{tenant_slug}/my",
+        tags=["self-service"],
+    )
+    app.include_router(
+        registration_router.router,
+        prefix="/api/v1/{tenant_slug}/registration",
+        tags=["registration"],
+    )
+    # Public registration endpoint (no tenant required)
+    app.include_router(
+        registration_router.router,
+        prefix="/auth",
+        tags=["auth-registration"],
+        include_in_schema=False,
     )
 
     return app
