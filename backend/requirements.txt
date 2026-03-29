@@ -38,7 +38,7 @@ sentry-sdk[fastapi]==2.19.2
 email-validator==2.2.0
 
 # WebAuthn
-py-webauthn==2.2.0
+webauthn==2.2.0
 
 # TOTP
 pyotp==2.9.0
