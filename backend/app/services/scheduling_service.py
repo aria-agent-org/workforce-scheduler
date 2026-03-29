@@ -212,7 +212,19 @@ class AutoScheduler:
             )
             .order_by(Employee.full_name)
         )
-        return list(result.scalars().all())
+        employees = list(result.scalars().all())
+
+        # Fallback: if no employees assigned to window, use all active tenant employees
+        if not employees:
+            fallback = await self.db.execute(
+                select(Employee).where(
+                    Employee.tenant_id == self.tenant_id,
+                    Employee.is_active.is_(True),
+                ).order_by(Employee.full_name)
+            )
+            employees = list(fallback.scalars().all())
+
+        return employees
 
     async def _load_mission_types(self) -> dict:
         result = await self.db.execute(

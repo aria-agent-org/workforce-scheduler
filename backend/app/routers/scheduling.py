@@ -4,6 +4,7 @@ from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -836,6 +837,16 @@ async def get_eligible_soldiers(
     emp_result = await db.execute(emp_query)
     employees = emp_result.scalars().all()
 
+    # Fallback: if no employees in the schedule window, use all active employees in tenant
+    if not employees:
+        fallback_result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tenant.id,
+                Employee.is_active.is_(True),
+            )
+        )
+        employees = fallback_result.scalars().all()
+
     # If required_work_role_id, filter by work role
     if required_work_role_id:
         wr_result = await db.execute(
@@ -846,13 +857,16 @@ async def get_eligible_soldiers(
         valid_emp_ids = {row[0] for row in wr_result.all()}
         employees = [e for e in employees if e.id in valid_emp_ids]
 
-    # Filter by attendance (present or returning)
-    employees = [e for e in employees if e.status in ("present", "returning_home", "training")]
-
+    # Include all employees — if status is not "present", add a warning but don't exclude
     results = []
     for emp in employees:
         warnings = []
         score = 100
+
+        # Warn if not present
+        if emp.status not in ("present", "returning_home", "training"):
+            score -= 40
+            warnings.append(f"סטטוס נוכחות: {emp.status}")
 
         # Check time conflicts on same day
         conflict_result = await db.execute(
@@ -928,10 +942,18 @@ async def get_eligible_soldiers(
 # Auto-Scheduling
 # ═══════════════════════════════════════════
 
+class AutoAssignRequest(PydanticBaseModel):
+    schedule_window_id: UUID | None = None
+    window_id: UUID | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+
 @router.post("/missions/auto-assign", status_code=status.HTTP_200_OK)
 async def auto_assign_missions(
     tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
+    body: AutoAssignRequest | None = None,
     window_id: UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -939,8 +961,18 @@ async def auto_assign_missions(
     """Production auto-scheduling: hard filter → scoring → preference optimization → conflict check."""
     from app.services.scheduling_service import AutoScheduler
 
-    if not window_id:
+    # Accept window_id from query param or body (schedule_window_id or window_id)
+    resolved_window_id = window_id
+    if not resolved_window_id and body:
+        resolved_window_id = body.schedule_window_id or body.window_id
+    if body and not date_from:
+        date_from = body.date_from
+    if body and not date_to:
+        date_to = body.date_to
+
+    if not resolved_window_id:
         raise HTTPException(status_code=400, detail="נדרש מזהה לוח עבודה")
+    window_id = resolved_window_id
 
     scheduler = AutoScheduler(db, tenant.id, user.id)
     result = await scheduler.run(window_id, date_from, date_to)

@@ -1,7 +1,7 @@
 """Invitation system endpoints (spec 3.4a)."""
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -52,7 +52,7 @@ async def list_invitations(
             role_name = rd.label if rd else None
 
         # Check if expired
-        if inv.status == "pending" and inv.expires_at < datetime.utcnow():
+        if inv.status == "pending" and inv.expires_at < datetime.now(timezone.utc):
             inv.status = "expired"
             await db.flush()
 
@@ -95,7 +95,7 @@ async def create_invitation(
         role_definition_id=data.get("role_definition_id"),
         employee_id=data.get("employee_id"),
         invited_by=user.id,
-        expires_at=datetime.utcnow() + timedelta(days=expires_days),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=expires_days),
         custom_message=data.get("custom_message"),
     )
     db.add(inv)
@@ -161,7 +161,7 @@ async def bulk_create_invitations(
             role_definition_id=role_definition_id,
             employee_id=emp_id,
             invited_by=user.id,
-            expires_at=datetime.utcnow() + timedelta(days=expires_days),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=expires_days),
             custom_message=custom_message,
         )
         db.add(inv)
@@ -221,7 +221,7 @@ async def resend_invitation(
         role_definition_id=inv.role_definition_id,
         employee_id=inv.employee_id,
         invited_by=user.id,
-        expires_at=datetime.utcnow() + timedelta(days=7),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
         custom_message=inv.custom_message,
     )
     db.add(new_inv)
@@ -288,7 +288,7 @@ async def validate_invitation_token(
     if inv.status != "pending":
         raise HTTPException(status_code=400, detail="הזמנה כבר מומשה או בוטלה")
 
-    if inv.expires_at < datetime.utcnow():
+    if inv.expires_at < datetime.now(timezone.utc):
         inv.status = "expired"
         await db.commit()
         raise HTTPException(status_code=400, detail="הלינק פג תוקף")
@@ -330,7 +330,7 @@ async def accept_invitation(
     if inv.status != "pending":
         raise HTTPException(status_code=400, detail="הזמנה כבר מומשה או בוטלה")
 
-    if inv.expires_at < datetime.utcnow():
+    if inv.expires_at < datetime.now(timezone.utc):
         inv.status = "expired"
         await db.commit()
         raise HTTPException(status_code=400, detail="הלינק פג תוקף")
@@ -375,7 +375,7 @@ async def accept_invitation(
 
     # Mark invitation as accepted
     inv.status = "accepted"
-    inv.accepted_at = datetime.utcnow()
+    inv.accepted_at = datetime.now(timezone.utc)
 
     await db.commit()
 
