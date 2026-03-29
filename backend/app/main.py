@@ -17,6 +17,7 @@ from app.routers import invitations as invitations_router
 from app.routers import users as users_router
 from app.routers import self_service as self_service_router
 from app.routers import registration as registration_router
+from app.routers import work_roles as work_roles_router
 
 settings = get_settings()
 
@@ -122,6 +123,11 @@ def create_app() -> FastAPI:
         registration_router.router,
         prefix="/api/v1/{tenant_slug}/registration",
         tags=["registration"],
+    )
+    app.include_router(
+        work_roles_router.router,
+        prefix="/api/v1/{tenant_slug}/work-roles",
+        tags=["work-roles"],
     )
     # Public registration endpoint (no tenant required)
     app.include_router(

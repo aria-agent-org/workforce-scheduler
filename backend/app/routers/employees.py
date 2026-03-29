@@ -290,19 +290,25 @@ async def assign_work_roles(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="עובד לא נמצא")
 
-    # Remove existing roles
+    # Remove existing roles and flush to avoid unique constraint violations
     existing = await db.execute(
         select(EmployeeWorkRole).where(EmployeeWorkRole.employee_id == employee_id)
     )
     for ewr in existing.scalars().all():
         await db.delete(ewr)
+    await db.flush()
 
-    # Add new roles
+    # Add new roles (deduplicate by work_role_id)
+    seen_role_ids = set()
     new_roles = []
     for r in roles:
+        role_id = r["work_role_id"]
+        if role_id in seen_role_ids:
+            continue
+        seen_role_ids.add(role_id)
         ewr = EmployeeWorkRole(
             employee_id=employee_id,
-            work_role_id=r["work_role_id"],
+            work_role_id=role_id,
             is_primary=r.get("is_primary", False),
         )
         db.add(ewr)
