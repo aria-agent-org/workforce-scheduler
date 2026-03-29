@@ -18,6 +18,7 @@ import {
   Pencil, Download, Upload, ArrowLeft, Eye, AlertTriangle, Check,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import HelpTooltip from "@/components/common/HelpTooltip";
 
 type Tab = "windows" | "board" | "types" | "templates";
 
@@ -89,7 +90,7 @@ export default function SchedulingPage() {
     required_slots: [] as Array<{ slot_id: string; work_role_id: string; count: number; label_he: string; label_en: string }>,
     pre_mission_events: [] as Array<{ offset_minutes: number; label_he: string; label_en: string; location_he: string }>,
     post_mission_rule: null as any,
-    timeline_items: [] as Array<{ item_id: string; offset_minutes: number; label_he: string; label_en: string }>,
+    timeline_items: [] as Array<{ item_id: string; offset_minutes: number; label_he: string; label_en: string; time_mode: "relative" | "exact"; exact_time: string }>,
   });
   const [templateForm, setTemplateForm] = useState({
     schedule_window_id: "", mission_type_id: "", name: "",
@@ -181,7 +182,9 @@ export default function SchedulingPage() {
       }));
       const timeline = typeForm.timeline_items.map(t => ({
         item_id: t.item_id,
-        offset_minutes: t.offset_minutes,
+        offset_minutes: t.time_mode === "exact" ? null : t.offset_minutes,
+        exact_time: t.time_mode === "exact" ? t.exact_time : null,
+        time_mode: t.time_mode,
         label: { he: t.label_he, en: t.label_en },
       }));
       const payload = {
@@ -227,8 +230,9 @@ export default function SchedulingPage() {
       })),
       post_mission_rule: mt.post_mission_rule || null,
       timeline_items: (mt.timeline_items || []).map((t: any) => ({
-        item_id: t.item_id, offset_minutes: t.offset_minutes,
+        item_id: t.item_id, offset_minutes: t.offset_minutes || 0,
         label_he: t.label?.he || "", label_en: t.label?.en || "",
+        time_mode: t.time_mode || "relative", exact_time: t.exact_time || "08:00",
       })),
     });
     setShowTypeModal(true);
@@ -320,6 +324,53 @@ export default function SchedulingPage() {
       setShowAutoAssignResults(true);
       if (selectedWindow) loadWindowData(selectedWindow.id);
     } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בשיבוץ אוטומטי"); }
+  };
+
+  // === IMPORT SOLDIERS TO WINDOW ===
+  const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
+  const [importFileErrors, setImportFileErrors] = useState<any[]>([]);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedWindow) return;
+    
+    const text = await file.text();
+    const lines = text.split("\n").filter(l => l.trim());
+    if (lines.length < 2) { toast("error", "קובץ ריק"); return; }
+    
+    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    const preview: any[] = [];
+    const errors: any[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+      const row: any = {};
+      headers.forEach((h, idx) => {
+        const key = h.toLowerCase().replace(/\s+/g, "_");
+        if (key.includes("מספר") || key.includes("number") || key === "employee_number") row.employee_number = values[idx];
+        else if (key.includes("שם") || key.includes("name") || key === "full_name") row.full_name = values[idx];
+      });
+      if (!row.employee_number) { errors.push({ row: i, error: "חסר מספר אישי" }); }
+      else { preview.push({ ...row, _row: i }); }
+    }
+    
+    setImportPreviewData(preview);
+    setImportFileErrors(errors);
+    setShowImportWizard(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const executeWindowImport = async () => {
+    if (!selectedWindow) return;
+    try {
+      const employee_numbers = importPreviewData.map(r => r.employee_number);
+      await api.post(tenantApi(`/schedule-windows/${selectedWindow.id}/import-employees`), { employee_numbers });
+      toast("success", `יובאו ${employee_numbers.length} חיילים ללוח`);
+      setShowImportWizard(false);
+      loadWindowData(selectedWindow.id);
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בייבוא");
+    }
   };
 
   const missionAction = async (id: string, action: string) => {
@@ -424,7 +475,14 @@ export default function SchedulingPage() {
       {activeTab === "windows" && (
         <div className="grid gap-4">
           {windows.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">אין לוחות עבודה. צור את הראשון!</CardContent></Card>
+            <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
+              <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-lg font-medium">אין לוחות עבודה עדיין</p>
+              <p className="text-sm mt-1">צור לוח עבודה ראשון כדי להתחיל לשבץ</p>
+              <Button size="sm" className="mt-4" onClick={() => { setWindowForm({ name: "", start_date: "", end_date: "" }); setShowWindowModal(true); }}>
+                <Plus className="me-1 h-4 w-4" />צור לוח עבודה ראשון
+              </Button>
+            </CardContent></Card>
           ) : windows.map((w) => (
             <Card key={w.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openWindowBoard(w)}>
               <CardContent className="p-4">
@@ -472,6 +530,10 @@ export default function SchedulingPage() {
             <Button variant="ghost" size="sm" onClick={() => { setActiveTab("windows"); setSelectedWindow(null); }}>
               <ArrowLeft className="me-1 h-4 w-4" />חזרה ללוחות
             </Button>
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
+            <Button variant="outline" size="sm" onClick={() => { fileInputRef.current?.click(); }}>
+              <Upload className="me-1 h-4 w-4" />ייבוא חיילים
+            </Button>
             <div className="flex gap-2">
               <button onClick={() => setBoardView("day")} className={`px-3 py-1 text-sm rounded ${boardView === "day" ? "bg-primary-500 text-white" : "bg-muted"}`}>יומי</button>
               <button onClick={() => setBoardView("week")} className={`px-3 py-1 text-sm rounded ${boardView === "week" ? "bg-primary-500 text-white" : "bg-muted"}`}>שבועי</button>
@@ -483,7 +545,11 @@ export default function SchedulingPage() {
 
           {/* Missions list */}
           {boardMissions.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">אין משימות בטווח זה. צור משימה או השתמש בתבנית.</CardContent></Card>
+            <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
+              <Clock className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-lg font-medium">אין משימות בטווח זה</p>
+              <p className="text-sm mt-1">צור משימה חדשה או השתמש בתבנית כדי ליצור משימות אוטומטית</p>
+            </CardContent></Card>
           ) : (
             <div className="space-y-2">
               {boardMissions.map((m) => (
@@ -558,7 +624,14 @@ export default function SchedulingPage() {
       {activeTab === "types" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {missionTypes.length === 0 ? (
-            <Card className="col-span-full"><CardContent className="p-8 text-center text-muted-foreground">אין סוגי משימות. צור את הראשון!</CardContent></Card>
+            <Card className="col-span-full border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
+              <Clock className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-lg font-medium">אין סוגי משימות עדיין</p>
+              <p className="text-sm mt-1">הגדר סוגי משימות (שמירה, ניוד, כוננות...) כדי ליצור משימות</p>
+              <Button size="sm" className="mt-4" onClick={openCreateType}>
+                <Plus className="me-1 h-4 w-4" />הוסף סוג משימה ראשון
+              </Button>
+            </CardContent></Card>
           ) : missionTypes.map((mt) => (
             <Card key={mt.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
@@ -605,7 +678,11 @@ export default function SchedulingPage() {
       {activeTab === "templates" && (
         <div className="space-y-3">
           {templates.length === 0 && windows.length > 0 && (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">אין תבניות. בחר לוח עבודה וצור תבנית ראשונה!</CardContent></Card>
+            <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
+              <Copy className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-lg font-medium">אין תבניות עדיין</p>
+              <p className="text-sm mt-1">בחר לוח עבודה וצור תבנית כדי ליצור משימות חוזרות אוטומטית</p>
+            </CardContent></Card>
           )}
           {/* Window selector for templates */}
           <div className="flex items-center gap-2">
@@ -650,7 +727,13 @@ export default function SchedulingPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{t("createWindow")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label>שם</Label><Input value={windowForm.name} onChange={e => setWindowForm({...windowForm, name: e.target.value})} placeholder="מאי-יולי 2026" /></div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label>שם הלוח *</Label>
+                <HelpTooltip content={{ he: "שם תיאורי לתקופת העבודה.\nלדוגמה: מאי-יוני 2026, רבעון 3.", en: "Descriptive name for the schedule period." }} />
+              </div>
+              <Input value={windowForm.name} onChange={e => setWindowForm({...windowForm, name: e.target.value})} placeholder="לדוגמה: מאי-יולי 2026" className="min-h-[44px]" />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>תאריך התחלה</Label><Input type="date" value={windowForm.start_date} onChange={e => setWindowForm({...windowForm, start_date: e.target.value})} /></div>
               <div className="space-y-2"><Label>תאריך סיום</Label><Input type="date" value={windowForm.end_date} onChange={e => setWindowForm({...windowForm, end_date: e.target.value})} /></div>
@@ -701,7 +784,18 @@ export default function SchedulingPage() {
             <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2"><Label>צבע</Label><Input type="color" value={typeForm.color} onChange={e => setTypeForm({...typeForm, color: e.target.value})} /></div>
               <div className="space-y-2"><Label>אייקון</Label><Input value={typeForm.icon} onChange={e => setTypeForm({...typeForm, icon: e.target.value})} placeholder="📋" /></div>
-              <div className="space-y-2"><Label>משך (שעות)</Label><Input type="number" value={typeForm.duration_hours} onChange={e => setTypeForm({...typeForm, duration_hours: Number(e.target.value)})} /></div>
+              <div className="space-y-2">
+                <Label>משך (שעות)</Label>
+                <div className="flex gap-1 mb-1">
+                  {[4, 8, 12, 24].map(h => (
+                    <button key={h} type="button" onClick={() => setTypeForm({...typeForm, duration_hours: h})}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${typeForm.duration_hours === h ? "bg-primary-500 text-white" : "bg-muted hover:bg-accent"}`}>
+                      {h}h
+                    </button>
+                  ))}
+                </div>
+                <Input type="number" value={typeForm.duration_hours} onChange={e => setTypeForm({...typeForm, duration_hours: Number(e.target.value)})} placeholder="מותאם" />
+              </div>
               <div className="space-y-2 flex items-end">
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={typeForm.is_standby} onChange={e => setTypeForm({...typeForm, is_standby: e.target.checked})} className="rounded" />
@@ -713,7 +807,14 @@ export default function SchedulingPage() {
             {/* Slot Builder */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">סלוטים נדרשים</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-base font-semibold">סלוטים נדרשים</Label>
+                  <HelpTooltip
+                    title={{ he: "מהו סלוט?", en: "What is a slot?" }}
+                    content={{ he: "סלוט מגדיר כמה אנשים נדרשים מכל תפקיד.\nלדוגמה: משימת שמירה צריכה 2 שומרים + 1 מפקד.\nכל סלוט = תפקיד + כמות.", en: "A slot defines how many people of each role are needed." }}
+                    examples={[{ he: "שומר × 2, מפקד × 1", en: "Guard × 2, Commander × 1" }]}
+                  />
+                </div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setTypeForm({...typeForm, required_slots: [...typeForm.required_slots, { slot_id: `s${typeForm.required_slots.length + 1}`, work_role_id: workRoles[0]?.id || "", count: 1, label_he: "", label_en: "" }]})}>
                   <Plus className="h-3 w-3 me-1" />הוסף סלוט
                 </Button>
@@ -740,7 +841,14 @@ export default function SchedulingPage() {
             {/* Pre-Mission Events */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">אירועים לפני משימה</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-base font-semibold">אירועים לפני משימה</Label>
+                  <HelpTooltip
+                    title={{ he: "אירועים לפני משימה", en: "Pre-mission events" }}
+                    content={{ he: "אירועים שצריכים לקרות לפני תחילת המשימה.\nלדוגמה: תדריך 30 דקות לפני, בדיקת ציוד 15 דקות לפני.\nהחיילים יראו את האירועים בלוח שלהם.", en: "Events that happen before the mission starts." }}
+                    examples={[{ he: "תדריך — 30 דקות לפני — חדר תדריכים", en: "Briefing — 30 min before — briefing room" }]}
+                  />
+                </div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setTypeForm({...typeForm, pre_mission_events: [...typeForm.pre_mission_events, { offset_minutes: -30, label_he: "", label_en: "", location_he: "" }]})}>
                   <Plus className="h-3 w-3 me-1" />הוסף
                 </Button>
@@ -760,19 +868,45 @@ export default function SchedulingPage() {
             {/* Timeline Items */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">פריטי ציר זמן</Label>
-                <Button type="button" size="sm" variant="outline" onClick={() => setTypeForm({...typeForm, timeline_items: [...typeForm.timeline_items, { item_id: `t${typeForm.timeline_items.length + 1}`, offset_minutes: 30, label_he: "", label_en: "" }]})}>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-base font-semibold">פריטי ציר זמן</Label>
+                  <HelpTooltip
+                    title={{ he: "ציר זמן של משימה", en: "Mission timeline" }}
+                    content={{ he: "פריטים שקורים במהלך המשימה.\nניתן להגדיר כזמן יחסי (X דקות אחרי ההתחלה) או כשעה מדויקת.\nלדוגמה: החלפת משמרות בשעה 12:00.", en: "Items during the mission. Relative or exact time." }}
+                    examples={[
+                      { he: "זמן יחסי: 60 דקות אחרי התחלה — ארוחת צהריים", en: "Relative: 60 min after start — lunch" },
+                      { he: "שעה מדויקת: 12:00 — החלפת משמרת", en: "Exact: 12:00 — shift change" },
+                    ]}
+                  />
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setTypeForm({...typeForm, timeline_items: [...typeForm.timeline_items, { item_id: `t${typeForm.timeline_items.length + 1}`, offset_minutes: 30, label_he: "", label_en: "", time_mode: "relative", exact_time: "08:00" }]})}>
                   <Plus className="h-3 w-3 me-1" />הוסף
                 </Button>
               </div>
               {typeForm.timeline_items.map((ti, i) => (
-                <div key={i} className="grid grid-cols-4 gap-2 items-end p-2 bg-muted/30 rounded">
-                  <div><Label className="text-xs">דקות אחרי התחלה</Label><Input type="number" value={ti.offset_minutes} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].offset_minutes = Number(e.target.value); setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
-                  <div><Label className="text-xs">שם (עב)</Label><Input value={ti.label_he} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_he = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
-                  <div><Label className="text-xs">שם (en)</Label><Input value={ti.label_en} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_en = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
-                  <Button size="sm" variant="ghost" onClick={() => setTypeForm({...typeForm, timeline_items: typeForm.timeline_items.filter((_, j) => j !== i)})}>
-                    <Trash2 className="h-3 w-3 text-red-500" />
-                  </Button>
+                <div key={i} className="p-2 bg-muted/30 rounded space-y-2">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name={`timeline-mode-${i}`} checked={ti.time_mode === "relative"} onChange={() => { const arr = [...typeForm.timeline_items]; arr[i].time_mode = "relative"; setTypeForm({...typeForm, timeline_items: arr}); }} className="accent-primary-500" />
+                      זמן יחסי (דקות)
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name={`timeline-mode-${i}`} checked={ti.time_mode === "exact"} onChange={() => { const arr = [...typeForm.timeline_items]; arr[i].time_mode = "exact"; setTypeForm({...typeForm, timeline_items: arr}); }} className="accent-primary-500" />
+                      שעה מדויקת
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 items-end">
+                    {ti.time_mode === "relative" ? (
+                      <div><Label className="text-xs">דקות אחרי התחלה</Label><Input type="number" value={ti.offset_minutes} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].offset_minutes = Number(e.target.value); setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
+                    ) : (
+                      <div><Label className="text-xs">שעה מדויקת</Label><Input type="time" value={ti.exact_time} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].exact_time = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
+                    )}
+                    <div><Label className="text-xs">שם (עב)</Label><Input value={ti.label_he} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_he = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
+                    <div><Label className="text-xs">שם (en)</Label><Input value={ti.label_en} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_en = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
+                    <Button size="sm" variant="ghost" onClick={() => setTypeForm({...typeForm, timeline_items: typeForm.timeline_items.filter((_, j) => j !== i)})}>
+                      <Trash2 className="h-3 w-3 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -798,7 +932,13 @@ export default function SchedulingPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t("template.recurrenceType")}</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>{t("template.recurrenceType")}</Label>
+                <HelpTooltip
+                  title={{ he: "סוג חזרתיות", en: "Recurrence type" }}
+                  content={{ he: "מגדיר כל כמה זמן המשימה חוזרת:\n• יומי — כל יום\n• שבועי — ימים ספציפיים בשבוע\n• מותאם — שבועות זוגיים/אי-זוגיים\n• חד פעמי — פעם אחת בלבד", en: "How often the mission repeats." }}
+                />
+              </div>
               <Select value={templateForm.recurrence_type} onChange={e => setTemplateForm({...templateForm, recurrence_type: e.target.value})}>
                 <option value="daily">{t("recurrence.daily")}</option>
                 <option value="weekly">{t("recurrence.weekly")}</option>
@@ -824,7 +964,12 @@ export default function SchedulingPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>{t("template.activeWeeks")}</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>{t("template.activeWeeks")}</Label>
+                <HelpTooltip
+                  content={{ he: "הגדר באילו שבועות התבנית פעילה:\n• כל השבועות — תמיד\n• שבועות אי-זוגיים — שבוע 1, 3, 5...\n• שבועות זוגיים — שבוע 2, 4, 6...\nשימושי לסבב של שבוע-בשבוע.", en: "Which weeks the template is active." }}
+                />
+              </div>
               <Select value={templateForm.active_weeks} onChange={e => setTemplateForm({...templateForm, active_weeks: e.target.value})}>
                 <option value="all">{t("recurrence.allWeeks")}</option>
                 <option value="odd">{t("recurrence.oddWeeks")}</option>
@@ -912,34 +1057,104 @@ export default function SchedulingPage() {
 
       {/* Assign Soldier */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto mobile-fullscreen">
           <DialogHeader><DialogTitle>{t("assignSoldier")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>{t("selectSoldier")}</Label>
-              <Select value={assignForm.employee_id} onChange={e => setAssignForm({...assignForm, employee_id: e.target.value})}>
-                <option value="">{t("selectSoldier")}</option>
-                {(windowEmployees.length > 0 ? windowEmployees : employees).map((emp: any) => (
-                  <option key={emp.id || emp.employee_id} value={emp.id || emp.employee_id}>
-                    {emp.full_name} ({emp.employee_number})
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>תפקיד</Label>
-              <Select value={assignForm.work_role_id} onChange={e => setAssignForm({...assignForm, work_role_id: e.target.value})}>
-                {workRoles.map(wr => <option key={wr.id} value={wr.id}>{wr.name?.[lang] || wr.name?.he}</option>)}
-              </Select>
-            </div>
+            {/* Slot selection */}
             <div className="space-y-2">
               <Label>סלוט</Label>
               <Input value={assignForm.slot_id} onChange={e => setAssignForm({...assignForm, slot_id: e.target.value})} />
             </div>
+            {/* Search soldiers */}
+            <div className="space-y-2">
+              <Label>{t("selectSoldier")}</Label>
+              <Input placeholder="חיפוש חייל..." onChange={e => {
+                const q = e.target.value.toLowerCase();
+                setAssignForm({...assignForm, _search: q} as any);
+              }} />
+            </div>
+            {/* Soldier list with role badges */}
+            <div className="max-h-[300px] overflow-y-auto space-y-1 border rounded-lg p-2">
+              {(() => {
+                const allSoldiers = windowEmployees.length > 0 ? windowEmployees : employees;
+                const currentMission = missions.find(m => m.id === assignMissionId);
+                const missionType = currentMission ? missionTypes.find(mt => mt.id === currentMission.mission_type_id) : null;
+                const slotDef = missionType?.required_slots?.find((s: any) => s.slot_id === assignForm.slot_id);
+                const requiredRoleId = slotDef?.work_role_id || assignForm.work_role_id;
+                const searchQ = (assignForm as any)._search || "";
+                
+                // Separate matching and non-matching
+                const matching: any[] = [];
+                const others: any[] = [];
+                allSoldiers.forEach((emp: any) => {
+                  const name = emp.full_name?.toLowerCase() || "";
+                  const num = emp.employee_number?.toLowerCase() || "";
+                  if (searchQ && !name.includes(searchQ) && !num.includes(searchQ)) return;
+                  
+                  const empRoles = emp.work_roles?.map((r: any) => r.id) || [];
+                  if (requiredRoleId && empRoles.includes(requiredRoleId)) {
+                    matching.push(emp);
+                  } else {
+                    others.push(emp);
+                  }
+                });
+                
+                const renderSoldier = (emp: any, isMatch: boolean) => {
+                  const id = emp.id || emp.employee_id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setAssignForm({...assignForm, employee_id: id, work_role_id: requiredRoleId || workRoles[0]?.id || ""})}
+                      className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors text-start ${
+                        assignForm.employee_id === id ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{emp.full_name}</span>
+                        <span className="text-xs text-muted-foreground">({emp.employee_number})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {emp.work_roles?.map((r: any) => (
+                          <Badge key={r.id} className="text-[10px] px-1.5" style={{ backgroundColor: r.color + "20", color: r.color }}>
+                            {r.name?.[lang] || r.name?.he}
+                          </Badge>
+                        ))}
+                        {isMatch ? (
+                          <Badge className="bg-green-100 text-green-700 text-[10px]">✓ תואם</Badge>
+                        ) : requiredRoleId ? (
+                          <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">תפקיד לא תואם</Badge>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                };
+                
+                return (
+                  <>
+                    {matching.length > 0 && (
+                      <div className="mb-2">
+                        <p className="text-xs font-medium text-green-600 mb-1">✓ תפקיד תואם ({matching.length})</p>
+                        {matching.map(emp => renderSoldier(emp, true))}
+                      </div>
+                    )}
+                    {others.length > 0 && (
+                      <div>
+                        {matching.length > 0 && <div className="border-t my-2" />}
+                        <p className="text-xs font-medium text-muted-foreground mb-1">חיילים נוספים ({others.length})</p>
+                        {others.map(emp => renderSoldier(emp, false))}
+                      </div>
+                    )}
+                    {matching.length === 0 && others.length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-4">לא נמצאו חיילים</p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAssignModal(false)}>ביטול</Button>
-            <Button onClick={assignEmployee}>שבץ</Button>
+            <Button onClick={assignEmployee} disabled={!assignForm.employee_id}>שבץ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1027,6 +1242,43 @@ export default function SchedulingPage() {
         confirmText={t("common:delete")}
         variant="destructive"
       />
+
+      {/* Import Soldiers Wizard */}
+      <Dialog open={showImportWizard} onOpenChange={setShowImportWizard}>
+        <DialogContent className="max-w-[650px] max-h-[80vh] overflow-y-auto mobile-fullscreen">
+          <DialogHeader><DialogTitle>ייבוא חיילים ללוח עבודה</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex gap-4 text-sm">
+              <Badge variant="success">{importPreviewData.length} שורות תקינות</Badge>
+              {importFileErrors.length > 0 && <Badge variant="destructive">{importFileErrors.length} שגיאות</Badge>}
+            </div>
+            {importFileErrors.length > 0 && (
+              <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+                {importFileErrors.map((err: any, i: number) => <div key={i}>שורה {err.row}: {err.error}</div>)}
+              </div>
+            )}
+            <div className="overflow-x-auto max-h-[300px]">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-muted/50">
+                  <th className="px-3 py-2 text-start">מספר אישי</th>
+                  <th className="px-3 py-2 text-start">שם</th>
+                </tr></thead>
+                <tbody>
+                  {importPreviewData.slice(0, 50).map((r: any, i: number) => (
+                    <tr key={i} className="border-b"><td className="px-3 py-2 font-mono">{r.employee_number}</td><td className="px-3 py-2">{r.full_name || "—"}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportWizard(false)}>ביטול</Button>
+            <Button onClick={executeWindowImport} disabled={importPreviewData.length === 0}>
+              ייבא {importPreviewData.length} חיילים
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

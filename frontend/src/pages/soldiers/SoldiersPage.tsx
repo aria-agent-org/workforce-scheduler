@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail } from "lucide-react";
+import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 
 interface Soldier {
@@ -55,6 +55,9 @@ export default function SoldiersPage() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Soldier | null>(null);
@@ -247,6 +250,75 @@ export default function SoldiersPage() {
     a.href = url; a.download = "soldiers.csv"; a.click();
   };
 
+  // Bulk actions
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === soldiers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(soldiers.map(s => s.id)));
+    }
+  };
+
+  const bulkAssignRole = async (roleId: string) => {
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id =>
+        api.post(tenantApi(`/employees/${id}/work-roles`), [{ work_role_id: roleId, is_primary: true }])
+      ));
+      toast("success", `תפקיד עודכן ל-${ids.length} חיילים`);
+      setSelectedIds(new Set());
+      loadSoldiers();
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בעדכון תפקיד");
+    }
+  };
+
+  const bulkChangeStatus = async (active: boolean) => {
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id =>
+        api.patch(tenantApi(`/employees/${id}`), { is_active: active })
+      ));
+      toast("success", `סטטוס עודכן ל-${ids.length} חיילים`);
+      setSelectedIds(new Set());
+      loadSoldiers();
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה");
+    }
+  };
+
+  const bulkGenerateCodes = async () => {
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map(id =>
+        api.post(tenantApi("/registration/generate-code"), { employee_id: id }).catch(() => null)
+      ));
+      toast("success", `נוצרו קודים ל-${ids.length} חיילים`);
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה ביצירת קודים");
+    }
+  };
+
+  const bulkSendNotification = async () => {
+    try {
+      const ids = Array.from(selectedIds);
+      await api.post(tenantApi("/notifications/bulk"), { employee_ids: ids, event_type: "general" });
+      toast("success", `נשלחו התראות ל-${ids.length} חיילים`);
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה");
+    }
+  };
+
   const sendBulkInvitations = async () => {
     try {
       const res = await api.post(tenantApi("/invitations/bulk"), {
@@ -328,67 +400,147 @@ export default function SoldiersPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20">
+          <CardContent className="p-3 flex flex-wrap items-center gap-2">
+            <Badge className="bg-primary-500 text-white">{selectedIds.size} נבחרו</Badge>
+            <div className="flex flex-wrap gap-1.5">
+              {workRoles.slice(0, 4).map((wr: any) => (
+                <Button key={wr.id} size="sm" variant="outline" className="text-xs h-8" onClick={() => bulkAssignRole(wr.id)}>
+                  שנה ל{wr.name?.[lang] || wr.name?.he}
+                </Button>
+              ))}
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => bulkChangeStatus(true)}>
+                <CheckSquare className="me-1 h-3 w-3" />הפעל
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => bulkChangeStatus(false)}>
+                השבת
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={bulkSendNotification}>
+                <Bell className="me-1 h-3 w-3" />שלח התראה
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={bulkGenerateCodes}>
+                <KeyRound className="me-1 h-3 w-3" />צור קודים
+              </Button>
+            </div>
+            <Button size="sm" variant="ghost" className="text-xs h-8 ms-auto" onClick={() => setSelectedIds(new Set())}>
+              בטל בחירה
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
             <TableSkeleton rows={8} cols={5} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50 text-sm">
-                    <th className="px-4 py-3 text-start font-medium">{t("employeeNumber")}</th>
-                    <th className="px-4 py-3 text-start font-medium">{t("fullName")}</th>
-                    <th className="px-4 py-3 text-start font-medium">{t("role")}</th>
-                    <th className="px-4 py-3 text-start font-medium">{t("status")}</th>
-                    <th className="px-4 py-3 text-start font-medium">{t("common:actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {soldiers.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                        {t("noSoldiers")}
-                      </td>
+            <>
+              {/* Desktop table */}
+              <div className="overflow-x-auto hidden md:block">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-sm">
+                      <th className="px-3 py-3 w-10">
+                        <input type="checkbox" checked={selectedIds.size === soldiers.length && soldiers.length > 0}
+                          onChange={toggleSelectAll} className="rounded h-4 w-4" />
+                      </th>
+                      <th className="px-4 py-3 text-start font-medium">{t("employeeNumber")}</th>
+                      <th className="px-4 py-3 text-start font-medium">{t("fullName")}</th>
+                      <th className="px-4 py-3 text-start font-medium">{t("role")}</th>
+                      <th className="px-4 py-3 text-start font-medium">{t("status")}</th>
+                      <th className="px-4 py-3 text-start font-medium">{t("common:actions")}</th>
                     </tr>
-                  ) : (
-                    soldiers.map((s) => (
-                      <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-mono text-sm">{s.employee_number}</td>
-                        <td className="px-4 py-3 font-medium">{s.full_name}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {s.work_roles?.map((r) => (
-                              <Badge key={r.id} className="text-xs" style={{ backgroundColor: r.color + "20", color: r.color }}>
-                                {r.name[lang] || r.name.he}
-                              </Badge>
-                            ))}
-                            {(!s.work_roles || s.work_roles.length === 0) && (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant={s.is_active ? "success" : "destructive"}>
-                            {s.is_active ? t("active") : t("inactive")}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
+                  </thead>
+                  <tbody>
+                    {soldiers.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                          {t("noSoldiers")}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      soldiers.map((s) => (
+                        <tr key={s.id} className={`border-b transition-colors ${selectedIds.has(s.id) ? "bg-primary-50 dark:bg-primary-900/10" : "hover:bg-muted/30"}`}>
+                          <td className="px-3 py-3">
+                            <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-4 w-4" />
+                          </td>
+                          <td className="px-4 py-3 font-mono text-sm">{s.employee_number}</td>
+                          <td className="px-4 py-3 font-medium">{s.full_name}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {s.work_roles?.map((r) => (
+                                <Badge key={r.id} className="text-xs" style={{ backgroundColor: r.color + "20", color: r.color }}>
+                                  {r.name[lang] || r.name.he}
+                                </Badge>
+                              ))}
+                              {(!s.work_roles || s.work_roles.length === 0) && (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant={s.is_active ? "success" : "destructive"}>
+                              {s.is_active ? t("active") : t("inactive")}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)}>
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-2 p-3">
+                {soldiers.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">{t("noSoldiers")}</p>
+                ) : soldiers.map((s) => (
+                  <div key={s.id} className={`rounded-xl border p-3 transition-all ${selectedIds.has(s.id) ? "ring-2 ring-primary-300 bg-primary-50/50 dark:bg-primary-900/10" : ""}`}>
+                    <div className="flex items-start gap-3">
+                      <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-5 w-5 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-sm">{s.full_name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{s.employee_number}</p>
+                          </div>
+                          <Badge variant={s.is_active ? "success" : "destructive"} className="text-[10px] flex-shrink-0">
+                            {s.is_active ? t("active") : t("inactive")}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {s.work_roles?.map((r) => (
+                            <Badge key={r.id} className="text-[10px]" style={{ backgroundColor: r.color + "20", color: r.color }}>
+                              {r.name[lang] || r.name.he}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex gap-1 mt-2 justify-end">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(s)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeleteTarget(s)}>
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
           {total > 50 && (
             <div className="flex items-center justify-between border-t px-4 py-3">

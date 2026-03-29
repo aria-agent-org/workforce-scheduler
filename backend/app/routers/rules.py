@@ -129,19 +129,97 @@ async def test_rule(
 async def get_condition_fields(
     tenant: CurrentTenant, user: CurrentUser,
 ) -> list[dict]:
-    """Get available condition fields for rule building."""
+    """Get available condition fields for rule building with Hebrew labels, descriptions, and examples."""
     return [
-        {"field": "employee.hours_since_last_mission", "type": "number", "label": {"he": "שעות מאז משימה אחרונה", "en": "Hours since last mission"}},
-        {"field": "employee.last_mission_was_night", "type": "bool", "label": {"he": "משימה אחרונה הייתה לילה", "en": "Last mission was night"}},
-        {"field": "employee.assignments_count_today", "type": "number", "label": {"he": "שיבוצים היום", "en": "Assignments today"}},
-        {"field": "employee.total_work_hours_today", "type": "number", "label": {"he": "שעות עבודה היום", "en": "Work hours today"}},
-        {"field": "employee.total_work_hours_week", "type": "number", "label": {"he": "שעות עבודה השבוע", "en": "Work hours this week"}},
-        {"field": "employee.consecutive_days_worked", "type": "number", "label": {"he": "ימי עבודה רצופים", "en": "Consecutive days worked"}},
-        {"field": "employee.status", "type": "select", "label": {"he": "סטטוס עובד", "en": "Employee status"}, "options": ["present", "home", "sick", "vacation"]},
-        {"field": "mission.start_hour", "type": "number", "label": {"he": "שעת התחלת משימה", "en": "Mission start hour"}},
-        {"field": "mission.end_hour", "type": "number", "label": {"he": "שעת סיום משימה", "en": "Mission end hour"}},
-        {"field": "mission.is_night", "type": "bool", "label": {"he": "משימת לילה", "en": "Night mission"}},
-        {"field": "mission.duration_hours", "type": "number", "label": {"he": "אורך משימה (שעות)", "en": "Mission duration (hours)"}},
-        {"field": "mission.is_weekend", "type": "bool", "label": {"he": "משימת סופ\"ש", "en": "Weekend mission"}},
-        {"field": "assignment.is_standby", "type": "bool", "label": {"he": "כוננות", "en": "Standby"}},
+        {
+            "field": "employee.hours_since_last_mission", "type": "number",
+            "label": {"he": "שעות מנוחה מאז המשימה האחרונה", "en": "Hours since last mission"},
+            "description": {"he": "כמה שעות עברו מאז שהחייל סיים את המשימה הקודמת שלו", "en": "Hours elapsed since employee finished their previous mission"},
+            "example": "16",
+        },
+        {
+            "field": "employee.last_mission_was_night", "type": "bool",
+            "label": {"he": "המשימה האחרונה הייתה לילית", "en": "Last mission was night"},
+            "description": {"he": "האם המשימה האחרונה של החייל הייתה בשעות הלילה (23:00-07:00)", "en": "Was the last mission during night hours (23:00-07:00)"},
+            "example": "true",
+        },
+        {
+            "field": "employee.assignments_count_today", "type": "number",
+            "label": {"he": "מספר שיבוצים היום", "en": "Assignments today"},
+            "description": {"he": "כמה משימות יש לחייל ביום הנוכחי (כולל המשימה הנוכחית)", "en": "Number of missions assigned today"},
+            "example": "2",
+        },
+        {
+            "field": "employee.total_work_hours_today", "type": "number",
+            "label": {"he": "סה\"כ שעות עבודה היום", "en": "Work hours today"},
+            "description": {"he": "כמה שעות החייל כבר עבד (או ישובץ לעבוד) היום", "en": "Total hours worked today"},
+            "example": "8",
+        },
+        {
+            "field": "employee.total_work_hours_week", "type": "number",
+            "label": {"he": "סה\"כ שעות עבודה השבוע", "en": "Work hours this week"},
+            "description": {"he": "כמה שעות החייל עבד בשבוע הנוכחי (ראשון עד שבת)", "en": "Total hours worked this week (Sun-Sat)"},
+            "example": "40",
+        },
+        {
+            "field": "employee.consecutive_days_worked", "type": "number",
+            "label": {"he": "ימי עבודה רצופים", "en": "Consecutive days worked"},
+            "description": {"he": "כמה ימים ברצף החייל עבד בלי יום חופש. שימושי לוודא שיש לחיילים ימי מנוחה", "en": "Days worked in a row without a day off"},
+            "example": "6",
+        },
+        {
+            "field": "employee.missions_week", "type": "number",
+            "label": {"he": "מספר משימות השבוע", "en": "Missions this week"},
+            "description": {"he": "כמה משימות ביצע החייל השבוע. שימושי לחלוקה הוגנת", "en": "Number of missions this week"},
+            "example": "5",
+        },
+        {
+            "field": "employee.status", "type": "select",
+            "label": {"he": "סטטוס נוכחות", "en": "Attendance status"},
+            "description": {"he": "הסטטוס הנוכחי של החייל. רק חייל בסטטוס \"נוכח\" ניתן לשיבוץ בדרך כלל", "en": "Current attendance status of the employee"},
+            "options": ["present", "home", "sick", "vacation", "training", "reserve"],
+            "example": "present",
+        },
+        {
+            "field": "mission.start_hour", "type": "number",
+            "label": {"he": "שעת התחלת המשימה", "en": "Mission start hour"},
+            "description": {"he": "באיזו שעה המשימה מתחילה (מספר 0-23). לדוגמה 7 = 07:00 בבוקר", "en": "Mission start hour (0-23)"},
+            "example": "7",
+        },
+        {
+            "field": "mission.end_hour", "type": "number",
+            "label": {"he": "שעת סיום המשימה", "en": "Mission end hour"},
+            "description": {"he": "באיזו שעה המשימה נגמרת (מספר 0-23). לדוגמה 15 = 15:00", "en": "Mission end hour (0-23)"},
+            "example": "15",
+        },
+        {
+            "field": "mission.is_night", "type": "bool",
+            "label": {"he": "משימה לילית", "en": "Night mission"},
+            "description": {"he": "האם המשימה מתרחשת בשעות הלילה (בין 23:00 ל-07:00)", "en": "Is the mission during night hours (23:00-07:00)"},
+            "example": "true",
+        },
+        {
+            "field": "mission.duration_hours", "type": "number",
+            "label": {"he": "משך המשימה (שעות)", "en": "Mission duration (hours)"},
+            "description": {"he": "כמה שעות נמשכת המשימה מתחילתה ועד סופה", "en": "Duration of the mission in hours"},
+            "example": "8",
+        },
+        {
+            "field": "mission.is_weekend", "type": "bool",
+            "label": {"he": "משימה בסוף שבוע", "en": "Weekend mission"},
+            "description": {"he": "האם המשימה מתוכננת ליום שישי או שבת", "en": "Is the mission on Friday or Saturday"},
+            "example": "false",
+        },
+        {
+            "field": "mission.day_of_week", "type": "number",
+            "label": {"he": "יום בשבוע", "en": "Day of week"},
+            "description": {"he": "באיזה יום המשימה: 0=ראשון, 1=שני, 2=שלישי, 3=רביעי, 4=חמישי, 5=שישי, 6=שבת", "en": "Day: 0=Sunday ... 6=Saturday"},
+            "example": "5",
+        },
+        {
+            "field": "assignment.is_standby", "type": "bool",
+            "label": {"he": "כוננות", "en": "Standby"},
+            "description": {"he": "האם זו משימת כוננות (לא משמרת פעילה רגילה, אלא זמינות בבית)", "en": "Is this a standby assignment (not active duty)"},
+            "example": "false",
+        },
     ]

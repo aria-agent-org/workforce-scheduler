@@ -15,6 +15,7 @@ import {
   ClipboardList, Sheet, Bot, LayoutTemplate,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import HelpTooltip from "@/components/common/HelpTooltip";
 import BilingualRoleName from "@/components/common/BilingualRoleName";
 import AttendanceStatusesPage from "./AttendanceStatusesPage";
 import GoogleSheetsPage from "./GoogleSheetsPage";
@@ -22,9 +23,10 @@ import BotConfigPage from "./BotConfigPage";
 import BoardTemplateEditor from "./BoardTemplateEditor";
 import UsersSettingsPage from "./UsersSettingsPage";
 import RegistrationCodesPage from "./RegistrationCodesPage";
-import { KeyRound } from "lucide-react";
+import CommunicationChannelsPage from "./CommunicationChannelsPage";
+import { KeyRound, Radio } from "lucide-react";
 
-type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels";
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -100,6 +102,7 @@ export default function SettingsPage() {
     { key: "work-roles", label: "תפקידים", icon: Users },
     { key: "attendance-statuses", label: "סטטוסי נוכחות", icon: ClipboardList },
     { key: "board-template", label: "תבנית לוח", icon: LayoutTemplate },
+    { key: "channels", label: "ערוצים", icon: Radio },
     { key: "google-sheets", label: "Google Sheets", icon: Sheet },
     { key: "bot-config", label: "בוט", icon: Bot },
     { key: "role-definitions", label: "הרשאות", icon: Shield },
@@ -204,6 +207,9 @@ export default function SettingsPage() {
 
       {/* Board Template Editor */}
       {activeTab === "board-template" && <BoardTemplateEditor />}
+
+      {/* Communication Channels */}
+      {activeTab === "channels" && <CommunicationChannelsPage />}
 
       {/* Google Sheets Integration */}
       {activeTab === "google-sheets" && <GoogleSheetsPage />}
