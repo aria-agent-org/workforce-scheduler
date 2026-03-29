@@ -3,8 +3,8 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import bcrypt as _bcrypt
 from jose import jwt
-from passlib.context import CryptContext
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +13,6 @@ from app.models.user import User, UserSession
 from app.schemas.auth import TokenResponse
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
@@ -25,12 +24,12 @@ class AuthService:
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a plaintext password."""
-        return pwd_context.hash(password)
+        return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
 
     @staticmethod
     def verify_password(plain: str, hashed: str) -> bool:
         """Verify a password against its hash."""
-        return pwd_context.verify(plain, hashed)
+        return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
     @staticmethod
     def create_access_token(user_id: uuid.UUID) -> tuple[str, int]:
@@ -75,7 +74,7 @@ class AuthService:
         # Store session
         session = UserSession(
             user_id=user.id,
-            refresh_token_hash=pwd_context.hash(refresh_token),
+            refresh_token_hash=_bcrypt.hashpw(refresh_token.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8"),
             auth_method="password",
             last_active_at=datetime.now(timezone.utc),
         )
