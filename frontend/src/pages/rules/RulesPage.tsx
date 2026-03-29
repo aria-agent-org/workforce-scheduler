@@ -25,6 +25,11 @@ const OPERATORS = [
   { value: "neq", label_he: "שונה מ", label_en: "not equals", symbol: "≠", types: ["number", "string", "select", "bool"] },
   { value: "is_true", label_he: "כן (אמת)", label_en: "is true", symbol: "✓", types: ["bool"] },
   { value: "is_false", label_he: "לא (שקר)", label_en: "is false", symbol: "✗", types: ["bool"] },
+  { value: "is_null", label_he: "ריק", label_en: "is empty", symbol: "∅", types: ["number", "string", "select"] },
+  { value: "is_not_null", label_he: "לא ריק", label_en: "is not empty", symbol: "≠∅", types: ["number", "string", "select"] },
+  { value: "between", label_he: "בין", label_en: "between", symbol: "↔", types: ["number"] },
+  { value: "in", label_he: "אחד מ", label_en: "is one of", symbol: "∈", types: ["string", "select"] },
+  { value: "not_in", label_he: "לא אחד מ", label_en: "is not one of", symbol: "∉", types: ["string", "select"] },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -428,7 +433,6 @@ export default function RulesPage() {
               {form.conditions.map((cond, i) => {
                 const fieldInfo = getFieldInfo(cond.field);
                 const availableOps = getOperatorsForField(cond.field);
-                const isBool = fieldInfo?.type === "bool";
 
                 return (
                   <div key={i} className="rounded-xl border bg-muted/20 p-3 space-y-2">
@@ -514,38 +518,112 @@ export default function RulesPage() {
                         </Select>
                       </div>
 
-                      {/* Value */}
-                      {!isBool || (cond.operator !== "is_true" && cond.operator !== "is_false") ? (
-                        <div className="space-y-1">
-                          <Label className="text-xs">ערך</Label>
-                          {fieldInfo?.type === "select" && fieldInfo.options ? (
-                            <Select
-                              value={cond.value}
-                              onChange={e => {
-                                const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
-                              }}
-                              className="min-h-[44px]"
-                            >
-                              <option value="">בחר...</option>
-                              {fieldInfo.options.map((opt: string) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </Select>
-                          ) : (
-                            <Input
-                              value={cond.value}
-                              onChange={e => {
-                                const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
-                              }}
-                              placeholder={fieldInfo?.example ? `דוגמה: ${fieldInfo.example}` : "הזן ערך..."}
-                              className="min-h-[44px]"
-                              type={fieldInfo?.type === "number" ? "number" : "text"}
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        <div />
-                      )}
+                      {/* Value — smart visibility based on operator */}
+                      {(() => {
+                        const hideValue = ["is_true", "is_false", "is_null", "is_not_null"].includes(cond.operator);
+                        const isBetween = cond.operator === "between";
+                        const isMulti = ["in", "not_in"].includes(cond.operator);
+
+                        if (hideValue) return <div />;
+
+                        if (isBetween) {
+                          const parts = (cond.value || ",").split(",");
+                          return (
+                            <div className="space-y-1">
+                              <Label className="text-xs">טווח (מ — עד)</Label>
+                              <div className="flex gap-1.5 items-center">
+                                <Input
+                                  type="number"
+                                  value={parts[0] || ""}
+                                  onChange={e => {
+                                    const c = [...form.conditions]; c[i].value = `${e.target.value},${parts[1] || ""}`; setForm({...form, conditions: c});
+                                  }}
+                                  placeholder="מינימום"
+                                  className="min-h-[44px]"
+                                />
+                                <span className="text-muted-foreground text-xs">—</span>
+                                <Input
+                                  type="number"
+                                  value={parts[1] || ""}
+                                  onChange={e => {
+                                    const c = [...form.conditions]; c[i].value = `${parts[0] || ""},${e.target.value}`; setForm({...form, conditions: c});
+                                  }}
+                                  placeholder="מקסימום"
+                                  className="min-h-[44px]"
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (isMulti) {
+                          const tags = cond.value ? cond.value.split(",").filter(Boolean) : [];
+                          return (
+                            <div className="space-y-1">
+                              <Label className="text-xs">ערכים (הפרד בפסיק)</Label>
+                              <div className="space-y-1.5">
+                                {fieldInfo?.type === "select" && fieldInfo.options ? (
+                                  <div className="flex flex-wrap gap-1.5 rounded-lg border p-2 min-h-[44px]">
+                                    {fieldInfo.options.map((opt: string) => {
+                                      const selected = tags.includes(opt);
+                                      return (
+                                        <button key={opt} type="button" onClick={() => {
+                                          const c = [...form.conditions];
+                                          const newTags = selected ? tags.filter(t => t !== opt) : [...tags, opt];
+                                          c[i].value = newTags.join(",");
+                                          setForm({...form, conditions: c});
+                                        }} className={`text-xs px-2 py-1 rounded-lg border transition-colors ${selected ? "bg-primary-500 text-white border-primary-500" : "bg-muted hover:bg-accent"}`}>
+                                          {opt}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <Input
+                                    value={cond.value}
+                                    onChange={e => {
+                                      const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
+                                    }}
+                                    placeholder="ערך1,ערך2,ערך3"
+                                    className="min-h-[44px]"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // Default: single value
+                        return (
+                          <div className="space-y-1">
+                            <Label className="text-xs">ערך</Label>
+                            {fieldInfo?.type === "select" && fieldInfo.options ? (
+                              <Select
+                                value={cond.value}
+                                onChange={e => {
+                                  const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
+                                }}
+                                className="min-h-[44px]"
+                              >
+                                <option value="">בחר...</option>
+                                {fieldInfo.options.map((opt: string) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </Select>
+                            ) : (
+                              <Input
+                                value={cond.value}
+                                onChange={e => {
+                                  const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
+                                }}
+                                placeholder={fieldInfo?.example ? `דוגמה: ${fieldInfo.example}` : "הזן ערך..."}
+                                className="min-h-[44px]"
+                                type={fieldInfo?.type === "number" ? "number" : "text"}
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Delete */}
                       <Button
@@ -566,8 +644,18 @@ export default function RulesPage() {
                           const fLabel = fieldInfo?.label?.[lang] || fieldInfo?.label?.he || cond.field;
                           const op = OPERATORS.find(o => o.value === cond.operator);
                           const opLabel = op ? (lang === "he" ? op.label_he : op.label_en) : cond.operator;
-                          if (isBool && (cond.operator === "is_true" || cond.operator === "is_false")) {
+                          if (["is_true", "is_false"].includes(cond.operator)) {
                             return `אם "${fLabel}" ${cond.operator === "is_true" ? "כן" : "לא"}`;
+                          }
+                          if (["is_null", "is_not_null"].includes(cond.operator)) {
+                            return `אם "${fLabel}" ${cond.operator === "is_null" ? "ריק" : "לא ריק"}`;
+                          }
+                          if (cond.operator === "between") {
+                            const parts = (cond.value || ",").split(",");
+                            return `אם "${fLabel}" בין ${parts[0] || "?"} ל-${parts[1] || "?"}`;
+                          }
+                          if (["in", "not_in"].includes(cond.operator)) {
+                            return `אם "${fLabel}" ${cond.operator === "in" ? "אחד מ" : "לא אחד מ"}: ${cond.value || "?"}`;
                           }
                           return `אם "${fLabel}" ${opLabel} ${cond.value || "?"}`;
                         })()}

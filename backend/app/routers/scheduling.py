@@ -182,6 +182,83 @@ async def resume_window(window_id: UUID, tenant: CurrentTenant, user: CurrentUse
     return {"id": str(w.id), "status": "active"}
 
 
+class ResetWindowRequest(PydanticBaseModel):
+    confirmation: str
+    note: str | None = None
+
+
+@router.post("/schedule-windows/{window_id}/reset")
+async def reset_window(
+    window_id: UUID,
+    data: ResetWindowRequest,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Reset a schedule window: delete draft/proposed missions, keep completed ones."""
+    if data.confirmation != "אני מאשר איפוס":
+        raise HTTPException(status_code=400, detail='יש להקליד "אני מאשר איפוס" לאישור')
+
+    result = await db.execute(
+        select(ScheduleWindow).where(
+            ScheduleWindow.id == window_id,
+            ScheduleWindow.tenant_id == tenant.id,
+        )
+    )
+    w = result.scalar_one_or_none()
+    if not w:
+        raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+
+    # Delete missions in draft/proposed status
+    missions_result = await db.execute(
+        select(Mission).where(
+            Mission.schedule_window_id == window_id,
+            Mission.status.in_(["draft", "proposed"]),
+        )
+    )
+    draft_missions = missions_result.scalars().all()
+    deleted_count = 0
+    for m in draft_missions:
+        # Delete assignments first
+        await db.execute(
+            select(MissionAssignment).where(MissionAssignment.mission_id == m.id)
+        )
+        assignments = (await db.execute(
+            select(MissionAssignment).where(MissionAssignment.mission_id == m.id)
+        )).scalars().all()
+        for a in assignments:
+            await db.delete(a)
+        await db.delete(m)
+        deleted_count += 1
+
+    # Reset window status to active
+    w.status = "active"
+    w.paused_at = None
+
+    # Audit log
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        action="reset",
+        entity_type="schedule_window",
+        entity_id=window_id,
+        after_state={
+            "deleted_missions": deleted_count,
+            "note": data.note,
+        },
+        ip_address=request.client.host if request.client else None,
+    ))
+
+    await db.commit()
+    return {
+        "id": str(w.id),
+        "status": w.status,
+        "deleted_missions": deleted_count,
+        "note": data.note,
+    }
+
+
 @router.post("/schedule-windows/{window_id}/activate")
 async def activate_window(window_id: UUID, tenant: CurrentTenant, user: CurrentUser,
                           db: AsyncSession = Depends(get_db)) -> dict:

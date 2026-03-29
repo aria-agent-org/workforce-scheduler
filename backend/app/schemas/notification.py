@@ -65,3 +65,15 @@ class NotificationSend(BaseModel):
     template_id: UUID | None = None
     channel: str = "in_app"
     body: str | None = None
+
+
+class BroadcastNotificationRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    body: str = Field(min_length=1)
+    target: str  # "all" | "present" | "custom"
+    soldier_ids: list[UUID] = []
+
+
+class BroadcastNotificationResponse(BaseModel):
+    sent: int
+    target: str

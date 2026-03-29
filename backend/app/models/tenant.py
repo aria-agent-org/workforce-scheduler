@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -61,4 +61,26 @@ class TenantSetting(Base):
 
     __table_args__ = (
         {"schema": None},
+    )
+
+
+class AuthMethodConfig(Base):
+    """Per-tenant authentication method configuration (Section 3.4d)."""
+
+    __tablename__ = "auth_method_configs"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    method: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # "password" | "webauthn" | "magic_link" | "sso_google" | "sso_saml"
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_required_as_second_factor: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "method", name="uq_auth_method_per_tenant"),
     )

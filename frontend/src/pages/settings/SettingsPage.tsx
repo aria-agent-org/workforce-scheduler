@@ -132,29 +132,114 @@ export default function SettingsPage() {
       {/* Registration Codes */}
       {activeTab === "registration" && <RegistrationCodesPage />}
 
-      {/* General Settings */}
+      {/* General Settings — Grouped by Category */}
       {activeTab === "general" && (
-        loading ? <TableSkeleton rows={5} cols={3} /> : (
-        <div className="space-y-3">
-          {settings.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">אין הגדרות מוגדרות</CardContent></Card>
-          ) : settings.map(s => (
-            <Card key={s.id} className="hover:shadow-sm transition-shadow">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">{s.label?.[lang] || s.label?.he || s.key}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    קבוצה: {s.group} · סוג: {s.value_type}
-                  </p>
-                </div>
-                <div className="text-sm font-mono max-w-[200px] truncate">
-                  {JSON.stringify(s.value)?.slice(0, 50)}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ))}
+        loading ? <TableSkeleton rows={5} cols={3} /> : (() => {
+          const GROUP_LABELS: Record<string, { label: string; icon: string; isAdvanced?: boolean }> = {
+            general: { label: "הגדרות כלליות", icon: "⚙️" },
+            scheduling: { label: "שיבוץ", icon: "📅" },
+            notifications: { label: "התראות", icon: "🔔" },
+            branding: { label: "מיתוג", icon: "🎨" },
+            integrations: { label: "אינטגרציות", icon: "🔗", isAdvanced: true },
+            ai: { label: "בינה מלאכותית", icon: "🤖", isAdvanced: true },
+            visibility: { label: "הרשאות צפייה", icon: "👁️" },
+          };
+          const groups = settings.reduce((acc: Record<string, any[]>, s: any) => {
+            const g = s.group || "general";
+            if (!acc[g]) acc[g] = [];
+            acc[g].push(s);
+            return acc;
+          }, {});
+          const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
+            const order = ["general", "scheduling", "visibility", "notifications", "branding", "integrations", "ai"];
+            return order.indexOf(a) - order.indexOf(b);
+          });
+          const advancedGroups = sortedGroups.filter(([g]) => GROUP_LABELS[g]?.isAdvanced);
+          const mainGroups = sortedGroups.filter(([g]) => !GROUP_LABELS[g]?.isAdvanced);
+
+          return (
+            <div className="space-y-6">
+              {settings.length === 0 ? (
+                <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
+                  <Settings className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                  <p className="text-lg font-medium">אין הגדרות מוגדרות</p>
+                </CardContent></Card>
+              ) : (
+                <>
+                  {mainGroups.map(([group, items]) => (
+                    <div key={group} className="space-y-3">
+                      <h2 className="text-lg font-bold flex items-center gap-2 border-b pb-2">
+                        <span>{GROUP_LABELS[group]?.icon || "📌"}</span>
+                        {GROUP_LABELS[group]?.label || group}
+                        <Badge className="bg-muted text-muted-foreground text-xs">{items.length}</Badge>
+                      </h2>
+                      <div className="grid gap-2">
+                        {items.map((s: any) => (
+                          <Card key={s.id} className="hover:shadow-sm transition-shadow">
+                            <CardContent className="p-4 flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium text-sm">{s.label?.[lang] || s.label?.he || s.key}</h3>
+                                {s.description?.[lang] && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{s.description[lang]}</p>
+                                )}
+                              </div>
+                              <div className="text-sm font-mono max-w-[250px] truncate bg-muted/50 px-2 py-1 rounded text-xs">
+                                {s.value_type === "bool"
+                                  ? (s.value === true || s.value?._v === true ? "✅ פעיל" : "❌ כבוי")
+                                  : s.value_type === "color"
+                                    ? <span className="flex items-center gap-1"><span className="w-4 h-4 rounded" style={{ backgroundColor: String(s.value?._v || s.value || "#ccc") }} />{String(s.value?._v || s.value)}</span>
+                                    : JSON.stringify(s.value)?.slice(0, 60)
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Advanced Settings - Expandable */}
+                  {advancedGroups.length > 0 && (
+                    <details className="group">
+                      <summary className="cursor-pointer text-lg font-bold flex items-center gap-2 border-b pb-2 hover:text-primary-500 transition-colors list-none">
+                        <span className="group-open:rotate-90 transition-transform">▶</span>
+                        🔧 הגדרות מתקדמות
+                        <Badge className="bg-muted text-muted-foreground text-xs">
+                          {advancedGroups.reduce((sum, [, items]) => sum + items.length, 0)}
+                        </Badge>
+                      </summary>
+                      <div className="mt-4 space-y-6">
+                        {advancedGroups.map(([group, items]) => (
+                          <div key={group} className="space-y-3">
+                            <h3 className="text-base font-semibold flex items-center gap-2">
+                              <span>{GROUP_LABELS[group]?.icon || "📌"}</span>
+                              {GROUP_LABELS[group]?.label || group}
+                            </h3>
+                            <div className="grid gap-2">
+                              {items.map((s: any) => (
+                                <Card key={s.id} className="hover:shadow-sm transition-shadow border-dashed">
+                                  <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-medium text-sm">{s.label?.[lang] || s.label?.he || s.key}</h3>
+                                    </div>
+                                    <div className="text-sm font-mono max-w-[200px] truncate bg-muted/50 px-2 py-1 rounded text-xs">
+                                      {JSON.stringify(s.value)?.slice(0, 50)}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()
+      )}
 
       {/* Work Roles */}
       {activeTab === "work-roles" && (

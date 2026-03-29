@@ -4,7 +4,9 @@ import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
-from fastapi import FastAPI
+import json
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -138,6 +140,44 @@ def create_app() -> FastAPI:
     )
 
 
+
+    # ═══════════════════════════════════════════
+    # WebSocket — Real-Time (Spec Section 13)
+    # ═══════════════════════════════════════════
+    @app.websocket("/ws/{tenant_slug}")
+    async def websocket_endpoint(websocket: WebSocket, tenant_slug: str):
+        """
+        WebSocket stub for real-time events.
+        Client sends: {"type": "subscribe", "rooms": ["missions_2026-05-20", "swaps"]}
+        Server responds with events: mission.created, mission.updated, assignment.changed, etc.
+        """
+        await websocket.accept()
+        logger.info(f"WebSocket connected for tenant: {tenant_slug}")
+        try:
+            while True:
+                data = await websocket.receive_text()
+                try:
+                    msg = json.loads(data)
+                except json.JSONDecodeError:
+                    await websocket.send_json({"type": "error", "message": "Invalid JSON"})
+                    continue
+
+                msg_type = msg.get("type")
+                if msg_type == "subscribe":
+                    rooms = msg.get("rooms", [])
+                    await websocket.send_json({
+                        "type": "subscribed",
+                        "rooms": rooms,
+                    })
+                elif msg_type == "ping":
+                    await websocket.send_json({"type": "pong"})
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Unknown message type: {msg_type}",
+                    })
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for tenant: {tenant_slug}")
 
     return app
 

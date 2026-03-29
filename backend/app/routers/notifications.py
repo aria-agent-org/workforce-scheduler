@@ -1,5 +1,6 @@
 """Notification endpoints."""
 
+import uuid as _uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -16,7 +17,9 @@ from app.models.audit import AuditLog
 from app.schemas.notification import (
     NotificationTemplateCreate, NotificationTemplateUpdate, NotificationTemplateResponse,
     NotificationLogResponse, EventTypeResponse, NotificationSend,
+    BroadcastNotificationRequest, BroadcastNotificationResponse,
 )
+from app.models.employee import Employee
 
 router = APIRouter()
 
@@ -203,3 +206,88 @@ async def list_channel_configs(
         }
         for c in result.scalars().all()
     ]
+
+
+# ═══════════════════════════════════════════
+# Broadcast Notification
+# ═══════════════════════════════════════════
+
+@router.post("/broadcast")
+async def broadcast_notification(
+    data: BroadcastNotificationRequest,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Send a broadcast push notification to targeted soldiers."""
+    from datetime import datetime
+
+    # Determine target employees
+    if data.target == "all":
+        result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tenant.id,
+                Employee.is_active.is_(True),
+            )
+        )
+        employees = result.scalars().all()
+    elif data.target == "present":
+        result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tenant.id,
+                Employee.is_active.is_(True),
+                Employee.status == "present",
+            )
+        )
+        employees = result.scalars().all()
+    elif data.target == "custom":
+        if not data.soldier_ids:
+            raise HTTPException(status_code=400, detail="יש לבחור חיילים לשליחה")
+        result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == tenant.id,
+                Employee.id.in_(data.soldier_ids),
+                Employee.is_active.is_(True),
+            )
+        )
+        employees = result.scalars().all()
+    else:
+        raise HTTPException(status_code=400, detail="סוג יעד לא תקין")
+
+    body_text = f"{data.title}: {data.body}"
+    sent = 0
+    now = datetime.utcnow()
+
+    for emp in employees:
+        log = NotificationLog(
+            tenant_id=tenant.id,
+            employee_id=emp.id,
+            channel="push",
+            event_type_code="broadcast",
+            body_sent=body_text,
+            language_sent="he",
+            status="sent",
+            sent_at=now,
+        )
+        db.add(log)
+        sent += 1
+
+    # Audit log
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        action="broadcast_notification",
+        entity_type="notification",
+        entity_id=_uuid.uuid4(),
+        after_state={
+            "title": data.title,
+            "body": data.body,
+            "target": data.target,
+            "sent_count": sent,
+        },
+        ip_address=request.client.host if request.client else None,
+    ))
+
+    await db.commit()
+    return {"sent": sent, "target": data.target}

@@ -79,6 +79,8 @@ export default function SchedulingPage() {
 
   // Edit tracking
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
+  const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<any>(null);
 
   // Form data
   const [windowForm, setWindowForm] = useState({ name: "", start_date: "", end_date: "" });
@@ -87,6 +89,7 @@ export default function SchedulingPage() {
   });
   const [typeForm, setTypeForm] = useState({
     name_he: "", name_en: "", color: "#3b82f6", icon: "📋", duration_hours: 8, is_standby: false,
+    standby_can_count_as_rest: false,
     required_slots: [] as Array<{ slot_id: string; work_role_id: string; count: number; label_he: string; label_en: string }>,
     pre_mission_events: [] as Array<{ offset_minutes: number; label_he: string; label_en: string; location_he: string }>,
     post_mission_rule: null as any,
@@ -193,6 +196,7 @@ export default function SchedulingPage() {
         icon: typeForm.icon,
         duration_hours: typeForm.duration_hours,
         is_standby: typeForm.is_standby,
+        standby_can_count_as_rest: typeForm.is_standby ? typeForm.standby_can_count_as_rest : false,
         required_slots: slots,
         pre_mission_events: preMission.length > 0 ? preMission : null,
         post_mission_rule: typeForm.post_mission_rule,
@@ -220,6 +224,7 @@ export default function SchedulingPage() {
       icon: mt.icon || "📋",
       duration_hours: mt.duration_hours || 8,
       is_standby: mt.is_standby || false,
+      standby_can_count_as_rest: mt.standby_can_count_as_rest || false,
       required_slots: (mt.required_slots || []).map((s: any) => ({
         slot_id: s.slot_id, work_role_id: s.work_role_id, count: s.count,
         label_he: s.label?.he || "", label_en: s.label?.en || "",
@@ -242,6 +247,7 @@ export default function SchedulingPage() {
     setEditingTypeId(null);
     setTypeForm({
       name_he: "", name_en: "", color: "#3b82f6", icon: "📋", duration_hours: 8, is_standby: false,
+      standby_can_count_as_rest: false,
       required_slots: [], pre_mission_events: [], post_mission_rule: null, timeline_items: [],
     });
     setShowTypeModal(true);
@@ -262,8 +268,56 @@ export default function SchedulingPage() {
       await api.post(tenantApi("/missions"), missionForm);
       toast("success", "משימה נוצרה בהצלחה");
       setShowMissionModal(false);
+      setEditingMissionId(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
     } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+  };
+
+  const updateMission = async () => {
+    if (!editingMissionId) return;
+    try {
+      await api.patch(tenantApi(`/missions/${editingMissionId}`), {
+        name: missionForm.name || undefined,
+        date: missionForm.date || undefined,
+        start_time: missionForm.start_time || undefined,
+        end_time: missionForm.end_time || undefined,
+      });
+      toast("success", "משימה עודכנה בהצלחה");
+      setShowMissionModal(false);
+      setEditingMissionId(null);
+      if (selectedWindow) loadWindowData(selectedWindow.id);
+    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בעדכון משימה"); }
+  };
+
+  const openEditMission = (m: any) => {
+    setEditingMissionId(m.id);
+    setMissionForm({
+      schedule_window_id: m.schedule_window_id,
+      mission_type_id: m.mission_type_id,
+      name: m.name,
+      date: m.date,
+      start_time: m.start_time?.slice(0, 5) || "08:00",
+      end_time: m.end_time?.slice(0, 5) || "16:00",
+    });
+    setShowMissionModal(true);
+  };
+
+  const saveMission = async () => {
+    if (editingMissionId) {
+      await updateMission();
+    } else {
+      await createMission();
+    }
+  };
+
+  // === TEMPLATE DELETE ===
+  const deleteTemplate = async (tmpl: any) => {
+    try {
+      await api.delete(tenantApi(`/mission-templates/${tmpl.id}`));
+      toast("success", "תבנית נמחקה");
+      setDeleteTemplateTarget(null);
+      if (selectedWindow) loadWindowData(selectedWindow.id);
+    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה במחיקת תבנית"); }
   };
 
   // === TEMPLATES ===
@@ -422,7 +476,8 @@ export default function SchedulingPage() {
                 <Calendar className="me-1 h-4 w-4" />יצירה מתבנית
               </Button>
               <Button size="sm" onClick={() => {
-                setMissionForm({ ...missionForm, schedule_window_id: selectedWindow.id });
+                setEditingMissionId(null);
+                setMissionForm({ schedule_window_id: selectedWindow.id, mission_type_id: "", name: "", date: boardDate, start_time: "08:00", end_time: "16:00" });
                 setShowMissionModal(true);
               }}>
                 <Plus className="me-1 h-4 w-4" />משימה חדשה
@@ -483,43 +538,59 @@ export default function SchedulingPage() {
                 <Plus className="me-1 h-4 w-4" />צור לוח עבודה ראשון
               </Button>
             </CardContent></Card>
-          ) : windows.map((w) => (
-            <Card key={w.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openWindowBoard(w)}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">{w.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {w.start_date} → {w.end_date} · <Users className="inline h-3 w-3" /> {w.employee_count} חיילים
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Badge className={statusColors[w.status] || ""}>{t(`status.${w.status}`)}</Badge>
-                    <div className="flex gap-1">
-                      {w.status === "draft" && (
-                        <Button size="sm" variant="outline" onClick={() => windowAction(w.id, "activate")} title="הפעל">
-                          <Play className="h-3 w-3" />
-                        </Button>
-                      )}
-                      {w.status === "active" && (
-                        <Button size="sm" variant="outline" onClick={() => windowAction(w.id, "pause")} title="השהה">
-                          <Pause className="h-3 w-3" />
-                        </Button>
-                      )}
-                      {w.status === "paused" && (
-                        <Button size="sm" variant="outline" onClick={() => windowAction(w.id, "resume")} title="חדש">
-                          <Play className="h-3 w-3" />
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
-                        <Archive className="h-3 w-3" />
-                      </Button>
+          ) : windows.map((w) => {
+            const daysTotal = Math.ceil((new Date(w.end_date).getTime() - new Date(w.start_date).getTime()) / (1000 * 60 * 60 * 24));
+            const daysElapsed = Math.max(0, Math.ceil((Date.now() - new Date(w.start_date).getTime()) / (1000 * 60 * 60 * 24)));
+            const progressPercent = daysTotal > 0 ? Math.min(100, Math.round((daysElapsed / daysTotal) * 100)) : 0;
+
+            return (
+            <Card key={w.id} className="hover:shadow-lg transition-all cursor-pointer group border-s-4" style={{ borderInlineStartColor: w.status === "active" ? "#22c55e" : w.status === "paused" ? "#eab308" : w.status === "archived" ? "#6366f1" : "#9ca3af" }} onClick={() => openWindowBoard(w)}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-bold">{w.name}</h3>
+                      <Badge className={`${statusColors[w.status] || ""} text-xs`}>{t(`status.${w.status}`)}</Badge>
                     </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{w.start_date} → {w.end_date}</span>
+                      <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{w.employee_count} חיילים</span>
+                      <span className="text-xs">{daysTotal} ימים</span>
+                    </div>
+                    {w.status === "active" && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${progressPercent}%` }} />
+                        </div>
+                        <span className="text-xs text-muted-foreground">{progressPercent}%</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    {w.status === "draft" && (
+                      <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "activate")} title="הפעל">
+                        <Play className="h-3.5 w-3.5 me-1" />הפעל
+                      </Button>
+                    )}
+                    {w.status === "active" && (
+                      <Button size="sm" variant="outline" className="min-h-[40px] border-yellow-300 text-yellow-700 hover:bg-yellow-50" onClick={() => windowAction(w.id, "pause")} title="השהה">
+                        <Pause className="h-3.5 w-3.5 me-1" />השהה
+                      </Button>
+                    )}
+                    {w.status === "paused" && (
+                      <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "resume")} title="חדש">
+                        <Play className="h-3.5 w-3.5 me-1" />חדש
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="min-h-[40px] text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
+                      <Archive className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -551,44 +622,67 @@ export default function SchedulingPage() {
               <p className="text-sm mt-1">צור משימה חדשה או השתמש בתבנית כדי ליצור משימות אוטומטית</p>
             </CardContent></Card>
           ) : (
-            <div className="space-y-2">
-              {boardMissions.map((m) => (
-                <Card key={m.id} className="hover:shadow-sm transition-shadow">
-                  <CardContent className="p-3">
+            <div className="space-y-3">
+              {boardMissions.map((m) => {
+                const mt = missionTypes.find(mt => mt.id === m.mission_type_id);
+                const mtColor = mt?.color || "#3b82f6";
+                const slotsTotal = mt?.required_slots?.reduce((sum: number, s: any) => sum + (s.count || 1), 0) || 0;
+                const assignedCount = m.assignments?.length || 0;
+                const fillPercent = slotsTotal > 0 ? Math.round((assignedCount / slotsTotal) * 100) : 0;
+
+                return (
+                <Card key={m.id} className="hover:shadow-lg transition-all border-s-4 group" style={{ borderInlineStartColor: mtColor }}>
+                  <CardContent className="p-4">
                     <div className="flex items-center justify-between cursor-pointer"
                          onClick={() => setExpandedMission(expandedMission === m.id ? null : m.id)}>
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-8 rounded-full" style={{ backgroundColor: missionTypes.find(mt => mt.id === m.mission_type_id)?.color || "#3b82f6" }} />
+                        <div className="h-11 w-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ backgroundColor: mtColor + "18" }}>
+                          {mt?.icon || "📋"}
+                        </div>
                         <div>
-                          <p className="font-medium">{m.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            📅 {m.date} · ⏰ {m.start_time?.slice(0, 5)}-{m.end_time?.slice(0, 5)}
-                            {m.assignments?.length > 0 && ` · 👥 ${m.assignments.length} משובצים`}
-                          </p>
+                          <p className="font-semibold text-base">{m.name}</p>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                            <span>📅 {m.date}</span>
+                            <span>⏰ {m.start_time?.slice(0, 5)}–{m.end_time?.slice(0, 5)}</span>
+                            <span className={`font-medium ${fillPercent === 100 ? "text-green-600" : fillPercent > 0 ? "text-yellow-600" : "text-red-500"}`}>
+                              👥 {assignedCount}/{slotsTotal || "?"}
+                            </span>
+                          </div>
+                          {slotsTotal > 0 && (
+                            <div className="w-24 h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${fillPercent}%`, backgroundColor: fillPercent === 100 ? "#22c55e" : fillPercent > 0 ? "#eab308" : "#ef4444" }} />
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={statusColors[m.status] || ""}>{t(`status.${m.status}`)}</Badge>
-                        {expandedMission === m.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity min-h-[36px]" onClick={(e) => { e.stopPropagation(); openEditMission(m); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Badge className={`${statusColors[m.status] || ""} text-xs font-medium`}>{t(`status.${m.status}`)}</Badge>
+                        {expandedMission === m.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
                     {expandedMission === m.id && (
                       <div className="mt-3 border-t pt-3 space-y-2">
-                        <div className="flex gap-2 mb-2">
-                          <Button size="sm" variant="outline" onClick={() => {
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => {
                             setAssignMissionId(m.id);
                             setAssignForm({ employee_id: "", work_role_id: workRoles[0]?.id || "", slot_id: "default" });
                             setShowAssignModal(true);
                           }}>
-                            <UserPlus className="me-1 h-3 w-3" />{t("assignSoldier")}
+                            <UserPlus className="me-1 h-3.5 w-3.5" />{t("assignSoldier")}
+                          </Button>
+                          <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => openEditMission(m)}>
+                            <Pencil className="me-1 h-3.5 w-3.5" />ערוך
                           </Button>
                           {m.status === "draft" && (
-                            <Button size="sm" variant="outline" onClick={() => missionAction(m.id, "approve")}>
-                              <Check className="me-1 h-3 w-3" />אשר
+                            <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => missionAction(m.id, "approve")}>
+                              <Check className="me-1 h-3.5 w-3.5" />אשר
                             </Button>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => missionAction(m.id, "cancel")}>
-                            <Trash2 className="h-3 w-3 text-red-500" />
+                          <Button size="sm" variant="ghost" className="min-h-[40px] text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => missionAction(m.id, "cancel")}>
+                            <Trash2 className="h-3.5 w-3.5 me-1" />בטל
                           </Button>
                         </div>
                         {m.assignments?.length > 0 ? (
@@ -614,7 +708,8 @@ export default function SchedulingPage() {
                     )}
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -696,24 +791,36 @@ export default function SchedulingPage() {
             </Select>
           </div>
           {templates.map((tmpl) => (
-            <Card key={tmpl.id}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">{tmpl.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {tmpl.recurrence?.type === "daily" ? "יומי" : tmpl.recurrence?.type === "weekly" ? "שבועי" : "מותאם אישית"}
-                    {tmpl.recurrence?.active_weeks && tmpl.recurrence.active_weeks !== "all" && ` · שבועות ${tmpl.recurrence.active_weeks === "odd" ? "אי-זוגיים" : "זוגיים"}`}
-                    {tmpl.time_slots?.map((ts: any, i: number) => (
-                      <span key={i}> · {ts.start}-{ts.end}</span>
-                    ))}
-                  </p>
+            <Card key={tmpl.id} className="hover:shadow-md transition-all">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Copy className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{tmpl.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {tmpl.recurrence?.type === "daily" ? "🔄 יומי" : tmpl.recurrence?.type === "weekly" ? "📅 שבועי" : "⚙️ מותאם אישית"}
+                        {tmpl.recurrence?.active_weeks && tmpl.recurrence.active_weeks !== "all" && ` · שבועות ${tmpl.recurrence.active_weeks === "odd" ? "אי-זוגיים" : "זוגיים"}`}
+                        {tmpl.time_slots?.map((ts: any, i: number) => (
+                          <span key={i} className="text-xs"> · ⏰ {ts.start}-{ts.end}</span>
+                        ))}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => {
+                      setGenerateForm({ template_id: tmpl.id, start_date: selectedWindow?.start_date || "", end_date: selectedWindow?.end_date || "" });
+                      setShowGenerateModal(true);
+                    }}>
+                      <Calendar className="me-1 h-3.5 w-3.5" />צור משימות
+                    </Button>
+                    <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px] text-red-500 hover:bg-red-50" onClick={() => setDeleteTemplateTarget(tmpl)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => {
-                  setGenerateForm({ template_id: tmpl.id, start_date: selectedWindow?.start_date || "", end_date: selectedWindow?.end_date || "" });
-                  setShowGenerateModal(true);
-                }}>
-                  <Calendar className="me-1 h-3 w-3" />צור משימות
-                </Button>
               </CardContent>
             </Card>
           ))}
@@ -746,28 +853,83 @@ export default function SchedulingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Mission */}
-      <Dialog open={showMissionModal} onOpenChange={setShowMissionModal}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>משימה חדשה</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label>שם</Label><Input value={missionForm.name} onChange={e => setMissionForm({...missionForm, name: e.target.value})} /></div>
+      {/* Create/Edit Mission */}
+      <Dialog open={showMissionModal} onOpenChange={(open) => { setShowMissionModal(open); if (!open) setEditingMissionId(null); }}>
+        <DialogContent className="max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              {editingMissionId ? "✏️ עריכת משימה" : "➕ משימה חדשה"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label>סוג משימה</Label>
-              <Select value={missionForm.mission_type_id} onChange={e => setMissionForm({...missionForm, mission_type_id: e.target.value})}>
-                <option value="">בחר סוג</option>
-                {missionTypes.map(mt => <option key={mt.id} value={mt.id}>{mt.name[lang] || mt.name.he}</option>)}
-              </Select>
+              <Label className="text-sm font-semibold">שם המשימה <span className="text-red-500">*</span></Label>
+              <Input 
+                value={missionForm.name} 
+                onChange={e => setMissionForm({...missionForm, name: e.target.value})} 
+                placeholder="לדוגמה: שמירה צפונית"
+                className="min-h-[44px] text-base"
+              />
             </div>
-            <div className="space-y-2"><Label>תאריך</Label><Input type="date" value={missionForm.date} onChange={e => setMissionForm({...missionForm, date: e.target.value})} /></div>
+            {!editingMissionId && (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">סוג משימה <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={missionForm.mission_type_id} 
+                  onChange={e => setMissionForm({...missionForm, mission_type_id: e.target.value})}
+                  className="min-h-[44px]"
+                >
+                  <option value="">בחר סוג משימה...</option>
+                  {missionTypes.map(mt => (
+                    <option key={mt.id} value={mt.id}>
+                      {mt.icon || "📋"} {mt.name[lang] || mt.name.he}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">תאריך <span className="text-red-500">*</span></Label>
+              <Input 
+                type="date" 
+                value={missionForm.date} 
+                onChange={e => setMissionForm({...missionForm, date: e.target.value})} 
+                className="min-h-[44px]"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>שעת התחלה</Label><Input type="time" value={missionForm.start_time} onChange={e => setMissionForm({...missionForm, start_time: e.target.value})} /></div>
-              <div className="space-y-2"><Label>שעת סיום</Label><Input type="time" value={missionForm.end_time} onChange={e => setMissionForm({...missionForm, end_time: e.target.value})} /></div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">שעת התחלה <span className="text-red-500">*</span></Label>
+                <Input 
+                  type="time" 
+                  value={missionForm.start_time} 
+                  onChange={e => setMissionForm({...missionForm, start_time: e.target.value})} 
+                  className="min-h-[44px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">שעת סיום <span className="text-red-500">*</span></Label>
+                <Input 
+                  type="time" 
+                  value={missionForm.end_time} 
+                  onChange={e => setMissionForm({...missionForm, end_time: e.target.value})} 
+                  className="min-h-[44px]"
+                />
+              </div>
             </div>
+            {editingMissionId && (
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                💡 סוג המשימה לא ניתן לשינוי לאחר יצירה. לשינוי סוג — מחק וצור מחדש.
+              </p>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowMissionModal(false)}>ביטול</Button>
-            <Button onClick={createMission}>צור</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setShowMissionModal(false); setEditingMissionId(null); }} className="min-h-[44px]">
+              ביטול
+            </Button>
+            <Button onClick={saveMission} className="min-h-[44px]">
+              {editingMissionId ? "💾 עדכן משימה" : "➕ צור משימה"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -796,11 +958,23 @@ export default function SchedulingPage() {
                 </div>
                 <Input type="number" value={typeForm.duration_hours} onChange={e => setTypeForm({...typeForm, duration_hours: Number(e.target.value)})} placeholder="מותאם" />
               </div>
-              <div className="space-y-2 flex items-end">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={typeForm.is_standby} onChange={e => setTypeForm({...typeForm, is_standby: e.target.checked})} className="rounded" />
-                  כוננות
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                  <input type="checkbox" checked={typeForm.is_standby} onChange={e => setTypeForm({...typeForm, is_standby: e.target.checked})} className="rounded accent-primary-500" />
+                  <div>
+                    <span className="font-medium">⚡ כוננות</span>
+                    <p className="text-xs text-muted-foreground">משימה מסוג כוננות — לא תמיד מופעלת</p>
+                  </div>
                 </label>
+                {typeForm.is_standby && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-dashed p-3 hover:bg-muted/50 transition-colors ms-4 animate-in slide-in-from-top-1">
+                    <input type="checkbox" checked={typeForm.standby_can_count_as_rest} onChange={e => setTypeForm({...typeForm, standby_can_count_as_rest: e.target.checked})} className="rounded accent-primary-500" />
+                    <div>
+                      <span className="font-medium">😴 כוננות נחשבת מנוחה</span>
+                      <p className="text-xs text-muted-foreground">כוננות שלא הופעלה נספרת כזמן מנוחה</p>
+                    </div>
+                  </label>
+                )}
               </div>
             </div>
 
@@ -1240,6 +1414,17 @@ export default function SchedulingPage() {
         title={t("deleteMissionType")}
         description={t("deleteMissionTypeConfirm")}
         confirmText={t("common:delete")}
+        variant="destructive"
+      />
+
+      {/* Delete Template Confirm */}
+      <ConfirmDialog
+        open={!!deleteTemplateTarget}
+        onClose={() => setDeleteTemplateTarget(null)}
+        onConfirm={() => deleteTemplateTarget && deleteTemplate(deleteTemplateTarget)}
+        title="מחיקת תבנית"
+        description={`האם למחוק את התבנית "${deleteTemplateTarget?.name}"? פעולה זו לא ניתנת לביטול.`}
+        confirmText="מחק"
         variant="destructive"
       />
 
