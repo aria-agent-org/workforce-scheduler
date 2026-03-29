@@ -122,7 +122,7 @@ class MissionTemplateResponse(BaseModel):
     mission_type_id: UUID
     name: str
     recurrence: Optional[dict] = None
-    time_slots: Optional[dict] = None
+    time_slots: Optional[list] = None
     is_active: bool
     created_at: dt.datetime
     updated_at: dt.datetime
