@@ -53,78 +53,6 @@ async def create_rule(
     return RuleResponse.model_validate(rule).model_dump()
 
 
-@router.get("/{rule_id}")
-async def get_rule(
-    rule_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
-) -> dict:
-    result = await db.execute(
-        select(RuleDefinition).where(RuleDefinition.id == rule_id, RuleDefinition.tenant_id == tenant.id)
-    )
-    rule = result.scalar_one_or_none()
-    if not rule:
-        raise HTTPException(status_code=404, detail="חוק לא נמצא")
-    return RuleResponse.model_validate(rule).model_dump()
-
-
-@router.patch("/{rule_id}")
-async def update_rule(
-    rule_id: UUID, data: RuleUpdate, tenant: CurrentTenant, user: CurrentUser,
-    request: Request, db: AsyncSession = Depends(get_db),
-) -> dict:
-    result = await db.execute(
-        select(RuleDefinition).where(RuleDefinition.id == rule_id, RuleDefinition.tenant_id == tenant.id)
-    )
-    rule = result.scalar_one_or_none()
-    if not rule:
-        raise HTTPException(status_code=404, detail="חוק לא נמצא")
-    for key, value in data.model_dump(exclude_unset=True).items():
-        setattr(rule, key, value)
-    await db.flush()
-    await db.refresh(rule)
-    await db.commit()
-    return RuleResponse.model_validate(rule).model_dump()
-
-
-@router.delete("/{rule_id}", status_code=204)
-async def delete_rule(
-    rule_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
-) -> None:
-    result = await db.execute(
-        select(RuleDefinition).where(RuleDefinition.id == rule_id, RuleDefinition.tenant_id == tenant.id)
-    )
-    rule = result.scalar_one_or_none()
-    if not rule:
-        raise HTTPException(status_code=404, detail="חוק לא נמצא")
-    rule.is_active = False
-    await db.commit()
-
-
-@router.post("/evaluate")
-async def evaluate_rules(
-    data: RuleEvaluateRequest,
-    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Evaluate all active rules against a proposed assignment."""
-    from app.services.rules_engine import evaluate_assignment
-    result = await evaluate_assignment(db, tenant.id, data.employee_id, data.mission_id)
-    return result
-
-
-@router.post("/test")
-async def test_rule(
-    data: RuleTestRequest,
-    tenant: CurrentTenant, user: CurrentUser,
-) -> dict:
-    """Test a rule condition against mock context."""
-    from app.services.rules_engine import evaluate_condition
-    result = evaluate_condition(data.condition_expression, data.test_context)
-    return {
-        "result": result,
-        "matched_conditions": [],
-        "explanation": "תנאי עבר בהצלחה" if result else "תנאי לא מתקיים",
-    }
-
-
 @router.get("/condition-fields")
 async def get_condition_fields(
     tenant: CurrentTenant, user: CurrentUser,
@@ -223,3 +151,76 @@ async def get_condition_fields(
             "example": "false",
         },
     ]
+@router.get("/{rule_id}")
+async def get_rule(
+    rule_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(RuleDefinition).where(RuleDefinition.id == rule_id, RuleDefinition.tenant_id == tenant.id)
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="חוק לא נמצא")
+    return RuleResponse.model_validate(rule).model_dump()
+
+
+@router.patch("/{rule_id}")
+async def update_rule(
+    rule_id: UUID, data: RuleUpdate, tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(RuleDefinition).where(RuleDefinition.id == rule_id, RuleDefinition.tenant_id == tenant.id)
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="חוק לא נמצא")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(rule, key, value)
+    await db.flush()
+    await db.refresh(rule)
+    await db.commit()
+    return RuleResponse.model_validate(rule).model_dump()
+
+
+@router.delete("/{rule_id}", status_code=204)
+async def delete_rule(
+    rule_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        select(RuleDefinition).where(RuleDefinition.id == rule_id, RuleDefinition.tenant_id == tenant.id)
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="חוק לא נמצא")
+    rule.is_active = False
+    await db.commit()
+
+
+@router.post("/evaluate")
+async def evaluate_rules(
+    data: RuleEvaluateRequest,
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Evaluate all active rules against a proposed assignment."""
+    from app.services.rules_engine import evaluate_assignment
+    result = await evaluate_assignment(db, tenant.id, data.employee_id, data.mission_id)
+    return result
+
+
+@router.post("/test")
+async def test_rule(
+    data: RuleTestRequest,
+    tenant: CurrentTenant, user: CurrentUser,
+) -> dict:
+    """Test a rule condition against mock context."""
+    from app.services.rules_engine import evaluate_condition
+    result = evaluate_condition(data.condition_expression, data.test_context)
+    return {
+        "result": result,
+        "matched_conditions": [],
+        "explanation": "תנאי עבר בהצלחה" if result else "תנאי לא מתקיים",
+    }
+
+
+
