@@ -1,19 +1,20 @@
 """Settings schemas."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
 
 
 class TenantSettingUpdate(BaseModel):
-    value: dict | None = None
+    value: Any = None
 
 class TenantSettingResponse(BaseModel):
     id: UUID
     tenant_id: UUID
     key: str
-    value: dict | None = None
+    value: Any = None
     value_type: str
     label: dict
     description: dict | None = None
