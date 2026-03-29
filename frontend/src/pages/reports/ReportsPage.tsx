@@ -121,21 +121,21 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex gap-2">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide pb-1">
           {reports.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setActiveReport(key)}
-              className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm transition-colors ${
+              className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm whitespace-nowrap min-h-[44px] transition-colors ${
                 activeReport === key ? "bg-primary-500 text-white" : "bg-muted text-muted-foreground hover:bg-accent"
               }`}>
               <Icon className="h-4 w-4" />{label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 ms-auto">
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
+        <div className="flex items-center gap-2 ms-auto w-full sm:w-auto">
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="flex-1 sm:w-36 min-h-[44px]" />
           <span>—</span>
-          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
+          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="flex-1 sm:w-36 min-h-[44px]" />
         </div>
       </div>
 

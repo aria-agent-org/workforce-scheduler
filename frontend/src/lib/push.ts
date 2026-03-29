@@ -1,7 +1,13 @@
 /**
  * Web Push notification helpers for Shavtzak.
+ * 
+ * Each failure point throws/returns a SPECIFIC Hebrew error message for debugging.
  */
 import api, { tenantApi } from "./api";
+
+/** Last push error — readable by UI for debugging */
+let _lastPushError: string | null = null;
+export function getLastPushError(): string | null { return _lastPushError; }
 
 /**
  * Convert a URL-safe base64 string to a Uint8Array (needed for PushManager.subscribe).
@@ -37,59 +43,177 @@ export function getPushPermission(): NotificationPermission | "unsupported" {
  */
 export async function getVapidPublicKey(): Promise<string | null> {
   try {
-    const res = await api.get(tenantApi("/push/vapid-public-key"));
-    return res.data.public_key;
-  } catch {
-    console.error("[Push] Failed to get VAPID public key");
+    const url = tenantApi("/push/vapid-public-key");
+    console.log("[Push] Fetching VAPID key from:", url);
+    const res = await api.get(url);
+    const key = res.data?.public_key || res.data?.vapid_public_key || res.data?.key;
+    if (!key) {
+      console.error("[Push] VAPID response missing key field:", res.data);
+      return null;
+    }
+    return key;
+  } catch (err: any) {
+    console.error("[Push] Failed to get VAPID public key:", err?.response?.status, err?.message);
     return null;
   }
 }
 
 /**
+ * Ensure the service worker is registered and ready.
+ * This resolves the common issue where navigator.serviceWorker.ready hangs
+ * if the SW wasn't registered yet.
+ */
+async function ensureServiceWorkerReady(timeoutMs = 10000): Promise<ServiceWorkerRegistration> {
+  // First check if SW is supported
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("Service Worker לא נתמך בדפדפן זה");
+  }
+
+  // Check if there's already a registration
+  let registration = await navigator.serviceWorker.getRegistration("/");
+  
+  if (!registration) {
+    // Attempt to register the SW ourselves
+    console.log("[Push] No SW found, registering /sw.js...");
+    try {
+      registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      console.log("[Push] SW registered, scope:", registration.scope);
+    } catch (regErr: any) {
+      console.error("[Push] SW registration failed:", regErr);
+      throw new Error(`Service Worker לא מוכן — שגיאת רישום: ${regErr.message}`);
+    }
+  }
+
+  // Wait for the SW to become active, with a timeout
+  if (registration.active) {
+    return registration;
+  }
+
+  // SW exists but isn't active yet — wait for it
+  return new Promise<ServiceWorkerRegistration>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error("Service Worker לא מוכן — timeout אחרי " + (timeoutMs / 1000) + " שניות"));
+    }, timeoutMs);
+
+    // Check if installing or waiting
+    const sw = registration!.installing || registration!.waiting || registration!.active;
+    if (sw && sw.state === "activated") {
+      clearTimeout(timer);
+      resolve(registration!);
+      return;
+    }
+
+    const onStateChange = () => {
+      if (sw && (sw.state === "activated" || sw.state === "redundant")) {
+        clearTimeout(timer);
+        sw.removeEventListener("statechange", onStateChange);
+        if (sw.state === "activated") {
+          resolve(registration!);
+        } else {
+          reject(new Error("Service Worker הפך ל-redundant"));
+        }
+      }
+    };
+
+    if (sw) {
+      sw.addEventListener("statechange", onStateChange);
+    }
+
+    // Also race with navigator.serviceWorker.ready
+    navigator.serviceWorker.ready.then((readyReg) => {
+      clearTimeout(timer);
+      resolve(readyReg);
+    }).catch(() => {});
+  });
+}
+
+/**
  * Subscribe the browser to push notifications and register with backend.
- * Returns true on success.
+ * Returns { success: true } or { success: false, error: "specific Hebrew error" }.
  */
 export async function subscribeToPush(): Promise<boolean> {
+  _lastPushError = null;
+
+  // Step 1: Check browser support
   if (!isPushSupported()) {
-    console.warn("[Push] Not supported in this browser");
+    _lastPushError = "PushManager לא נתמך בדפדפן זה — נסה Chrome, Edge או Firefox";
+    console.warn("[Push]", _lastPushError);
     return false;
   }
 
   try {
-    // Request notification permission
+    // Step 2: Request notification permission
+    console.log("[Push] Requesting permission...");
     const permission = await Notification.requestPermission();
+    console.log("[Push] Permission result:", permission);
     if (permission !== "granted") {
-      console.warn("[Push] Permission denied");
+      _lastPushError = "ההרשאה נדחתה — אפשר התראות בהגדרות הדפדפן (לחץ על 🔒 ליד שורת הכתובת)";
+      console.warn("[Push]", _lastPushError);
       return false;
     }
 
-    // Get VAPID public key
+    // Step 3: Get VAPID public key
+    console.log("[Push] Getting VAPID key...");
     const vapidKey = await getVapidPublicKey();
     if (!vapidKey) {
-      console.error("[Push] No VAPID key available");
+      _lastPushError = "שגיאה בקבלת מפתח VAPID מהשרת — בדוק שה-backend פועל ומחזיר vapid-public-key";
+      console.error("[Push]", _lastPushError);
+      return false;
+    }
+    console.log("[Push] VAPID key received, length:", vapidKey.length);
+
+    // Step 4: Ensure service worker is ready
+    console.log("[Push] Waiting for Service Worker...");
+    let registration: ServiceWorkerRegistration;
+    try {
+      registration = await ensureServiceWorkerReady(15000);
+    } catch (swErr: any) {
+      _lastPushError = swErr.message || "Service Worker לא מוכן";
+      console.error("[Push]", _lastPushError);
+      return false;
+    }
+    console.log("[Push] SW ready, scope:", registration.scope);
+
+    // Step 5: Subscribe to push via PushManager
+    console.log("[Push] Subscribing to PushManager...");
+    let subscription: PushSubscription;
+    try {
+      const appServerKey = urlBase64ToUint8Array(vapidKey);
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appServerKey.buffer as ArrayBuffer,
+      });
+    } catch (subErr: any) {
+      _lastPushError = `שגיאת הרשמה ל-PushManager: ${subErr.message}`;
+      console.error("[Push]", _lastPushError, subErr);
+      return false;
+    }
+    console.log("[Push] PushManager subscription created:", subscription.endpoint.slice(0, 60) + "...");
+
+    // Step 6: Send subscription to backend
+    console.log("[Push] Sending subscription to backend...");
+    const subJSON = subscription.toJSON();
+    try {
+      const url = tenantApi("/push/subscribe");
+      console.log("[Push] POST to:", url);
+      await api.post(url, {
+        endpoint: subJSON.endpoint,
+        keys: subJSON.keys,
+      });
+    } catch (apiErr: any) {
+      _lastPushError = `שגיאה בשמירת המנוי בשרת: ${apiErr.response?.status || ""} ${apiErr.response?.data?.detail || apiErr.message}`;
+      console.error("[Push]", _lastPushError, apiErr);
+      // Don't return false — the browser subscription exists; server issue is non-fatal
+      // but still report it
       return false;
     }
 
-    // Get service worker registration
-    const registration = await navigator.serviceWorker.ready;
-
-    // Subscribe to push
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidKey),
-    });
-
-    // Send subscription to backend
-    const subJSON = subscription.toJSON();
-    await api.post(tenantApi("/push/subscribe"), {
-      endpoint: subJSON.endpoint,
-      keys: subJSON.keys,
-    });
-
-    console.log("[Push] Subscribed successfully");
+    console.log("[Push] ✅ Subscribed successfully!");
+    _lastPushError = null;
     return true;
-  } catch (error) {
-    console.error("[Push] Subscribe failed:", error);
+  } catch (error: any) {
+    _lastPushError = `שגיאה לא צפויה: ${error.message}`;
+    console.error("[Push] Unexpected error:", error);
     return false;
   }
 }
@@ -99,7 +223,9 @@ export async function subscribeToPush(): Promise<boolean> {
  */
 export async function unsubscribeFromPush(): Promise<boolean> {
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.getRegistration("/");
+    if (!registration) return true;
+    
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
       // Notify backend
@@ -121,7 +247,8 @@ export async function unsubscribeFromPush(): Promise<boolean> {
  */
 export async function isPushSubscribed(): Promise<boolean> {
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.getRegistration("/");
+    if (!registration) return false;
     const subscription = await registration.pushManager.getSubscription();
     return !!subscription;
   } catch {
@@ -138,4 +265,44 @@ export async function sendTestPush(): Promise<{ sent: number; failed: number }> 
     body: "התראות Push עובדות! 🎉",
   });
   return res.data;
+}
+
+/**
+ * Auto-subscribe to push after login.
+ * Call this after successful authentication.
+ * - If permission not asked → requests it
+ * - If already granted → subscribes silently
+ * - If denied → does nothing (no blocking modal)
+ * Returns a message string for a subtle toast, or null if nothing happened.
+ */
+export async function autoSubscribeAfterLogin(): Promise<string | null> {
+  if (!isPushSupported()) return null;
+
+  const perm = Notification.permission;
+
+  // If already denied, don't bother
+  if (perm === "denied") {
+    console.log("[Push] Auto-subscribe skipped — permission denied");
+    return null;
+  }
+
+  // Check if already subscribed
+  const alreadySubscribed = await isPushSubscribed();
+  if (alreadySubscribed) {
+    console.log("[Push] Already subscribed, skipping auto-subscribe");
+    return null;
+  }
+
+  // If permission is "default" (not asked yet), request it
+  // If "granted", subscribe directly
+  const ok = await subscribeToPush();
+  if (ok) {
+    return "🔔 התראות Push הופעלו";
+  }
+  
+  // Log the specific error but don't show blocking UI
+  if (_lastPushError) {
+    console.warn("[Push] Auto-subscribe failed:", _lastPushError);
+  }
+  return null;
 }

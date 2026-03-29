@@ -254,13 +254,13 @@ export default function AttendancePage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{t("nav.attendance")}</h1>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={exportToCSV}>
             <Download className="me-1 h-4 w-4" />CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToExcel}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={exportToExcel}>
             <Download className="me-1 h-4 w-4" />Excel
           </Button>
-          <Button onClick={saveAll} disabled={saving}>
+          <Button onClick={saveAll} disabled={saving} className="min-h-[44px]">
             <Save className="me-1 h-4 w-4" />
             {saving ? "שומר..." : "שמור הכל"}
           </Button>
@@ -268,7 +268,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Controls Row */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 md:gap-3 flex-wrap overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         <div className="space-y-1">
           <Label className="text-xs">לוח עבודה</Label>
           <Select value={selectedWindow} onChange={e => setSelectedWindow(e.target.value)} className="w-40">
@@ -355,8 +355,68 @@ export default function AttendancePage() {
         ))}
       </div>
 
-      {/* Attendance Grid */}
-      <Card>
+      {/* Mobile Card View for Attendance */}
+      <div className="md:hidden space-y-2">
+        {filteredEmployees.length === 0 ? (
+          <Card><CardContent className="p-8 text-center text-muted-foreground">אין עובדים</CardContent></Card>
+        ) : filteredEmployees.map(emp => (
+          <Card key={emp.id}>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-sm">{emp.full_name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{emp.employee_number}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {dates.slice(0, viewMode === "weekly" ? 7 : 14).map(date => {
+                  const key = `${emp.id}_${date}`;
+                  const current = attendance[key] || "";
+                  const d = new Date(date);
+                  const dayIdx = d.getDay();
+                  const isToday = date === today;
+                  const style = current ? getStatusStyle(current) : {};
+                  const icon = current ? getStatusIcon(current) : "";
+                  return (
+                    <button
+                      key={date}
+                      onClick={() => setEditingCell(editingCell === key ? null : key)}
+                      className={`flex flex-col items-center rounded-lg p-1.5 min-w-[42px] min-h-[44px] text-xs border transition-colors ${
+                        isToday ? "ring-2 ring-primary-300" : ""
+                      }`}
+                      style={current ? {
+                        backgroundColor: (style as any).backgroundColor,
+                        color: (style as any).color,
+                        borderColor: (style as any).borderColor,
+                      } : {}}
+                    >
+                      <span className="font-bold text-[10px]">{dayNames[dayIdx]}</span>
+                      <span className="text-[10px]">{date.slice(8)}</span>
+                      {icon && <span className="text-sm">{icon}</span>}
+                      {!icon && current && <span className="text-[10px] font-medium">{current.slice(0, 3)}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {editingCell?.startsWith(emp.id + "_") && (
+                <div className="mt-2 flex flex-wrap gap-1 p-2 bg-muted/30 rounded-lg animate-in slide-in-from-top-1">
+                  <button onClick={() => { updateAttendance(emp.id, editingCell.split("_")[1], ""); }} className="rounded px-2 py-1.5 text-xs hover:bg-muted min-h-[36px]">— ריק</button>
+                  {statusDefs.map(s => (
+                    <button key={s.code} onClick={() => { updateAttendance(emp.id, editingCell.split("_")[1], s.code); }}
+                      className="rounded px-2 py-1.5 text-xs hover:bg-muted min-h-[36px] flex items-center gap-1"
+                      style={{ color: s.color || undefined }}>
+                      <span>{s.icon}</span><span>{s.name[lang] || s.name.he || s.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Desktop Attendance Grid */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <div ref={tableRef} className="overflow-x-auto max-h-[calc(100vh-350px)]">
             <table className="w-full border-collapse" style={{ minWidth: `${150 + dates.length * 80}px` }}>

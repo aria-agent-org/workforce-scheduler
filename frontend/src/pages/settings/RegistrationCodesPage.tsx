@@ -128,8 +128,8 @@ export default function RegistrationCodesPage() {
         </Button>
       </div>
 
-      {/* Table */}
-      <Card>
+      {/* Desktop Table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -156,7 +156,7 @@ export default function RegistrationCodesPage() {
                       {item.code ? (
                         <div className="flex items-center gap-1.5">
                           <code className="font-mono text-lg font-bold tracking-wider">{item.code}</code>
-                          <button onClick={() => copyCode(item.code!)} className="p-1 hover:bg-accent rounded">
+                          <button onClick={() => copyCode(item.code!)} className="p-1 hover:bg-accent rounded min-h-[44px] min-w-[44px] flex items-center justify-center">
                             <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                           </button>
                         </div>
@@ -173,6 +173,7 @@ export default function RegistrationCodesPage() {
                           variant="outline"
                           onClick={() => generateCode(item.employee_id)}
                           disabled={generating === item.employee_id}
+                          className="min-h-[44px]"
                         >
                           <KeyRound className="me-1 h-3 w-3" />
                           {item.code ? "חדש" : "צור קוד"}
@@ -186,6 +187,52 @@ export default function RegistrationCodesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">אין תוצאות</p>
+        ) : filtered.map(item => (
+          <Card key={item.employee_id}>
+            <CardContent className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-sm">{item.employee_name}</p>
+                    <Badge className={`text-[10px] ${statusStyles[item.status] || "bg-gray-100 text-gray-700"}`}>
+                      {item.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono">{item.employee_number}</p>
+                  {item.code && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <code className="font-mono text-xl font-bold tracking-[0.3em] bg-muted px-3 py-1.5 rounded-lg">{item.code}</code>
+                      <button onClick={() => copyCode(item.code!)} className="p-2 hover:bg-accent rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center">
+                        <Copy className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  )}
+                  {!item.code && item.has_user && (
+                    <p className="text-xs text-muted-foreground mt-1">{item.user_email}</p>
+                  )}
+                </div>
+                {!item.has_user && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => generateCode(item.employee_id)}
+                    disabled={generating === item.employee_id}
+                    className="min-h-[44px] flex-shrink-0"
+                  >
+                    <KeyRound className="me-1 h-3 w-3" />
+                    {item.code ? "חדש" : "צור קוד"}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }

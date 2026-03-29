@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye, Zap, X } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
-import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush } from "@/lib/push";
+import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError } from "@/lib/push";
 
 type Tab = "templates" | "logs" | "channels";
 
@@ -56,10 +56,13 @@ export default function NotificationsPage() {
         setPushSubscribed(true);
         setPushPermission("granted");
       } else {
-        toast("error", "לא ניתן להפעיל התראות. בדוק שאישרת הרשאות בדפדפן.");
+        // Show the SPECIFIC error from push.ts
+        const specificError = getLastPushError();
+        toast("error", specificError || "לא ניתן להפעיל התראות — בדוק קונסול לפרטים");
       }
-    } catch {
-      toast("error", "שגיאה בהפעלת התראות");
+    } catch (err: any) {
+      const specificError = getLastPushError();
+      toast("error", specificError || `שגיאה בהפעלת התראות: ${err.message}`);
     } finally {
       setPushLoading(false);
     }
@@ -420,36 +423,60 @@ export default function NotificationsPage() {
 
       {/* Logs */}
       {activeTab === "logs" && (
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-muted/50 text-sm">
-                  <th className="px-4 py-3 text-start">ערוץ</th>
-                  <th className="px-4 py-3 text-start">אירוע</th>
-                  <th className="px-4 py-3 text-start">סטטוס</th>
-                  <th className="px-4 py-3 text-start">נשלח</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(Array.isArray(logs) ? logs : []).length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">אין רשומות</td></tr>
-                ) : (Array.isArray(logs) ? logs : []).map((log: any) => (
-                  <tr key={log.id} className="border-b">
-                    <td className="px-4 py-3">{log.channel}</td>
-                    <td className="px-4 py-3">{log.event_type_code}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"}>
-                        {log.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{log.sent_at}</td>
+        <>
+          {/* Desktop table */}
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/50 text-sm">
+                    <th className="px-4 py-3 text-start">ערוץ</th>
+                    <th className="px-4 py-3 text-start">אירוע</th>
+                    <th className="px-4 py-3 text-start">סטטוס</th>
+                    <th className="px-4 py-3 text-start">נשלח</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+                </thead>
+                <tbody>
+                  {(Array.isArray(logs) ? logs : []).length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">אין רשומות</td></tr>
+                  ) : (Array.isArray(logs) ? logs : []).map((log: any) => (
+                    <tr key={log.id} className="border-b">
+                      <td className="px-4 py-3">{log.channel}</td>
+                      <td className="px-4 py-3">{log.event_type_code}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"}>
+                          {log.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{log.sent_at}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-2">
+            {(Array.isArray(logs) ? logs : []).length === 0 ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">אין רשומות</CardContent></Card>
+            ) : (Array.isArray(logs) ? logs : []).map((log: any) => (
+              <Card key={log.id}>
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{log.event_type_code}</span>
+                    <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"}>
+                      {log.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{log.channel === "push" ? "🔔 Push" : log.channel === "in_app" ? "📱 אפליקציה" : log.channel === "whatsapp" ? "💬 WhatsApp" : log.channel === "email" ? "📧 Email" : log.channel}</span>
+                    <span>{log.sent_at ? new Date(log.sent_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : ""}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Channels */}
@@ -510,6 +537,14 @@ export default function NotificationsPage() {
                       </Button>
                     )}
                   </div>
+
+                  {/* Debug info — show last error if exists */}
+                  {getLastPushError() && (
+                    <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-3 text-sm">
+                      <p className="font-medium text-orange-800 dark:text-orange-200 mb-1">🔍 שגיאה אחרונה:</p>
+                      <p className="text-orange-700 dark:text-orange-300 font-mono text-xs break-all">{getLastPushError()}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

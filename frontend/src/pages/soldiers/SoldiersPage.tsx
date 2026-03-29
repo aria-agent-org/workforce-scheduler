@@ -340,9 +340,9 @@ export default function SoldiersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -350,23 +350,23 @@ export default function SoldiersPage() {
             className="hidden"
             onChange={handleFileUpload}
           />
-          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={downloadTemplate}>
             <Download className="me-1 h-4 w-4" />
             {t("downloadTemplate")}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={() => fileInputRef.current?.click()}>
             <Upload className="me-1 h-4 w-4" />
             {t("bulkImport")}
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCSV}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={exportCSV}>
             <FileSpreadsheet className="me-1 h-4 w-4" />
             {t("exportList")}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { setSelectedForInvite(soldiers.map(s => s.id)); setShowInviteModal(true); }}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={() => { setSelectedForInvite(soldiers.map(s => s.id)); setShowInviteModal(true); }}>
             <Mail className="me-1 h-4 w-4" />
             הזמנות
           </Button>
-          <Button size="sm" onClick={openCreate}>
+          <Button size="sm" onClick={openCreate} className="min-h-[44px]">
             <UserPlus className="me-1 h-4 w-4" />
             {t("addSoldier")}
           </Button>

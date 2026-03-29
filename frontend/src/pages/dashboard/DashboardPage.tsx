@@ -89,20 +89,20 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-lg">{t("quickActions")}</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Button onClick={() => navigate("/scheduling")} size="sm">
+          <CardContent className="flex flex-wrap gap-2">
+            <Button onClick={() => navigate("/scheduling")} size="sm" className="min-h-[44px]">
               <Calendar className="me-1 h-4 w-4" />
               {t("viewFullSchedule")}
             </Button>
-            <Button onClick={() => navigate("/soldiers")} variant="outline" size="sm">
+            <Button onClick={() => navigate("/soldiers")} variant="outline" size="sm" className="min-h-[44px]">
               <Users className="me-1 h-4 w-4" />
               {t("addSoldier")}
             </Button>
-            <Button onClick={() => navigate("/scheduling")} variant="outline" size="sm">
+            <Button onClick={() => navigate("/scheduling")} variant="outline" size="sm" className="min-h-[44px]">
               <Clock className="me-1 h-4 w-4" />
               {t("createMission")}
             </Button>
-            <Button onClick={() => navigate("/reports")} variant="outline" size="sm">
+            <Button onClick={() => navigate("/reports")} variant="outline" size="sm" className="min-h-[44px]">
               <BarChart3 className="me-1 h-4 w-4" />
               דוחות
             </Button>

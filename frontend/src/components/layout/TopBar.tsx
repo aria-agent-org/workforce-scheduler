@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import GlobalSearch from "../common/GlobalSearch";
 import api, { tenantApi } from "@/lib/api";
-import { subscribeToPush, isPushSupported, getPushPermission, isPushSubscribed } from "@/lib/push";
+import { subscribeToPush, isPushSupported, getPushPermission, isPushSubscribed, getLastPushError } from "@/lib/push";
 
 const mobileNav = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -60,22 +60,39 @@ export default function TopBar() {
     return () => clearInterval(interval);
   }, [loadNotifications]);
 
-  // Auto-subscribe to push on first load (if permission not yet asked)
+  // Auto-subscribe to push on first load for existing sessions
   useEffect(() => {
     const autoSubscribe = async () => {
-      if (isPushSupported() && getPushPermission() === "default") {
-        // Don't auto-prompt — wait for user action
-        return;
-      }
-      if (isPushSupported() && getPushPermission() === "granted") {
+      if (!isPushSupported()) return;
+      const perm = getPushPermission();
+      // If already granted but not subscribed — subscribe silently
+      if (perm === "granted") {
         const subscribed = await isPushSubscribed();
         if (!subscribed) {
-          await subscribeToPush();
+          const ok = await subscribeToPush();
+          if (!ok) {
+            console.warn("[TopBar] Silent push re-subscribe failed:", getLastPushError());
+          }
         }
       }
     };
-    autoSubscribe();
+    // Delay to not block initial render
+    const timer = setTimeout(autoSubscribe, 3000);
+    return () => clearTimeout(timer);
   }, []);
+
+  // Listen for push subscribe event from login flow
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent).detail?.message;
+      if (msg) {
+        // Use a subtle approach — small toast at bottom
+        loadNotifications(); // Refresh notifications
+      }
+    };
+    document.addEventListener("shavtzak:push-subscribed", handler);
+    return () => document.removeEventListener("shavtzak:push-subscribed", handler);
+  }, [loadNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {

@@ -105,6 +105,9 @@ export default function SchedulingPage() {
     extra_dates: [] as string[],
   });
   const [assignForm, setAssignForm] = useState({ employee_id: "", work_role_id: "", slot_id: "default" });
+  const [hardConflict, setHardConflict] = useState<{ message: string; details: string[] } | null>(null);
+  const [overrideJustification, setOverrideJustification] = useState("");
+  const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
   const [assignMissionId, setAssignMissionId] = useState("");
   const [generateForm, setGenerateForm] = useState({ template_id: "", start_date: "", end_date: "" });
 
@@ -343,17 +346,55 @@ export default function SchedulingPage() {
   };
 
   // === ASSIGNMENT ===
-  const assignEmployee = async () => {
+  const assignEmployee = async (forceOverride = false) => {
     try {
-      const res = await api.post(tenantApi(`/missions/${assignMissionId}/assignments`), assignForm);
+      const payload: any = { ...assignForm };
+      if (forceOverride && overrideJustification) {
+        payload.override_hard_conflicts = true;
+        payload.override_justification = overrideJustification;
+      }
+      const res = await api.post(tenantApi(`/missions/${assignMissionId}/assignments`), payload);
+      
+      // Check for hard conflicts that blocked the assignment
+      if (res.data.blocked_by_hard_conflict) {
+        const conflicts = res.data.hard_conflicts || [];
+        setHardConflict({
+          message: res.data.message || "שיבוץ נחסם עקב התנגשות קשה",
+          details: conflicts.map((c: any) => c.message || c.rule_name || "התנגשות חוק"),
+        });
+        return;
+      }
+      
       if (res.data.conflicts_detected?.length > 0) {
+        const hardOnes = res.data.conflicts_detected.filter((c: any) => c.severity === "hard");
+        if (hardOnes.length > 0 && !forceOverride) {
+          setHardConflict({
+            message: `נמצאו ${hardOnes.length} התנגשויות קשות שחוסמות את השיבוץ`,
+            details: hardOnes.map((c: any) => c.message || c.rule_name || "התנגשות חוק חמור"),
+          });
+          return;
+        }
         toast("warning", `חייל שובץ עם ${res.data.conflicts_detected.length} התנגשויות`);
       } else {
         toast("success", "חייל שובץ בהצלחה");
       }
       setShowAssignModal(false);
+      setHardConflict(null);
+      setOverrideJustification("");
+      setShowOverrideConfirm(false);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) {
+      const detail = e.response?.data?.detail || "";
+      // Backend may return 409 for hard conflicts
+      if (e.response?.status === 409 || (typeof detail === "string" && detail.includes("conflict"))) {
+        setHardConflict({
+          message: typeof detail === "string" ? detail : "שיבוץ נחסם עקב התנגשות קשה",
+          details: e.response?.data?.conflicts?.map((c: any) => c.message || c.rule_name) || [detail],
+        });
+        return;
+      }
+      toast("error", detail || "שגיאה");
+    }
   };
 
   // === GENERATE ===
@@ -791,15 +832,20 @@ export default function SchedulingPage() {
             </Select>
           </div>
           {templates.map((tmpl) => (
-            <Card key={tmpl.id} className="hover:shadow-md transition-all">
+            <Card key={tmpl.id} className={`hover:shadow-md transition-all ${tmpl.is_active === false ? "opacity-60" : ""}`}>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                      <Copy className="h-5 w-5 text-purple-500" />
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tmpl.is_active === false ? "bg-gray-100 dark:bg-gray-800" : "bg-purple-100 dark:bg-purple-900/30"}`}>
+                      <Copy className={`h-5 w-5 ${tmpl.is_active === false ? "text-gray-400" : "text-purple-500"}`} />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{tmpl.name}</h3>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold truncate">{tmpl.name}</h3>
+                        <Badge className={tmpl.is_active === false ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}>
+                          {tmpl.is_active === false ? "מושבת" : "פעיל"}
+                        </Badge>
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {tmpl.recurrence?.type === "daily" ? "🔄 יומי" : tmpl.recurrence?.type === "weekly" ? "📅 שבועי" : "⚙️ מותאם אישית"}
                         {tmpl.recurrence?.active_weeks && tmpl.recurrence.active_weeks !== "all" && ` · שבועות ${tmpl.recurrence.active_weeks === "odd" ? "אי-זוגיים" : "זוגיים"}`}
@@ -810,7 +856,21 @@ export default function SchedulingPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => {
+                    {/* Active/Inactive Toggle */}
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.patch(tenantApi(`/mission-templates/${tmpl.id}`), { is_active: tmpl.is_active === false ? true : false });
+                          toast("success", tmpl.is_active === false ? "תבנית הופעלה" : "תבנית הושבתה — משימות שכבר נוצרו יישארו");
+                          if (selectedWindow) loadWindowData(selectedWindow.id);
+                        } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+                      }}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors min-h-[44px] min-w-[44px] ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
+                      title={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${tmpl.is_active === false ? "translate-x-1 rtl:-translate-x-1" : "translate-x-6 rtl:-translate-x-6"}`} />
+                    </button>
+                    <Button size="sm" variant="outline" className="min-h-[40px]" disabled={tmpl.is_active === false} onClick={() => {
                       setGenerateForm({ template_id: tmpl.id, start_date: selectedWindow?.start_date || "", end_date: selectedWindow?.end_date || "" });
                       setShowGenerateModal(true);
                     }}>
@@ -1328,8 +1388,80 @@ export default function SchedulingPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAssignModal(false)}>ביטול</Button>
-            <Button onClick={assignEmployee} disabled={!assignForm.employee_id}>שבץ</Button>
+            <Button onClick={() => assignEmployee()} disabled={!assignForm.employee_id}>שבץ</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hard Conflict Fail-Safe Dialog */}
+      <Dialog open={!!hardConflict} onOpenChange={(open) => { if (!open) { setHardConflict(null); setOverrideJustification(""); setShowOverrideConfirm(false); } }}>
+        <DialogContent className="max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              שיבוץ נחסם — התנגשות קשה
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+              <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">{hardConflict?.message}</p>
+              {hardConflict?.details && hardConflict.details.length > 0 && (
+                <ul className="space-y-1">
+                  {hardConflict.details.map((d, i) => (
+                    <li key={i} className="text-sm text-red-700 dark:text-red-300 flex items-start gap-1.5">
+                      <span className="text-red-500 mt-0.5">•</span>
+                      {d}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {!showOverrideConfirm ? (
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 min-h-[44px]" onClick={() => { setHardConflict(null); }}>
+                  חזרה — לא לשבץ
+                </Button>
+                <Button variant="destructive" className="flex-1 min-h-[44px]" onClick={() => setShowOverrideConfirm(true)}>
+                  <AlertTriangle className="me-1 h-4 w-4" />
+                  עקוף בכל זאת
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3 animate-in slide-in-from-top-2">
+                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                  ⚠️ אתה עומד לעקוף חוק חמור. הסבר סיבה — הפעולה תירשם ביומן.
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">נימוק לעקיפה (חובה) <span className="text-red-500">*</span></Label>
+                  <textarea
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
+                    value={overrideJustification}
+                    onChange={e => setOverrideJustification(e.target.value)}
+                    placeholder="לדוגמה: אין חייל חלופי זמין, אושר ע״י מפקד הפלוגה..."
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 min-h-[44px]" onClick={() => setShowOverrideConfirm(false)}>
+                    ביטול
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1 min-h-[44px]"
+                    disabled={overrideJustification.trim().length < 5}
+                    onClick={() => {
+                      setHardConflict(null);
+                      setShowOverrideConfirm(false);
+                      assignEmployee(true);
+                    }}
+                  >
+                    אישור עקיפה ושיבוץ
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
