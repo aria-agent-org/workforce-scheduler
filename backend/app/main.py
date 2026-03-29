@@ -13,6 +13,7 @@ from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, admin, health, employees, scheduling, attendance, rules, notifications, reports
 from app.routers import settings as settings_router
 from app.routers import audit as audit_router
+from app.routers import invitations as invitations_router
 
 settings = get_settings()
 
@@ -98,6 +99,11 @@ def create_app() -> FastAPI:
         audit_router.router,
         prefix="/api/v1/{tenant_slug}/audit-logs",
         tags=["audit"],
+    )
+    app.include_router(
+        invitations_router.router,
+        prefix="/api/v1/{tenant_slug}/invitations",
+        tags=["invitations"],
     )
 
     return app

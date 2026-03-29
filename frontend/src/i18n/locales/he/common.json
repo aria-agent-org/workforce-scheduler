@@ -28,21 +28,33 @@
   "logout": "יציאה",
   "settings": "הגדרות",
   "help": "עזרה",
+  "upload": "העלאה",
+  "download": "הורדה",
+  "preview": "תצוגה מקדימה",
+  "refresh": "רענון",
+  "selectAll": "בחר הכל",
+  "deselectAll": "בטל בחירה",
   "nav": {
     "dashboard": "לוח בקרה",
-    "employees": "עובדים",
+    "soldiers": "חיילים",
     "scheduling": "שיבוצים",
     "attendance": "נוכחות",
     "rules": "חוקים",
     "notifications": "התראות",
     "reports": "דוחות",
     "settings": "הגדרות",
-    "admin": "ניהול מערכת"
+    "admin": "ניהול מערכת",
+    "auditLog": "יומן פעולות",
+    "swaps": "החלפות"
   },
   "pagination": {
     "page": "עמוד",
     "of": "מתוך",
     "showing": "מציג",
     "results": "תוצאות"
-  }
+  },
+  "roles": "תפקידים",
+  "role": "תפקיד",
+  "soldier": "חייל",
+  "soldiers": "חיילים"
 }

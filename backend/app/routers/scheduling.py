@@ -804,8 +804,32 @@ async def auto_assign_missions(
     tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
     window_id: UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> dict:
-    """Simple auto-assignment: for each draft mission, assign available employees to unfilled slots."""
+    """Production auto-scheduling: hard filter → scoring → preference optimization → conflict check."""
+    from app.services.scheduling_service import AutoScheduler
+
+    if not window_id:
+        raise HTTPException(status_code=400, detail="נדרש מזהה לוח עבודה")
+
+    scheduler = AutoScheduler(db, tenant.id, user.id)
+    result = await scheduler.run(window_id, date_from, date_to)
+
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    return result
+
+
+# Legacy fallback kept for backwards compat
+@router.post("/missions/auto-assign-simple", status_code=status.HTTP_200_OK)
+async def auto_assign_missions_simple(
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    window_id: UUID | None = None,
+) -> dict:
+    """Simple auto-assignment fallback."""
     query = select(Mission).where(
         Mission.tenant_id == tenant.id,
         Mission.status == "draft",
@@ -817,15 +841,12 @@ async def auto_assign_missions(
 
     total_assigned = 0
     for mission in missions:
-        # Get mission type for required slots
         mt_result = await db.execute(select(MissionType).where(MissionType.id == mission.mission_type_id))
         mt = mt_result.scalar_one_or_none()
         if not mt or not mt.required_slots:
             continue
 
         required_slots = mt.required_slots if isinstance(mt.required_slots, list) else []
-
-        # Get existing assignments for this mission
         existing = await db.execute(
             select(MissionAssignment).where(
                 MissionAssignment.mission_id == mission.id,
@@ -834,7 +855,6 @@ async def auto_assign_missions(
         )
         filled_slots = {ma.slot_id for ma in existing.scalars().all()}
 
-        # Get available employees in the window
         window_emps = await db.execute(
             select(ScheduleWindowEmployee, Employee)
             .join(Employee, ScheduleWindowEmployee.employee_id == Employee.id)
@@ -858,9 +878,7 @@ async def auto_assign_missions(
                 if slot_key in filled_slots:
                     continue
 
-                # Find an employee who isn't already assigned to an overlapping mission
                 for swe, emp in available_employees:
-                    # Check if already assigned to this mission
                     already = await db.execute(
                         select(MissionAssignment).where(
                             MissionAssignment.mission_id == mission.id,

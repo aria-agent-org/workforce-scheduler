@@ -1,15 +1,43 @@
 {
   "title": "Scheduling",
   "scheduleWindows": "Schedule Windows",
-  "createWindow": "Create New Window",
+  "createWindow": "Create Window",
   "missions": "Missions",
   "createMission": "Create Mission",
-  "autoAssign": "Auto-Assign",
-  "publish": "Publish Schedule",
+  "autoAssign": "Auto Assign",
+  "publish": "Publish",
   "dailyBoard": "Daily Board",
   "weeklyView": "Weekly View",
   "missionTypes": "Mission Types",
   "templates": "Templates",
+  "editMissionType": "Edit Mission Type",
+  "newMissionType": "New Mission Type",
+  "deleteMissionType": "Delete Mission Type",
+  "deleteMissionTypeConfirm": "Are you sure you want to delete this mission type?",
+  "assignSoldier": "Assign Soldier",
+  "selectSoldier": "Select Soldier",
+  "noAssignments": "No assignments yet",
+  "soldiers": "Soldiers",
+  "soldiersInWindow": "Soldiers in Window",
+  "windowBoard": "Board",
+  "windowAttendance": "Attendance",
+  "windowSoldiers": "Soldiers",
+  "windowConflicts": "Conflicts",
+  "recurrence": {
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "custom": "Custom",
+    "oneTime": "One Time",
+    "allWeeks": "All Weeks",
+    "oddWeeks": "Odd Weeks",
+    "evenWeeks": "Even Weeks"
+  },
+  "shifts": {
+    "morning": "Morning (07:00-15:00)",
+    "afternoon": "Afternoon (15:00-23:00)",
+    "night": "Night (23:00-07:00)",
+    "custom": "Custom"
+  },
   "status": {
     "draft": "Draft",
     "active": "Active",
@@ -24,9 +52,9 @@
     "title": "Conflicts",
     "hard": "Hard Conflict",
     "soft": "Warning",
-    "noConflicts": "No conflicts",
+    "noConflicts": "No Conflicts",
     "override": "Override",
-    "overrideReason": "Override reason"
+    "overrideReason": "Override Reason"
   },
   "swap": {
     "title": "Swap Requests",
@@ -34,5 +62,28 @@
     "approve": "Approve",
     "reject": "Reject",
     "pending": "Pending"
+  },
+  "slots": {
+    "title": "Required Slots",
+    "addSlot": "Add Slot",
+    "slotName": "Slot Name",
+    "role": "Role",
+    "count": "Count"
+  },
+  "template": {
+    "title": "New Template",
+    "editTitle": "Edit Template",
+    "name": "Template Name",
+    "missionType": "Mission Type",
+    "recurrenceType": "Recurrence Type",
+    "daysOfWeek": "Days of Week",
+    "activeWeeks": "Active Weeks",
+    "timeSlots": "Shifts",
+    "addTimeSlot": "Add Shift",
+    "exceptions": "Exception Dates (Skip)",
+    "extraDates": "Extra Dates",
+    "addDate": "Add Date",
+    "shiftPresets": "Shift Presets",
+    "generateMissions": "Generate Missions from Template"
   }
 }

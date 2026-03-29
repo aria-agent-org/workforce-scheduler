@@ -10,6 +10,39 @@
   "weeklyView": "תצוגה שבועית",
   "missionTypes": "סוגי משימות",
   "templates": "תבניות",
+  "editMissionType": "עריכת סוג משימה",
+  "newMissionType": "סוג משימה חדש",
+  "deleteMissionType": "מחיקת סוג משימה",
+  "deleteMissionTypeConfirm": "האם אתה בטוח שברצונך למחוק את סוג המשימה?",
+  "assignSoldier": "שבץ חייל",
+  "selectSoldier": "בחר חייל",
+  "noAssignments": "אין שיבוצים עדיין",
+  "soldiers": "חיילים",
+  "soldiersInWindow": "חיילים בלוח",
+  "importSoldiers": "ייבוא חיילים",
+  "copyFromWindow": "העתק מלוח קודם",
+  "importFromSheets": "ייבוא מ-Google Sheets",
+  "importFromExcel": "ייבוא מאקסל/CSV",
+  "downloadTemplate": "הורד תבנית",
+  "windowBoard": "לוח שיבוצים",
+  "windowAttendance": "נוכחות",
+  "windowSoldiers": "חיילים",
+  "windowConflicts": "התנגשויות",
+  "recurrence": {
+    "daily": "יומי",
+    "weekly": "שבועי",
+    "custom": "מותאם אישית",
+    "oneTime": "חד פעמי",
+    "allWeeks": "כל השבועות",
+    "oddWeeks": "שבועות אי-זוגיים",
+    "evenWeeks": "שבועות זוגיים"
+  },
+  "shifts": {
+    "morning": "בוקר (07:00-15:00)",
+    "afternoon": "צהריים (15:00-23:00)",
+    "night": "לילה (23:00-07:00)",
+    "custom": "מותאם אישית"
+  },
   "status": {
     "draft": "טיוטה",
     "active": "פעיל",
@@ -34,5 +67,28 @@
     "approve": "אשר",
     "reject": "דחה",
     "pending": "ממתין"
+  },
+  "slots": {
+    "title": "סלוטים נדרשים",
+    "addSlot": "הוסף סלוט",
+    "slotName": "שם סלוט",
+    "role": "תפקיד",
+    "count": "כמות"
+  },
+  "template": {
+    "title": "תבנית חדשה",
+    "editTitle": "עריכת תבנית",
+    "name": "שם תבנית",
+    "missionType": "סוג משימה",
+    "recurrenceType": "סוג חזרתיות",
+    "daysOfWeek": "ימים בשבוע",
+    "activeWeeks": "שבועות פעילים",
+    "timeSlots": "משמרות",
+    "addTimeSlot": "הוסף משמרת",
+    "exceptions": "תאריכים חריגים (דלג)",
+    "extraDates": "תאריכים נוספים",
+    "addDate": "הוסף תאריך",
+    "shiftPresets": "תבניות משמרת",
+    "generateMissions": "צור משימות מתבנית"
   }
 }

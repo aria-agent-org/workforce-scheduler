@@ -236,12 +236,101 @@ async def create_status_definition(
     data: AttendanceStatusCreate, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    # Check for duplicate code
+    existing = await db.execute(
+        select(AttendanceStatusDefinition).where(
+            AttendanceStatusDefinition.tenant_id == tenant.id,
+            AttendanceStatusDefinition.code == data.code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"קוד סטטוס '{data.code}' כבר קיים")
     status_def = AttendanceStatusDefinition(tenant_id=tenant.id, **data.model_dump())
     db.add(status_def)
     await db.flush()
     await db.refresh(status_def)
     await db.commit()
     return AttendanceStatusDefinitionResponse.model_validate(status_def).model_dump()
+
+
+@router.get("/statuses/{status_id}")
+async def get_status_definition(
+    status_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(AttendanceStatusDefinition).where(
+            AttendanceStatusDefinition.id == status_id,
+            AttendanceStatusDefinition.tenant_id == tenant.id,
+        )
+    )
+    status_def = result.scalar_one_or_none()
+    if not status_def:
+        raise HTTPException(status_code=404, detail="סטטוס נוכחות לא נמצא")
+    return AttendanceStatusDefinitionResponse.model_validate(status_def).model_dump()
+
+
+@router.patch("/statuses/{status_id}")
+async def update_status_definition(
+    status_id: UUID, data: dict,
+    tenant: CurrentTenant, user: CurrentUser, request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(AttendanceStatusDefinition).where(
+            AttendanceStatusDefinition.id == status_id,
+            AttendanceStatusDefinition.tenant_id == tenant.id,
+        )
+    )
+    status_def = result.scalar_one_or_none()
+    if not status_def:
+        raise HTTPException(status_code=404, detail="סטטוס נוכחות לא נמצא")
+
+    before = {"code": status_def.code, "name": status_def.name}
+    for key, value in data.items():
+        if hasattr(status_def, key) and key not in ("id", "tenant_id", "created_at", "updated_at"):
+            setattr(status_def, key, value)
+
+    await db.flush()
+    await db.refresh(status_def)
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="update",
+        entity_type="attendance_status_definition", entity_id=status_def.id,
+        before_state=before, after_state={"code": status_def.code, "name": status_def.name},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return AttendanceStatusDefinitionResponse.model_validate(status_def).model_dump()
+
+
+@router.delete("/statuses/{status_id}", status_code=204)
+async def delete_status_definition(
+    status_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        select(AttendanceStatusDefinition).where(
+            AttendanceStatusDefinition.id == status_id,
+            AttendanceStatusDefinition.tenant_id == tenant.id,
+        )
+    )
+    status_def = result.scalar_one_or_none()
+    if not status_def:
+        raise HTTPException(status_code=404, detail="סטטוס נוכחות לא נמצא")
+    if status_def.is_system:
+        raise HTTPException(status_code=403, detail="לא ניתן למחוק סטטוס מערכת")
+    # Check if status is in use
+    in_use = await db.execute(
+        select(func.count()).where(
+            AttendanceSchedule.tenant_id == tenant.id,
+            AttendanceSchedule.status_code == status_def.code,
+        )
+    )
+    if (in_use.scalar() or 0) > 0:
+        raise HTTPException(status_code=409, detail="לא ניתן למחוק סטטוס שבשימוש")
+    await db.delete(status_def)
+    await db.commit()
 
 
 # ═══════════════════════════════════════════

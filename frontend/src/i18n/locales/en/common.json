@@ -28,21 +28,33 @@
   "logout": "Logout",
   "settings": "Settings",
   "help": "Help",
+  "upload": "Upload",
+  "download": "Download",
+  "preview": "Preview",
+  "refresh": "Refresh",
+  "selectAll": "Select All",
+  "deselectAll": "Deselect All",
   "nav": {
     "dashboard": "Dashboard",
-    "employees": "Employees",
+    "soldiers": "Soldiers",
     "scheduling": "Scheduling",
     "attendance": "Attendance",
     "rules": "Rules",
     "notifications": "Notifications",
     "reports": "Reports",
     "settings": "Settings",
-    "admin": "System Admin"
+    "admin": "Admin",
+    "auditLog": "Audit Log",
+    "swaps": "Swaps"
   },
   "pagination": {
     "page": "Page",
     "of": "of",
     "showing": "Showing",
     "results": "results"
-  }
+  },
+  "roles": "Roles",
+  "role": "Role",
+  "soldier": "Soldier",
+  "soldiers": "Soldiers"
 }

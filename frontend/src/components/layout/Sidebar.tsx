@@ -2,13 +2,14 @@ import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, Calendar, ClipboardList, ShieldCheck,
-  Bell, BarChart3, Settings, ArrowLeftRight, History,
+  Bell, BarChart3, Settings, ArrowLeftRight, History, Shield, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/authStore";
 
 const navItems = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { key: "employees", path: "/employees", icon: Users },
+  { key: "soldiers", path: "/soldiers", icon: Users },
   { key: "scheduling", path: "/scheduling", icon: Calendar },
   { key: "attendance", path: "/attendance", icon: ClipboardList },
   { key: "rules", path: "/rules", icon: ShieldCheck },
@@ -18,12 +19,18 @@ const navItems = [
 ];
 
 const secondaryItems = [
-  { key: "swaps", path: "/swaps", icon: ArrowLeftRight, label: "בקשות החלפה" },
-  { key: "auditLog", path: "/audit-log", icon: History, label: "יומן פעולות" },
+  { key: "swaps", path: "/swaps", icon: ArrowLeftRight },
+  { key: "auditLog", path: "/audit-log", icon: History },
+];
+
+const adminItems = [
+  { key: "admin", path: "/admin", icon: Shield },
 ];
 
 export default function Sidebar() {
   const { t } = useTranslation();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = !user?.tenant_id;
 
   return (
     <aside className="hidden w-64 flex-shrink-0 border-e bg-card md:flex md:flex-col">
@@ -51,7 +58,7 @@ export default function Sidebar() {
           </NavLink>
         ))}
         <div className="my-3 border-t" />
-        {secondaryItems.map(({ key, path, icon: Icon, label }) => (
+        {secondaryItems.map(({ key, path, icon: Icon }) => (
           <NavLink
             key={key}
             to={path}
@@ -65,9 +72,31 @@ export default function Sidebar() {
             }
           >
             <Icon className="h-5 w-5" />
-            <span>{label}</span>
+            <span>{t(`nav.${key}`)}</span>
           </NavLink>
         ))}
+        {isSuperAdmin && (
+          <>
+            <div className="my-3 border-t" />
+            {adminItems.map(({ key, path, icon: Icon }) => (
+              <NavLink
+                key={key}
+                to={path}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary-50 text-primary-700"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )
+                }
+              >
+                <Icon className="h-5 w-5" />
+                <span>{t(`nav.${key}`)}</span>
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
     </aside>
   );

@@ -15,7 +15,7 @@ const queryClient = new QueryClient({
 
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
-const EmployeesPage = lazy(() => import("./pages/employees/EmployeesPage"));
+const SoldiersPage = lazy(() => import("./pages/soldiers/SoldiersPage"));
 const SchedulingPage = lazy(() => import("./pages/scheduling/SchedulingPage"));
 const AttendancePage = lazy(() => import("./pages/attendance/AttendancePage"));
 const RulesPage = lazy(() => import("./pages/rules/RulesPage"));
@@ -24,6 +24,7 @@ const ReportsPage = lazy(() => import("./pages/reports/ReportsPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 const AuditLogPage = lazy(() => import("./pages/audit/AuditLogPage"));
 const SwapRequestsPage = lazy(() => import("./pages/swaps/SwapRequestsPage"));
+const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function App() {
@@ -44,7 +45,8 @@ function App() {
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="employees" element={<EmployeesPage />} />
+                  <Route path="soldiers" element={<SoldiersPage />} />
+                  <Route path="employees" element={<Navigate to="/soldiers" replace />} />
                   <Route path="scheduling" element={<SchedulingPage />} />
                   <Route path="attendance" element={<AttendancePage />} />
                   <Route path="rules" element={<RulesPage />} />
@@ -53,6 +55,7 @@ function App() {
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="audit-log" element={<AuditLogPage />} />
                   <Route path="swaps" element={<SwapRequestsPage />} />
+                  <Route path="admin" element={<AdminPage />} />
                 </Route>
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
