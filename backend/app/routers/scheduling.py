@@ -463,6 +463,20 @@ async def delete_mission_type(
     mt = result.scalar_one_or_none()
     if not mt:
         raise HTTPException(status_code=404, detail="סוג משימה לא נמצא")
+
+    # Check if active missions use this type
+    active_count = (await db.execute(
+        select(func.count()).where(
+            Mission.mission_type_id == mt_id,
+            Mission.status.not_in(["cancelled", "archived"]),
+        )
+    )).scalar() or 0
+    if active_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"לא ניתן למחוק סוג משימה עם {active_count} משימות פעילות"
+        )
+
     mt.is_active = False
     await db.commit()
 

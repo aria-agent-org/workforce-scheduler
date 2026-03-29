@@ -34,6 +34,10 @@ class User(Base):
 
     sessions = relationship("UserSession", back_populates="user", lazy="dynamic")
 
+    __table_args__ = (
+        UniqueConstraint("employee_id", name="uq_user_employee_id"),
+    )
+
 
 class UserSession(Base):
     """Active user session tracking."""

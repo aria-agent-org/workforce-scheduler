@@ -144,7 +144,7 @@ async def create_tenant_user(
         if not rd_res.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="הגדרת תפקיד לא נמצאה")
 
-    # Validate employee belongs to tenant
+    # Validate employee belongs to tenant and is not already linked
     if data.employee_id:
         emp_res = await db.execute(
             select(Employee).where(
@@ -154,6 +154,17 @@ async def create_tenant_user(
         )
         if not emp_res.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="עובד לא נמצא")
+
+        # Check if another user already has this employee_id
+        existing_link = await db.execute(
+            select(User).where(User.employee_id == data.employee_id)
+        )
+        linked_user = existing_link.scalar_one_or_none()
+        if linked_user:
+            raise HTTPException(
+                status_code=409,
+                detail=f"חייל זה כבר מקושר למשתמש אחר ({linked_user.email})"
+            )
 
     new_user = User(
         tenant_id=tenant.id,
@@ -273,7 +284,25 @@ async def update_tenant_user(
 
     before = {"email": target.email, "is_active": target.is_active}
 
-    for key, value in data.model_dump(exclude_unset=True).items():
+    # Check employee_id uniqueness if changing
+    update_data = data.model_dump(exclude_unset=True)
+    if "employee_id" in update_data and update_data["employee_id"] is not None:
+        new_emp_id = update_data["employee_id"]
+        if new_emp_id != target.employee_id:
+            existing_link = await db.execute(
+                select(User).where(
+                    User.employee_id == new_emp_id,
+                    User.id != target.id,
+                )
+            )
+            linked_user = existing_link.scalar_one_or_none()
+            if linked_user:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"חייל זה כבר מקושר למשתמש אחר ({linked_user.email})"
+                )
+
+    for key, value in update_data.items():
         setattr(target, key, value)
 
     # If deactivating user and linked to employee, deactivate employee too
@@ -375,6 +404,20 @@ async def link_user_to_soldier(
         )
         if not emp_res.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="עובד לא נמצא")
+
+        # Check if another user already has this employee_id
+        existing_link = await db.execute(
+            select(User).where(
+                User.employee_id == employee_id,
+                User.id != user_id,
+            )
+        )
+        linked_user = existing_link.scalar_one_or_none()
+        if linked_user:
+            raise HTTPException(
+                status_code=409,
+                detail=f"חייל זה כבר מקושר למשתמש אחר ({linked_user.email})"
+            )
 
     target.employee_id = employee_id
     await db.flush()

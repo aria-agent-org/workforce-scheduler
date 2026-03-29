@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,817 +11,804 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  LayoutTemplate, Plus, Save, Eye, EyeOff, Download, Star, Trash2,
-  GripVertical, Columns, Pencil, FileSpreadsheet, Layers, ChevronDown,
-  ChevronUp, Filter, Copy,
+  LayoutTemplate, Plus, Save, Eye, Trash2, GripVertical, Pencil,
+  ChevronUp, ChevronDown, Palette, Clock, User, FileText, Minus, Copy,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
-import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor,
-  useSensor, useSensors, DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove, SortableContext, sortableKeyboardCoordinates,
-  useSortable, verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import * as XLSX from "xlsx";
 
-// --- Types ---
+// ─── Types ───────────────────────────────────────
+
+type RowType = "mission" | "shift" | "label" | "separator";
+type ColType = "time" | "slot" | "notes" | "custom";
+
+interface BoardCell {
+  value?: string;        // Display value or label
+  colspan?: number;      // Horizontal merge
+  slotId?: string;       // If this is a soldier-assignment slot
+  color?: string;        // Cell background color
+}
+
+interface BoardRow {
+  id: string;
+  type: RowType;
+  label: string;         // Row label (e.g., "07:00-15:00" or "מנהל תורן")
+  missionTypeId?: string;
+  timeRange?: { start: string; end: string };
+  color?: string;        // Row background color
+  cells: BoardCell[];
+}
 
 interface BoardColumn {
   id: string;
-  key: string;
-  label_he: string;
-  label_en: string;
+  type: ColType;
+  label: string;         // Column header
   width: number;
-  visible: boolean;
-  hidden_from_soldier: boolean;
-}
-
-interface BoardSection {
-  id: string;
-  name: string;
-  mission_types: string[]; // filter: which mission types go into this section
-  columns: BoardColumn[];
-  collapsed: boolean;
+  slotWorkRoleId?: string;
 }
 
 interface BoardTemplate {
   id: string;
   name: string;
-  is_default: boolean;
-  schedule_window_id: string | null; // null = global default, or specific window id
-  sections: BoardSection[];
-  // Legacy: flat columns (migrated to sections on load)
-  columns?: BoardColumn[];
+  rows: BoardRow[];
+  columns: BoardColumn[];
 }
 
-interface ScheduleWindow {
-  id: string;
-  name: string;
-}
+// ─── Helpers ─────────────────────────────────────
 
-// --- Available columns ---
+let _id = Date.now();
+const uid = () => `${++_id}_${Math.random().toString(36).slice(2, 6)}`;
 
-const AVAILABLE_COLUMNS: BoardColumn[] = [
-  { id: "col_name", key: "full_name", label_he: "שם", label_en: "Name", width: 150, visible: true, hidden_from_soldier: false },
-  { id: "col_number", key: "employee_number", label_he: "מספר אישי", label_en: "Number", width: 100, visible: true, hidden_from_soldier: false },
-  { id: "col_role", key: "work_role", label_he: "תפקיד", label_en: "Role", width: 120, visible: true, hidden_from_soldier: false },
-  { id: "col_mission", key: "mission_name", label_he: "משימה", label_en: "Mission", width: 150, visible: true, hidden_from_soldier: false },
-  { id: "col_mission_type", key: "mission_type", label_he: "סוג משימה", label_en: "Mission Type", width: 120, visible: true, hidden_from_soldier: false },
-  { id: "col_start", key: "start_time", label_he: "שעת התחלה", label_en: "Start Time", width: 100, visible: true, hidden_from_soldier: false },
-  { id: "col_end", key: "end_time", label_he: "שעת סיום", label_en: "End Time", width: 100, visible: true, hidden_from_soldier: false },
-  { id: "col_location", key: "location", label_he: "מיקום", label_en: "Location", width: 120, visible: true, hidden_from_soldier: false },
-  { id: "col_status", key: "attendance_status", label_he: "סטטוס נוכחות", label_en: "Attendance", width: 120, visible: true, hidden_from_soldier: false },
-  { id: "col_phone", key: "phone", label_he: "טלפון", label_en: "Phone", width: 120, visible: false, hidden_from_soldier: true },
-  { id: "col_notes", key: "notes", label_he: "הערות", label_en: "Notes", width: 200, visible: true, hidden_from_soldier: false },
-  { id: "col_equipment", key: "equipment", label_he: "ציוד", label_en: "Equipment", width: 150, visible: false, hidden_from_soldier: false },
-  { id: "col_shift", key: "shift_type", label_he: "סוג משמרת", label_en: "Shift Type", width: 100, visible: false, hidden_from_soldier: false },
-];
-
-const SAMPLE_DATA = [
-  { full_name: "ישראל ישראלי", employee_number: "1234567", work_role: "לוחם", mission_name: "שמירה - שער ראשי", mission_type: "שמירה", start_time: "08:00", end_time: "16:00", location: "שער ראשי", attendance_status: "נוכח", phone: "050-1234567", notes: "", equipment: "נשק + אפוד", shift_type: "בוקר" },
-  { full_name: "דוד כהן", employee_number: "2345678", work_role: "מפקד", mission_name: "פיקוח כללי", mission_type: "פיקוד", start_time: "08:00", end_time: "20:00", location: "מפקדה", attendance_status: "נוכח", phone: "050-2345678", notes: "אחראי משמרת", equipment: "נשק", shift_type: "בוקר" },
-  { full_name: "שרה לוי", employee_number: "3456789", work_role: "לוחם", mission_name: "סיור", mission_type: "סיור", start_time: "16:00", end_time: "00:00", location: "גזרה צפון", attendance_status: "נוכח", phone: "050-3456789", notes: "", equipment: "נשק + משקפי לילה", shift_type: "ערב" },
-];
-
-const MISSION_TYPES = ["שמירה", "סיור", "פיקוד", "תורנות", "הכשרה", "מנוחה", "אחר"];
-
-const defaultColumns = () => AVAILABLE_COLUMNS.filter(c => c.visible).map(c => ({ ...c, id: `${c.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }));
-
-const createDefaultSection = (): BoardSection => ({
-  id: `sec_${Date.now()}`,
-  name: "כללי",
-  mission_types: [],
-  columns: defaultColumns(),
-  collapsed: false,
+const defaultTemplate = (): BoardTemplate => ({
+  id: uid(),
+  name: "תבנית ברירת מחדל",
+  columns: [
+    { id: uid(), type: "time", label: "שעה", width: 80 },
+    { id: uid(), type: "slot", label: "נהג", width: 120 },
+    { id: uid(), type: "slot", label: 'ר"צ', width: 120 },
+    { id: uid(), type: "slot", label: "עובד 1", width: 120 },
+    { id: uid(), type: "notes", label: "הערות", width: 150 },
+  ],
+  rows: [
+    { id: uid(), type: "shift", label: "בוקר", timeRange: { start: "07:00", end: "15:00" }, cells: [{ value: "07:00-15:00" }, {}, {}, {}, {}] },
+    { id: uid(), type: "shift", label: "ערב", timeRange: { start: "15:00", end: "23:00" }, cells: [{ value: "15:00-23:00" }, {}, {}, {}, {}] },
+    { id: uid(), type: "shift", label: "לילה", timeRange: { start: "23:00", end: "07:00" }, cells: [{ value: "23:00-07:00" }, {}, {}, {}, {}] },
+    { id: uid(), type: "separator", label: "", cells: [{}, {}, {}, {}, {}] },
+    { id: uid(), type: "label", label: "מנהל תורן", cells: [{ value: "מנהל תורן" }, { slotId: "duty_mgr" }, {}, {}, {}] },
+  ],
 });
 
-// Migrate legacy template (flat columns) to sections
-function migrateTemplate(tpl: any): BoardTemplate {
-  if (tpl.sections && tpl.sections.length > 0) return tpl as BoardTemplate;
-  return {
-    ...tpl,
-    schedule_window_id: tpl.schedule_window_id || null,
-    sections: [{
-      id: "sec_default",
-      name: "כללי",
-      mission_types: [],
-      columns: tpl.columns || defaultColumns(),
-      collapsed: false,
-    }],
-  };
-}
+const ensureCells = (row: BoardRow, colCount: number): BoardCell[] => {
+  const cells = [...(row.cells || [])];
+  while (cells.length < colCount) cells.push({});
+  return cells.slice(0, colCount);
+};
 
-// --- Sortable Column Component ---
-
-function SortableColumn({
-  column, lang, onToggleVisible, onToggleHidden, onWidthChange, onRemove,
-}: {
-  column: BoardColumn;
-  lang: "he" | "en";
-  onToggleVisible: () => void;
-  onToggleHidden: () => void;
-  onWidthChange: (w: number) => void;
-  onRemove: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: column.id });
-  const style = { transform: CSS.Transform.toString(transform), transition };
-
-  return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 rounded-lg border bg-card p-2">
-      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground">
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <span className="flex-1 text-sm font-medium truncate">{lang === "he" ? column.label_he : column.label_en}</span>
-      <Input
-        type="number"
-        min={50}
-        max={400}
-        value={column.width}
-        onChange={e => onWidthChange(parseInt(e.target.value) || 100)}
-        className="w-16 text-center text-xs h-8"
-      />
-      <button onClick={onToggleVisible} title={column.visible ? "הסתר" : "הצג"}>
-        {column.visible ? <Eye className="h-4 w-4 text-green-500" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-      </button>
-      <button
-        onClick={onToggleHidden}
-        title={column.hidden_from_soldier ? "מוסתר מחייל" : "נראה לחייל"}
-        className={column.hidden_from_soldier ? "text-red-500" : "text-muted-foreground"}
-      >
-        {column.hidden_from_soldier ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </button>
-      <button onClick={onRemove}><Trash2 className="h-4 w-4 text-red-400 hover:text-red-600" /></button>
-    </div>
-  );
-}
-
-// --- Sortable Section Component ---
-
-function SortableSection({ section, children }: { section: BoardSection; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: section.id });
-  const style = { transform: CSS.Transform.toString(transform), transition };
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      <div className="flex items-center gap-2 mb-2">
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground">
-          <GripVertical className="h-5 w-5" />
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// --- Main Component ---
+// ─── Component ───────────────────────────────────
 
 export default function BoardTemplateEditor() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const lang = i18n.language as "he" | "en";
 
-  const [templates, setTemplates] = useState<BoardTemplate[]>([
-    migrateTemplate({
-      id: "default",
-      name: "תבנית ברירת מחדל",
-      is_default: true,
-      schedule_window_id: null,
-      sections: [createDefaultSection()],
-    }),
-  ]);
-  const [activeTemplate, setActiveTemplate] = useState("default");
-  const [showPreview, setShowPreview] = useState(false);
-  const [showAddColumn, setShowAddColumn] = useState<string | null>(null); // section id
-  const [showAddSection, setShowAddSection] = useState(false);
-  const [newSectionName, setNewSectionName] = useState("");
-  const [newSectionTypes, setNewSectionTypes] = useState<string[]>([]);
+  const [template, setTemplate] = useState<BoardTemplate>(defaultTemplate());
+  const [missionTypes, setMissionTypes] = useState<any[]>([]);
+  const [workRoles, setWorkRoles] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
-  const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
-  const [filterMissionType, setFilterMissionType] = useState<string>("");
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
-  const [editingSectionName, setEditingSectionName] = useState("");
-  const [editingSectionTypes, setEditingSectionTypes] = useState<string[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // Edit modals
+  const [editRowIdx, setEditRowIdx] = useState<number | null>(null);
+  const [editColIdx, setEditColIdx] = useState<number | null>(null);
+  const [editCellPos, setEditCellPos] = useState<{ row: number; col: number } | null>(null);
 
-  const current = templates.find(t => t.id === activeTemplate) || templates[0];
+  // Row add modal
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [newRowType, setNewRowType] = useState<RowType>("shift");
+  const [newRowLabel, setNewRowLabel] = useState("");
+  const [newRowStart, setNewRowStart] = useState("08:00");
+  const [newRowEnd, setNewRowEnd] = useState("16:00");
+  const [newRowMissionTypeId, setNewRowMissionTypeId] = useState("");
 
-  // Load templates and schedule windows
+  // Col add modal
+  const [showAddCol, setShowAddCol] = useState(false);
+  const [newColType, setNewColType] = useState<ColType>("slot");
+  const [newColLabel, setNewColLabel] = useState("");
+
+  // Load mission types and work roles
   useEffect(() => {
+    Promise.all([
+      api.get(tenantApi("/mission-types")).catch(() => ({ data: [] })),
+      api.get(tenantApi("/settings/work-roles")).catch(() => ({ data: [] })),
+    ]).then(([mtRes, wrRes]) => {
+      setMissionTypes(mtRes.data || []);
+      setWorkRoles(wrRes.data || []);
+    });
+
+    // Load saved template
     api.get(tenantApi("/settings")).then(res => {
       const settings = res.data || [];
-      const boardSettings = settings.find((s: any) => s.key === "board_templates");
-      if (boardSettings?.value && Array.isArray(boardSettings.value)) {
-        setTemplates(boardSettings.value.map(migrateTemplate));
+      const boardSetting = settings.find((s: any) => s.key === "board_grid_template");
+      if (boardSetting?.value) {
+        try {
+          const saved = typeof boardSetting.value === "string"
+            ? JSON.parse(boardSetting.value)
+            : boardSetting.value._v
+              ? (typeof boardSetting.value._v === "string" ? JSON.parse(boardSetting.value._v) : boardSetting.value._v)
+              : boardSetting.value;
+          if (saved.columns && saved.rows) {
+            setTemplate(saved);
+          }
+        } catch {}
       }
-    }).catch(() => {});
-
-    // Try to load schedule windows
-    api.get(tenantApi("/schedule-windows")).then(res => {
-      if (Array.isArray(res.data)) setScheduleWindows(res.data);
     }).catch(() => {});
   }, []);
 
-  const saveTemplates = async () => {
+  const saveTemplate = async () => {
     setSaving(true);
     try {
       await api.post(tenantApi("/settings"), {
-        key: "board_templates",
-        value: templates,
+        key: "board_grid_template",
+        value: template,
         group: "board",
-      }).catch(() =>
-        api.patch(tenantApi("/settings/board_templates"), { value: templates }).catch(() => {})
-      );
-      toast("success", "תבניות נשמרו");
+      });
+      toast("success", "תבנית הלוח נשמרה בהצלחה");
     } catch {
-      toast("error", "שגיאה");
+      toast("error", "שגיאה בשמירה");
     } finally {
       setSaving(false);
     }
   };
 
-  // --- Template operations ---
+  // ─── Row Operations ────────────────────────────
 
-  const addTemplate = () => {
-    const id = `tpl_${Date.now()}`;
-    setTemplates(prev => [...prev, {
-      id,
-      name: "תבנית חדשה",
-      is_default: false,
-      schedule_window_id: null,
-      sections: [createDefaultSection()],
-    }]);
-    setActiveTemplate(id);
+  const addRow = () => {
+    const cells: BoardCell[] = template.columns.map(() => ({}));
+    let row: BoardRow;
+
+    if (newRowType === "shift") {
+      cells[0] = { value: `${newRowStart}-${newRowEnd}` };
+      row = {
+        id: uid(), type: "shift", label: newRowLabel || `${newRowStart}-${newRowEnd}`,
+        timeRange: { start: newRowStart, end: newRowEnd }, cells,
+      };
+    } else if (newRowType === "mission") {
+      cells[0] = { value: newRowLabel };
+      row = {
+        id: uid(), type: "mission", label: newRowLabel,
+        missionTypeId: newRowMissionTypeId || undefined, cells,
+      };
+    } else if (newRowType === "separator") {
+      row = { id: uid(), type: "separator", label: "", cells };
+    } else {
+      cells[0] = { value: newRowLabel };
+      row = { id: uid(), type: "label", label: newRowLabel, cells };
+    }
+
+    setTemplate(prev => ({
+      ...prev,
+      rows: [...prev.rows, row],
+    }));
+    setShowAddRow(false);
+    setNewRowLabel("");
   };
 
-  const duplicateTemplate = () => {
-    const id = `tpl_${Date.now()}`;
-    const clone: BoardTemplate = JSON.parse(JSON.stringify(current));
-    clone.id = id;
-    clone.name = `${clone.name} (עותק)`;
-    clone.is_default = false;
-    // Re-generate IDs for sections and columns
-    clone.sections = clone.sections.map(sec => ({
-      ...sec,
-      id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      columns: sec.columns.map(col => ({
-        ...col,
-        id: `${col.key}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  const removeRow = (idx: number) => {
+    setTemplate(prev => ({
+      ...prev,
+      rows: prev.rows.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const moveRow = (idx: number, dir: -1 | 1) => {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= template.rows.length) return;
+    setTemplate(prev => {
+      const rows = [...prev.rows];
+      [rows[idx], rows[newIdx]] = [rows[newIdx], rows[idx]];
+      return { ...prev, rows };
+    });
+  };
+
+  // ─── Column Operations ─────────────────────────
+
+  const addColumn = () => {
+    const col: BoardColumn = {
+      id: uid(), type: newColType, label: newColLabel || "חדש", width: 120,
+    };
+    setTemplate(prev => ({
+      ...prev,
+      columns: [...prev.columns, col],
+      rows: prev.rows.map(row => ({
+        ...row,
+        cells: [...ensureCells(row, prev.columns.length), {}],
       })),
     }));
-    setTemplates(prev => [...prev, clone]);
-    setActiveTemplate(id);
+    setShowAddCol(false);
+    setNewColLabel("");
   };
 
-  const setDefault = (id: string) => {
-    setTemplates(prev => prev.map(t => ({ ...t, is_default: t.id === id })));
-  };
-
-  const deleteTemplate = (id: string) => {
-    if (templates.length <= 1) return;
-    setTemplates(prev => prev.filter(t => t.id !== id));
-    if (activeTemplate === id) setActiveTemplate(templates.find(t => t.id !== id)?.id || templates[0].id);
-  };
-
-  const setScheduleWindow = (windowId: string) => {
-    setTemplates(prev => prev.map(t =>
-      t.id === activeTemplate ? { ...t, schedule_window_id: windowId || null } : t
-    ));
-  };
-
-  // --- Section operations ---
-
-  const addSection = () => {
-    if (!newSectionName.trim()) return;
-    const sec: BoardSection = {
-      id: `sec_${Date.now()}`,
-      name: newSectionName.trim(),
-      mission_types: newSectionTypes,
-      columns: defaultColumns(),
-      collapsed: false,
-    };
-    setTemplates(prev => prev.map(t =>
-      t.id === activeTemplate ? { ...t, sections: [...t.sections, sec] } : t
-    ));
-    setNewSectionName("");
-    setNewSectionTypes([]);
-    setShowAddSection(false);
-  };
-
-  const removeSection = (secId: string) => {
-    setTemplates(prev => prev.map(t => {
-      if (t.id !== activeTemplate) return t;
-      if (t.sections.length <= 1) return t; // keep at least 1
-      return { ...t, sections: t.sections.filter(s => s.id !== secId) };
+  const removeColumn = (idx: number) => {
+    setTemplate(prev => ({
+      ...prev,
+      columns: prev.columns.filter((_, i) => i !== idx),
+      rows: prev.rows.map(row => ({
+        ...row,
+        cells: ensureCells(row, prev.columns.length).filter((_, i) => i !== idx),
+      })),
     }));
   };
 
-  const toggleSectionCollapse = (secId: string) => {
-    setTemplates(prev => prev.map(t => {
-      if (t.id !== activeTemplate) return t;
-      return {
-        ...t,
-        sections: t.sections.map(s =>
-          s.id === secId ? { ...s, collapsed: !s.collapsed } : s
-        ),
-      };
-    }));
-  };
-
-  const updateSectionDetails = () => {
-    if (!editingSectionId) return;
-    setTemplates(prev => prev.map(t => {
-      if (t.id !== activeTemplate) return t;
-      return {
-        ...t,
-        sections: t.sections.map(s =>
-          s.id === editingSectionId
-            ? { ...s, name: editingSectionName, mission_types: editingSectionTypes }
-            : s
-        ),
-      };
-    }));
-    setEditingSectionId(null);
-  };
-
-  // --- Section drag ---
-
-  const handleSectionDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setTemplates(prev => prev.map(tpl => {
-      if (tpl.id !== activeTemplate) return tpl;
-      const oldIdx = tpl.sections.findIndex(s => s.id === active.id);
-      const newIdx = tpl.sections.findIndex(s => s.id === over.id);
-      return { ...tpl, sections: arrayMove(tpl.sections, oldIdx, newIdx) };
-    }));
-  };
-
-  // --- Column operations within a section ---
-
-  const handleColumnDragEnd = (sectionId: string) => (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setTemplates(prev => prev.map(tpl => {
-      if (tpl.id !== activeTemplate) return tpl;
-      return {
-        ...tpl,
-        sections: tpl.sections.map(sec => {
-          if (sec.id !== sectionId) return sec;
-          const oldIdx = sec.columns.findIndex(c => c.id === active.id);
-          const newIdx = sec.columns.findIndex(c => c.id === over.id);
-          return { ...sec, columns: arrayMove(sec.columns, oldIdx, newIdx) };
-        }),
-      };
-    }));
-  };
-
-  const updateColumn = (sectionId: string, colId: string, field: string, value: any) => {
-    setTemplates(prev => prev.map(tpl => {
-      if (tpl.id !== activeTemplate) return tpl;
-      return {
-        ...tpl,
-        sections: tpl.sections.map(sec => {
-          if (sec.id !== sectionId) return sec;
-          return {
-            ...sec,
-            columns: sec.columns.map(c =>
-              c.id === colId ? { ...c, [field]: value } : c
-            ),
-          };
-        }),
-      };
-    }));
-  };
-
-  const removeColumn = (sectionId: string, colId: string) => {
-    setTemplates(prev => prev.map(tpl => {
-      if (tpl.id !== activeTemplate) return tpl;
-      return {
-        ...tpl,
-        sections: tpl.sections.map(sec => {
-          if (sec.id !== sectionId) return sec;
-          return { ...sec, columns: sec.columns.filter(c => c.id !== colId) };
-        }),
-      };
-    }));
-  };
-
-  const addColumnToSection = (sectionId: string, col: BoardColumn) => {
-    const newCol = {
-      ...col,
-      id: `${col.key}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    };
-    setTemplates(prev => prev.map(tpl => {
-      if (tpl.id !== activeTemplate) return tpl;
-      return {
-        ...tpl,
-        sections: tpl.sections.map(sec => {
-          if (sec.id !== sectionId) return sec;
-          return { ...sec, columns: [...sec.columns, newCol] };
-        }),
-      };
-    }));
-    setShowAddColumn(null);
-  };
-
-  // --- Export ---
-
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
-    for (const sec of current.sections) {
-      const visibleCols = sec.columns.filter(c => c.visible);
-      const filteredData = filterMissionType
-        ? SAMPLE_DATA.filter(r => r.mission_type === filterMissionType)
-        : SAMPLE_DATA;
-      const rows = filteredData.map(row => {
-        const r: Record<string, string> = {};
-        for (const col of visibleCols) {
-          r[lang === "he" ? col.label_he : col.label_en] = (row as any)[col.key] || "";
-        }
-        return r;
+  const moveColumn = (idx: number, dir: -1 | 1) => {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= template.columns.length) return;
+    setTemplate(prev => {
+      const columns = [...prev.columns];
+      [columns[idx], columns[newIdx]] = [columns[newIdx], columns[idx]];
+      const rows = prev.rows.map(row => {
+        const cells = ensureCells(row, prev.columns.length);
+        const newCells = [...cells];
+        [newCells[idx], newCells[newIdx]] = [newCells[newIdx], newCells[idx]];
+        return { ...row, cells: newCells };
       });
-      const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, sec.name.slice(0, 31));
+      return { ...prev, columns, rows };
+    });
+  };
+
+  // ─── Cell Operations ───────────────────────────
+
+  const updateCell = (rowIdx: number, colIdx: number, updates: Partial<BoardCell>) => {
+    setTemplate(prev => ({
+      ...prev,
+      rows: prev.rows.map((row, ri) => {
+        if (ri !== rowIdx) return row;
+        const cells = ensureCells(row, prev.columns.length);
+        cells[colIdx] = { ...cells[colIdx], ...updates };
+        return { ...row, cells };
+      }),
+    }));
+  };
+
+  // ─── Row type styling ─────────────────────────
+
+  const rowBg = (row: BoardRow) => {
+    if (row.color) return row.color;
+    switch (row.type) {
+      case "separator": return "#e5e7eb";
+      case "label": return "#dbeafe";
+      case "mission": return "#fef3c7";
+      default: return "transparent";
     }
-    XLSX.writeFile(wb, `board-template-${current.name}.xlsx`);
   };
 
-  const exportToPDF = () => {
-    toast("info", "ייצוא PDF — יפתח חלון הדפסה");
-    window.print();
+  const rowTypeIcon = (type: RowType) => {
+    switch (type) {
+      case "shift": return <Clock className="h-3.5 w-3.5 text-green-600" />;
+      case "mission": return <LayoutTemplate className="h-3.5 w-3.5 text-yellow-600" />;
+      case "label": return <FileText className="h-3.5 w-3.5 text-blue-600" />;
+      case "separator": return <Minus className="h-3.5 w-3.5 text-gray-400" />;
+    }
   };
 
-  const toggleMissionType = (type: string, arr: string[], setArr: (a: string[]) => void) => {
-    setArr(arr.includes(type) ? arr.filter(t => t !== type) : [...arr, type]);
-  };
+  const colCount = template.columns.length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <LayoutTemplate className="h-6 w-6 text-indigo-600" />
-            {lang === "he" ? "עורך תבנית לוח יומי" : "Daily Board Template Editor"}
+            בנאי לוח יומי — WYSIWYG
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {lang === "he" ? "הגדר מקטעים, גרור עמודות, סנן לפי סוג משימה" : "Define sections, drag columns, filter by mission type"}
+            בנה את הלוח כמו גיליון אקסל: הוסף שורות ועמודות, סדר מחדש, ולחץ על תא כדי לערוך
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={exportToExcel}>
-            <FileSpreadsheet className="me-1 h-4 w-4" />Excel
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
+            <Eye className="me-1 h-4 w-4" />תצוגה מקדימה
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToPDF}>
-            <Download className="me-1 h-4 w-4" />PDF
-          </Button>
-          <Button onClick={saveTemplates} disabled={saving}>
-            <Save className="me-1 h-4 w-4" />{saving ? "שומר..." : "שמור"}
+          <Button onClick={saveTemplate} disabled={saving}>
+            <Save className="me-1 h-4 w-4" />{saving ? "שומר..." : "שמור תבנית"}
           </Button>
         </div>
       </div>
 
-      {/* Template Tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {templates.map(tpl => (
-          <button
-            key={tpl.id}
-            onClick={() => setActiveTemplate(tpl.id)}
-            className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm border transition-colors ${
-              activeTemplate === tpl.id ? "bg-primary-500 text-white border-primary-500" : "bg-card hover:bg-accent"
-            }`}
-          >
-            {tpl.is_default && <Star className="h-3 w-3" />}
-            {tpl.name}
-            {tpl.schedule_window_id && <Badge className="ms-1 text-[9px] px-1">חלון</Badge>}
-          </button>
-        ))}
-        <Button size="sm" variant="outline" onClick={addTemplate}>
-          <Plus className="me-1 h-4 w-4" />תבנית חדשה
+      {/* Template name */}
+      <div className="flex items-center gap-3">
+        <Label className="text-sm font-bold">שם התבנית:</Label>
+        <Input
+          value={template.name}
+          onChange={e => setTemplate(prev => ({ ...prev, name: e.target.value }))}
+          className="max-w-xs"
+        />
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-2 flex-wrap">
+        <Button size="sm" variant="outline" onClick={() => { setNewRowType("shift"); setNewRowLabel(""); setShowAddRow(true); }}>
+          <Plus className="me-1 h-4 w-4" />הוסף שורה
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => { setNewColType("slot"); setNewColLabel(""); setShowAddCol(true); }}>
+          <Plus className="me-1 h-4 w-4" />הוסף עמודה
         </Button>
       </div>
 
-      {/* Template Controls */}
-      <Card>
-        <CardContent className="p-4 flex items-center gap-4 flex-wrap">
-          <div className="space-y-1 flex-1 min-w-[180px]">
-            <Label className="text-xs">שם תבנית</Label>
-            <Input
-              value={current.name}
-              onChange={e => setTemplates(prev => prev.map(t => t.id === activeTemplate ? { ...t, name: e.target.value } : t))}
-            />
-          </div>
-          {scheduleWindows.length > 0 && (
-            <div className="space-y-1 min-w-[180px]">
-              <Label className="text-xs">חלון שיבוץ</Label>
-              <Select
-                value={current.schedule_window_id || ""}
-                onChange={e => setScheduleWindow(e.target.value)}
-              >
-                <option value="">ברירת מחדל (גלובלי)</option>
-                {scheduleWindows.map(w => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </Select>
-            </div>
-          )}
-          <div className="space-y-1 min-w-[150px]">
-            <Label className="text-xs">סנן לפי סוג משימה</Label>
-            <Select value={filterMissionType} onChange={e => setFilterMissionType(e.target.value)}>
-              <option value="">הכל</option>
-              {MISSION_TYPES.map(mt => (
-                <option key={mt} value={mt}>{mt}</option>
-              ))}
-            </Select>
-          </div>
-          <div className="flex gap-1 items-end pt-4">
-            <Button variant="outline" size="sm" onClick={() => setDefault(activeTemplate)}>
-              <Star className="me-1 h-4 w-4" />{current.is_default ? "ברירת מחדל ✓" : "ברירת מחדל"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={duplicateTemplate}>
-              <Copy className="me-1 h-4 w-4" />שכפל
-            </Button>
-            {templates.length > 1 && (
-              <Button variant="ghost" size="sm" onClick={() => deleteTemplate(activeTemplate)}>
-                <Trash2 className="me-1 h-4 w-4 text-red-500" />מחק
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
-              <Eye className="me-1 h-4 w-4" />תצוגה מקדימה
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sections */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Layers className="h-5 w-5" />
-          מקטעים ({current.sections.length})
-        </h3>
-        <Button size="sm" variant="outline" onClick={() => setShowAddSection(true)}>
-          <Plus className="me-1 h-4 w-4" />מקטע חדש
-        </Button>
-      </div>
-
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
-        <SortableContext items={current.sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4">
-            {current.sections.map(section => (
-              <SortableSection key={section.id} section={section}>
-                <Card className="flex-1">
-                  <CardContent className="p-4 space-y-3">
-                    {/* Section Header */}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => toggleSectionCollapse(section.id)}>
-                          {section.collapsed ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+      {/* ═══ THE GRID ═══ */}
+      <div className="overflow-x-auto rounded-xl border shadow-sm">
+        <table className="w-full border-collapse" style={{ minWidth: template.columns.reduce((s, c) => s + c.width, 60) }}>
+          {/* Column Headers */}
+          <thead>
+            <tr className="bg-muted/60">
+              {/* Row controls column */}
+              <th className="border px-1 py-2 w-[60px] text-center text-[10px] text-muted-foreground">
+                ↕
+              </th>
+              {template.columns.map((col, ci) => (
+                <th
+                  key={col.id}
+                  className="border px-2 py-2 text-sm font-bold cursor-pointer hover:bg-muted/80 transition-colors group relative"
+                  style={{ minWidth: col.width, width: col.width }}
+                  onClick={() => setEditColIdx(ci)}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>{col.label}</span>
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {ci > 0 && (
+                        <button onClick={e => { e.stopPropagation(); moveColumn(ci, -1); }} className="text-muted-foreground hover:text-foreground" title="הזז שמאלה">
+                          ←
                         </button>
-                        <h4 className="font-bold text-base">{section.name}</h4>
-                        {section.mission_types.length > 0 && (
-                          <div className="flex gap-1 flex-wrap">
-                            {section.mission_types.map(mt => (
-                              <Badge key={mt} variant="default" className="text-[10px]">
-                                <Filter className="h-3 w-3 me-0.5" />{mt}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {section.mission_types.length === 0 && (
-                          <Badge variant="outline" className="text-[10px]">כל סוגי המשימות</Badge>
-                        )}
-                      </div>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => {
-                          setEditingSectionId(section.id);
-                          setEditingSectionName(section.name);
-                          setEditingSectionTypes([...section.mission_types]);
-                        }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowAddColumn(section.id)}>
-                          <Columns className="h-3.5 w-3.5 me-1" />עמודה
-                        </Button>
-                        {current.sections.length > 1 && (
-                          <Button size="sm" variant="ghost" onClick={() => removeSection(section.id)}>
-                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                          </Button>
-                        )}
-                      </div>
+                      )}
+                      {ci < colCount - 1 && (
+                        <button onClick={e => { e.stopPropagation(); moveColumn(ci, 1); }} className="text-muted-foreground hover:text-foreground" title="הזז ימינה">
+                          →
+                        </button>
+                      )}
                     </div>
+                  </div>
+                  <div className="text-[10px] font-normal text-muted-foreground">
+                    {col.type === "time" ? "⏰" : col.type === "slot" ? "👤" : col.type === "notes" ? "📝" : "✏️"}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {template.rows.map((row, ri) => {
+              const cells = ensureCells(row, colCount);
+              const bg = rowBg(row);
 
-                    {/* Columns (collapsible) */}
-                    {!section.collapsed && (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleColumnDragEnd(section.id)}
-                      >
-                        <SortableContext items={section.columns.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2 px-2 text-[11px] text-muted-foreground">
-                              <span className="w-6"></span>
-                              <span className="flex-1">עמודה</span>
-                              <span className="w-16 text-center">רוחב</span>
-                              <span className="w-7 text-center">נראה</span>
-                              <span className="w-7 text-center" title="חייל">👁</span>
-                              <span className="w-7"></span>
-                            </div>
-                            {section.columns.map(col => (
-                              <SortableColumn
-                                key={col.id}
-                                column={col}
-                                lang={lang}
-                                onToggleVisible={() => updateColumn(section.id, col.id, "visible", !col.visible)}
-                                onToggleHidden={() => updateColumn(section.id, col.id, "hidden_from_soldier", !col.hidden_from_soldier)}
-                                onWidthChange={w => updateColumn(section.id, col.id, "width", w)}
-                                onRemove={() => removeColumn(section.id, col.id)}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    )}
-                  </CardContent>
-                </Card>
-              </SortableSection>
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-
-      {/* Add Section Dialog */}
-      <Dialog open={showAddSection} onOpenChange={setShowAddSection}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>מקטע חדש</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>שם המקטע</Label>
-              <Input
-                value={newSectionName}
-                onChange={e => setNewSectionName(e.target.value)}
-                placeholder="לדוגמה: שמירות, סיורים, פיקוד..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>סוגי משימות (השאר ריק = הכל)</Label>
-              <div className="flex flex-wrap gap-2">
-                {MISSION_TYPES.map(mt => (
-                  <button
-                    key={mt}
-                    onClick={() => toggleMissionType(mt, newSectionTypes, setNewSectionTypes)}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-xs border transition-colors",
-                      newSectionTypes.includes(mt)
-                        ? "bg-primary-500 text-white border-primary-500"
-                        : "bg-card hover:bg-accent"
-                    )}
-                  >
-                    {mt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddSection(false)}>ביטול</Button>
-            <Button onClick={addSection} disabled={!newSectionName.trim()}>צור מקטע</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Section Dialog */}
-      <Dialog open={!!editingSectionId} onOpenChange={open => { if (!open) setEditingSectionId(null); }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>עריכת מקטע</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>שם המקטע</Label>
-              <Input
-                value={editingSectionName}
-                onChange={e => setEditingSectionName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>סוגי משימות</Label>
-              <div className="flex flex-wrap gap-2">
-                {MISSION_TYPES.map(mt => (
-                  <button
-                    key={mt}
-                    onClick={() => toggleMissionType(mt, editingSectionTypes, setEditingSectionTypes)}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-xs border transition-colors",
-                      editingSectionTypes.includes(mt)
-                        ? "bg-primary-500 text-white border-primary-500"
-                        : "bg-card hover:bg-accent"
-                    )}
-                  >
-                    {mt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingSectionId(null)}>ביטול</Button>
-            <Button onClick={updateSectionDetails}>שמור</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Column Dialog */}
-      <Dialog open={!!showAddColumn} onOpenChange={open => { if (!open) setShowAddColumn(null); }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>הוסף עמודה</DialogTitle></DialogHeader>
-          <div className="space-y-2 py-4 max-h-[400px] overflow-y-auto">
-            {AVAILABLE_COLUMNS.map(col => (
-              <button
-                key={col.id}
-                onClick={() => showAddColumn && addColumnToSection(showAddColumn, col)}
-                className="w-full flex items-center gap-3 rounded-lg border p-3 hover:bg-accent text-start"
-              >
-                <Columns className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <div className="font-medium text-sm">{lang === "he" ? col.label_he : col.label_en}</div>
-                  <div className="text-xs text-muted-foreground">{col.key}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>תצוגה מקדימה — {current.name}</DialogTitle></DialogHeader>
-          <div className="space-y-6 py-4">
-            {current.sections.map(section => {
-              const visibleCols = section.columns.filter(c => c.visible);
-              let data = SAMPLE_DATA;
-              if (section.mission_types.length > 0) {
-                data = data.filter(d => section.mission_types.includes(d.mission_type));
-              }
-              if (filterMissionType) {
-                data = data.filter(d => d.mission_type === filterMissionType);
+              if (row.type === "separator") {
+                return (
+                  <tr key={row.id}>
+                    <td className="border px-1 py-0.5 text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        {ri > 0 && <button onClick={() => moveRow(ri, -1)} className="text-muted-foreground hover:text-foreground text-xs">▲</button>}
+                        {ri < template.rows.length - 1 && <button onClick={() => moveRow(ri, 1)} className="text-muted-foreground hover:text-foreground text-xs">▼</button>}
+                        <button onClick={() => removeRow(ri)} className="text-red-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
+                      </div>
+                    </td>
+                    <td colSpan={colCount} className="border h-2" style={{ backgroundColor: bg }} />
+                  </tr>
+                );
               }
 
               return (
-                <div key={section.id}>
-                  <h3 className="text-base font-bold mb-2 flex items-center gap-2">
-                    <Layers className="h-4 w-4" />
-                    {section.name}
-                    {section.mission_types.length > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        ({section.mission_types.join(", ")})
-                      </span>
-                    )}
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-muted/50">
-                          {visibleCols.map(col => (
-                            <th
-                              key={col.id}
-                              className="border px-3 py-2 text-start text-sm font-medium"
-                              style={{ minWidth: col.width, width: col.width }}
-                            >
-                              {lang === "he" ? col.label_he : col.label_en}
-                              {col.hidden_from_soldier && <EyeOff className="inline ms-1 h-3 w-3 text-red-400" />}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.length === 0 ? (
-                          <tr><td colSpan={visibleCols.length} className="border px-3 py-4 text-center text-muted-foreground">אין נתונים למקטע זה</td></tr>
-                        ) : data.map((row, i) => (
-                          <tr key={i} className="border-b hover:bg-muted/20">
-                            {visibleCols.map(col => (
-                              <td
-                                key={col.id}
-                                className="border px-3 py-2 text-sm"
-                                style={{ minWidth: col.width, width: col.width }}
-                              >
-                                {(row as any)[col.key] || "—"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <tr key={row.id} style={{ backgroundColor: bg }} className="hover:brightness-95 transition-all">
+                  {/* Row controls */}
+                  <td className="border px-1 py-1 text-center" style={{ backgroundColor: "#f9fafb" }}>
+                    <div className="flex flex-col items-center gap-0.5">
+                      {rowTypeIcon(row.type)}
+                      {ri > 0 && <button onClick={() => moveRow(ri, -1)} className="text-muted-foreground hover:text-foreground text-[10px]">▲</button>}
+                      {ri < template.rows.length - 1 && <button onClick={() => moveRow(ri, 1)} className="text-muted-foreground hover:text-foreground text-[10px]">▼</button>}
+                      <button onClick={() => setEditRowIdx(ri)} className="text-muted-foreground hover:text-foreground"><Pencil className="h-2.5 w-2.5" /></button>
+                      <button onClick={() => removeRow(ri)} className="text-red-400 hover:text-red-600"><Trash2 className="h-2.5 w-2.5" /></button>
+                    </div>
+                  </td>
+                  {/* Data cells */}
+                  {cells.map((cell, ci) => {
+                    if (cell.colspan && cell.colspan > 1) {
+                      // This cell spans multiple columns — handled by the merged cell
+                    }
+                    // Check if this cell is hidden by a previous cell's colspan
+                    const prevMerge = cells.slice(0, ci).find((c, idx) => c.colspan && idx + (c.colspan || 1) > ci);
+                    if (prevMerge) return null;
+
+                    const col = template.columns[ci];
+                    const isSlotCol = col?.type === "slot";
+                    const isTimeCol = col?.type === "time";
+                    const hasSlot = cell.slotId || (isSlotCol && row.type === "shift");
+
+                    return (
+                      <td
+                        key={ci}
+                        colSpan={cell.colspan || 1}
+                        className={`border px-2 py-2 text-sm cursor-pointer hover:ring-2 hover:ring-primary-300 hover:ring-inset transition-all ${
+                          hasSlot ? "bg-blue-50/50 dark:bg-blue-900/10" : ""
+                        }`}
+                        style={{ minWidth: col?.width || 100, backgroundColor: cell.color || undefined }}
+                        onClick={() => setEditCellPos({ row: ri, col: ci })}
+                      >
+                        {cell.value ? (
+                          <span className="font-medium">{cell.value}</span>
+                        ) : hasSlot ? (
+                          <div className="flex items-center justify-center gap-1 text-blue-400 text-xs py-1">
+                            <User className="h-3.5 w-3.5" />
+                            <span>לחץ לשבץ</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/30 text-xs">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
               );
             })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-green-600" /> שורת משמרת</span>
+        <span className="flex items-center gap-1"><LayoutTemplate className="h-3 w-3 text-yellow-600" /> שורת סוג משימה</span>
+        <span className="flex items-center gap-1"><FileText className="h-3 w-3 text-blue-600" /> שורת תווית</span>
+        <span className="flex items-center gap-1"><Minus className="h-3 w-3 text-gray-400" /> מפריד</span>
+        <span className="flex items-center gap-1"><User className="h-3 w-3 text-blue-400" /> סלוט חייל (לחיץ)</span>
+      </div>
+
+      {/* ═══ MODALS ═══ */}
+
+      {/* Add Row */}
+      <Dialog open={showAddRow} onOpenChange={setShowAddRow}>
+        <DialogContent className="max-w-[450px]">
+          <DialogHeader><DialogTitle>הוסף שורה</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>סוג שורה</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { type: "shift" as RowType, label: "⏰ משמרת", desc: "שורה עם טווח שעות" },
+                  { type: "mission" as RowType, label: "📋 סוג משימה", desc: "שורה מקושרת לסוג משימה" },
+                  { type: "label" as RowType, label: "🏷️ תווית", desc: "שורת טקסט חופשי" },
+                  { type: "separator" as RowType, label: "➖ מפריד", desc: "קו הפרדה" },
+                ]).map(opt => (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => setNewRowType(opt.type)}
+                    className={`rounded-xl border p-3 text-start transition-all ${
+                      newRowType === opt.type ? "ring-2 ring-primary-500 border-primary-300 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {newRowType !== "separator" && (
+              <div className="space-y-2">
+                <Label>תווית / שם</Label>
+                <Input value={newRowLabel} onChange={e => setNewRowLabel(e.target.value)} placeholder="לדוגמה: בוקר, מנהל תורן..." />
+              </div>
+            )}
+
+            {newRowType === "shift" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>שעת התחלה</Label>
+                  <Input type="time" value={newRowStart} onChange={e => setNewRowStart(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>שעת סיום</Label>
+                  <Input type="time" value={newRowEnd} onChange={e => setNewRowEnd(e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            {newRowType === "mission" && missionTypes.length > 0 && (
+              <div className="space-y-2">
+                <Label>סוג משימה</Label>
+                <Select value={newRowMissionTypeId} onChange={e => setNewRowMissionTypeId(e.target.value)}>
+                  <option value="">ללא קישור</option>
+                  {missionTypes.map((mt: any) => (
+                    <option key={mt.id} value={mt.id}>{mt.name?.[lang] || mt.name?.he || mt.name}</option>
+                  ))}
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddRow(false)}>ביטול</Button>
+            <Button onClick={addRow}>הוסף</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Column */}
+      <Dialog open={showAddCol} onOpenChange={setShowAddCol}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader><DialogTitle>הוסף עמודה</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>סוג עמודה</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { type: "slot" as ColType, label: "👤 סלוט חייל", desc: "עמודה לשיבוץ חייל" },
+                  { type: "time" as ColType, label: "⏰ שעה", desc: "עמודת זמן" },
+                  { type: "notes" as ColType, label: "📝 הערות", desc: "עמודת הערות" },
+                  { type: "custom" as ColType, label: "✏️ מותאם", desc: "עמודה חופשית" },
+                ]).map(opt => (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => setNewColType(opt.type)}
+                    className={`rounded-xl border p-3 text-start transition-all ${
+                      newColType === opt.type ? "ring-2 ring-primary-500 border-primary-300 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>כותרת עמודה</Label>
+              <Input value={newColLabel} onChange={e => setNewColLabel(e.target.value)} placeholder="לדוגמה: נהג, שומר, מפקד..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCol(false)}>ביטול</Button>
+            <Button onClick={addColumn}>הוסף</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Row */}
+      <Dialog open={editRowIdx !== null} onOpenChange={open => { if (!open) setEditRowIdx(null); }}>
+        <DialogContent className="max-w-[450px]">
+          <DialogHeader><DialogTitle>עריכת שורה</DialogTitle></DialogHeader>
+          {editRowIdx !== null && (() => {
+            const row = template.rows[editRowIdx];
+            if (!row) return null;
+            return (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>תווית</Label>
+                  <Input
+                    value={row.label}
+                    onChange={e => setTemplate(prev => ({
+                      ...prev,
+                      rows: prev.rows.map((r, i) => i === editRowIdx ? { ...r, label: e.target.value } : r),
+                    }))}
+                  />
+                </div>
+                {row.type === "shift" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>שעת התחלה</Label>
+                      <Input
+                        type="time"
+                        value={row.timeRange?.start || ""}
+                        onChange={e => setTemplate(prev => ({
+                          ...prev,
+                          rows: prev.rows.map((r, i) => i === editRowIdx
+                            ? { ...r, timeRange: { start: e.target.value, end: r.timeRange?.end || "" } }
+                            : r
+                          ),
+                        }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>שעת סיום</Label>
+                      <Input
+                        type="time"
+                        value={row.timeRange?.end || ""}
+                        onChange={e => setTemplate(prev => ({
+                          ...prev,
+                          rows: prev.rows.map((r, i) => i === editRowIdx
+                            ? { ...r, timeRange: { ...r.timeRange!, end: e.target.value } }
+                            : r
+                          ),
+                        }))}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>צבע רקע</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={row.color || "#ffffff"}
+                      onChange={e => setTemplate(prev => ({
+                        ...prev,
+                        rows: prev.rows.map((r, i) => i === editRowIdx ? { ...r, color: e.target.value } : r),
+                      }))}
+                      className="w-12 h-10"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => setTemplate(prev => ({
+                      ...prev,
+                      rows: prev.rows.map((r, i) => i === editRowIdx ? { ...r, color: undefined } : r),
+                    }))}>
+                      נקה צבע
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button onClick={() => setEditRowIdx(null)}>סגור</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Column */}
+      <Dialog open={editColIdx !== null} onOpenChange={open => { if (!open) setEditColIdx(null); }}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader><DialogTitle>עריכת עמודה</DialogTitle></DialogHeader>
+          {editColIdx !== null && (() => {
+            const col = template.columns[editColIdx];
+            if (!col) return null;
+            return (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>כותרת</Label>
+                  <Input
+                    value={col.label}
+                    onChange={e => setTemplate(prev => ({
+                      ...prev,
+                      columns: prev.columns.map((c, i) => i === editColIdx ? { ...c, label: e.target.value } : c),
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>רוחב (px)</Label>
+                  <Input
+                    type="number" min={50} max={400}
+                    value={col.width}
+                    onChange={e => setTemplate(prev => ({
+                      ...prev,
+                      columns: prev.columns.map((c, i) => i === editColIdx ? { ...c, width: parseInt(e.target.value) || 100 } : c),
+                    }))}
+                  />
+                </div>
+                <div className="pt-2 border-t">
+                  <Button variant="destructive" size="sm" onClick={() => { removeColumn(editColIdx); setEditColIdx(null); }}>
+                    <Trash2 className="me-1 h-4 w-4" />מחק עמודה
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button onClick={() => setEditColIdx(null)}>סגור</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Cell */}
+      <Dialog open={editCellPos !== null} onOpenChange={open => { if (!open) setEditCellPos(null); }}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader><DialogTitle>עריכת תא</DialogTitle></DialogHeader>
+          {editCellPos && (() => {
+            const row = template.rows[editCellPos.row];
+            const cells = ensureCells(row, colCount);
+            const cell = cells[editCellPos.col] || {};
+            const col = template.columns[editCellPos.col];
+
+            return (
+              <div className="space-y-4 py-4">
+                <div className="text-xs text-muted-foreground">
+                  שורה: <strong>{row.label || row.type}</strong> | עמודה: <strong>{col?.label}</strong>
+                </div>
+                <div className="space-y-2">
+                  <Label>ערך / תוכן</Label>
+                  <Input
+                    value={cell.value || ""}
+                    onChange={e => updateCell(editCellPos.row, editCellPos.col, { value: e.target.value })}
+                    placeholder="טקסט חופשי, שם חייל..."
+                  />
+                </div>
+                {col?.type === "slot" && (
+                  <div className="space-y-2">
+                    <Label>מזהה סלוט (slot ID)</Label>
+                    <Input
+                      value={cell.slotId || ""}
+                      onChange={e => updateCell(editCellPos.row, editCellPos.col, { slotId: e.target.value })}
+                      placeholder="auto"
+                    />
+                    <p className="text-[10px] text-muted-foreground">סלוט מאפשר שיבוץ חיילים אוטומטי. השאר ריק אם לא נדרש.</p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>מיזוג תאים (colspan)</Label>
+                  <Input
+                    type="number" min={1} max={colCount}
+                    value={cell.colspan || 1}
+                    onChange={e => updateCell(editCellPos.row, editCellPos.col, { colspan: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>צבע רקע</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={cell.color || "#ffffff"}
+                      onChange={e => updateCell(editCellPos.row, editCellPos.col, { color: e.target.value })}
+                      className="w-12 h-10"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => updateCell(editCellPos.row, editCellPos.col, { color: undefined })}>
+                      נקה
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button onClick={() => setEditCellPos(null)}>סגור</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-auto">
+          <DialogHeader><DialogTitle>תצוגה מקדימה — {template.name}</DialogTitle></DialogHeader>
+          <div className="py-4">
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-700 text-white">
+                    {template.columns.map(col => (
+                      <th key={col.id} className="border border-slate-600 px-3 py-2 text-sm font-bold" style={{ minWidth: col.width }}>
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {template.rows.map(row => {
+                    const cells = ensureCells(row, colCount);
+                    const bg = rowBg(row);
+
+                    if (row.type === "separator") {
+                      return <tr key={row.id}><td colSpan={colCount} className="border h-1.5" style={{ backgroundColor: "#cbd5e1" }} /></tr>;
+                    }
+
+                    return (
+                      <tr key={row.id} style={{ backgroundColor: bg }}>
+                        {cells.map((cell, ci) => {
+                          const prevMerge = cells.slice(0, ci).find((c, idx) => c.colspan && idx + (c.colspan || 1) > ci);
+                          if (prevMerge) return null;
+                          const col = template.columns[ci];
+                          const hasSlot = cell.slotId || (col?.type === "slot" && row.type === "shift");
+
+                          return (
+                            <td key={ci} colSpan={cell.colspan || 1}
+                              className={`border px-3 py-2 text-sm ${hasSlot ? "text-center" : ""}`}
+                              style={{ backgroundColor: cell.color || undefined }}
+                            >
+                              {cell.value || (hasSlot ? (
+                                <span className="inline-block border-2 border-dashed border-blue-300 rounded px-3 py-1 text-blue-400 text-xs">
+                                  [חייל]
+                                </span>
+                              ) : "—")}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPreview(false)}>סגור</Button>
@@ -832,5 +818,3 @@ export default function BoardTemplateEditor() {
     </div>
   );
 }
-
-

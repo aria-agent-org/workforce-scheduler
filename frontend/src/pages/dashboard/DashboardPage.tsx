@@ -28,15 +28,16 @@ export default function DashboardPage() {
     const load = async () => {
       try {
         const today = new Date().toISOString().split("T")[0];
-        const [statsRes, missionsRes] = await Promise.all([
+        const [statsRes, missionsRes, activityRes] = await Promise.all([
           api.get(tenantApi("/reports/dashboard")),
           api.get(tenantApi("/missions"), { params: { date_from: today, date_to: today } }),
+          api.get(tenantApi("/audit-logs"), { params: { page_size: 10 } }).catch(() => ({ data: { items: [] } })),
         ]);
         setStats(statsRes.data);
         setMissions(missionsRes.data || []);
+        setRecentActivity(activityRes.data.items || []);
       } catch (e) {
         console.error("Failed to load dashboard", e);
-        // Set defaults so page doesn't break
         setStats({ total_employees: 0, present_today: 0, missions_today: 0, conflicts: 0, active_windows: 0 });
       } finally {
         setLoading(false);
@@ -57,10 +58,10 @@ export default function DashboardPage() {
   }
 
   const statCards = [
-    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, color: "text-blue-500 bg-blue-50" },
-    { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, color: "text-green-500 bg-green-50" },
-    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, color: "text-purple-500 bg-purple-50" },
-    { key: "conflicts", value: stats?.conflicts ?? 0, icon: AlertTriangle, color: "text-red-500 bg-red-50" },
+    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, color: "text-blue-500 bg-blue-50", link: "/soldiers" },
+    { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, color: "text-green-500 bg-green-50", link: "/attendance" },
+    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, color: "text-purple-500 bg-purple-50", link: "/scheduling" },
+    { key: "conflicts", value: stats?.conflicts ?? 0, icon: AlertTriangle, color: "text-red-500 bg-red-50", link: "/scheduling" },
   ];
 
   return (
@@ -68,8 +69,8 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-bold">{t("title")}</h1>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map(({ key, value, icon: Icon, color }) => (
-          <Card key={key} className="hover:shadow-md transition-shadow">
+        {statCards.map(({ key, value, icon: Icon, color, link }) => (
+          <Card key={key} className="hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]" onClick={() => navigate(link)}>
             <CardContent className="flex items-center gap-4 p-6">
               <div className={`rounded-full p-3 ${color}`}>
                 <Icon className="h-6 w-6" />
@@ -141,6 +142,48 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Activity Feed */}
+      {recentActivity.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">📋 פעילות אחרונה</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {recentActivity.slice(0, 10).map((a: any, i: number) => {
+                const actionLabels: Record<string, string> = {
+                  create: "יצר", update: "עדכן", delete: "מחק", assign: "שיבץ",
+                  deactivate: "השבית", reset_password: "איפס סיסמה", force_logout: "ניתק",
+                  broadcast_notification: "שלח הודעה", bulk_import: "ייבא", reset: "איפס",
+                };
+                const entityLabels: Record<string, string> = {
+                  employee: "חייל", user: "משתמש", mission: "משימה", mission_type: "סוג משימה",
+                  schedule_window: "לוח עבודה", mission_assignment: "שיבוץ",
+                  notification_template: "תבנית התראה", setting: "הגדרה", notification: "התראה",
+                };
+                return (
+                  <div key={a.id || i} className="flex items-center gap-3 rounded-lg border p-2.5 hover:bg-muted/30 transition-colors text-sm">
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      {(a.user_email || "?")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">
+                        <span className="font-medium">{a.user_email?.split("@")[0] || "מערכת"}</span>
+                        {" "}{actionLabels[a.action] || a.action}{" "}
+                        <span className="text-muted-foreground">{entityLabels[a.entity_type] || a.entity_type}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {a.created_at ? new Date(a.created_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit" }) : ""}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Active Schedule Windows */}
       {(stats?.active_windows ?? 0) > 0 && (

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -85,13 +85,27 @@ async def update_work_role(
 async def delete_work_role(
     role_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
 ) -> None:
+    from app.models.employee import EmployeeWorkRole
+
     result = await db.execute(
         select(WorkRole).where(WorkRole.id == role_id, WorkRole.tenant_id == tenant.id)
     )
     wr = result.scalar_one_or_none()
-    if wr:
-        await db.delete(wr)
-        await db.commit()
+    if not wr:
+        raise HTTPException(status_code=404, detail="תפקיד לא נמצא")
+
+    # Check if any employee is using this role
+    usage_count = (await db.execute(
+        select(func.count()).where(EmployeeWorkRole.work_role_id == role_id)
+    )).scalar() or 0
+    if usage_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"לא ניתן למחוק תפקיד שנמצא בשימוש ({usage_count} חיילים משויכים)"
+        )
+
+    await db.delete(wr)
+    await db.commit()
 
 
 # ═══════════════════════════════════════════

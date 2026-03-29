@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye, Zap, X } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush } from "@/lib/push";
 
 type Tab = "templates" | "logs" | "channels";
 
@@ -33,6 +34,62 @@ export default function NotificationsPage() {
     body_he: "", body_en: "",
     channel_push: true, channel_in_app: true, channel_whatsapp: false, channel_email: false,
   });
+
+  const bodyHeRef = useRef<HTMLTextAreaElement>(null);
+
+  // Push notification state
+  const [pushPermission, setPushPermission] = useState<string>("default");
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    setPushPermission(getPushPermission());
+    isPushSubscribed().then(setPushSubscribed);
+  }, []);
+
+  const handleEnablePush = async () => {
+    setPushLoading(true);
+    try {
+      const ok = await subscribeToPush();
+      if (ok) {
+        toast("success", "התראות Push הופעלו בהצלחה! 🎉");
+        setPushSubscribed(true);
+        setPushPermission("granted");
+      } else {
+        toast("error", "לא ניתן להפעיל התראות. בדוק שאישרת הרשאות בדפדפן.");
+      }
+    } catch {
+      toast("error", "שגיאה בהפעלת התראות");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleDisablePush = async () => {
+    setPushLoading(true);
+    try {
+      await unsubscribeFromPush();
+      setPushSubscribed(false);
+      toast("success", "התראות Push כובו");
+    } catch {
+      toast("error", "שגיאה בכיבוי התראות");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    try {
+      const result = await sendTestPush();
+      if (result.sent > 0) {
+        toast("success", `התראת בדיקה נשלחה! (${result.sent} מכשירים)`);
+      } else {
+        toast("error", `שליחה נכשלה. ${result.failed > 0 ? "בדוק את מפתחות VAPID" : "אין מנויים רשומים"}`);
+      }
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בשליחת בדיקה");
+    }
+  };
 
   // Broadcast state
   const [showBroadcast, setShowBroadcast] = useState(false);
@@ -134,8 +191,66 @@ export default function NotificationsPage() {
   };
 
   const insertVariable = (variable: string) => {
-    setForm(prev => ({ ...prev, body_he: prev.body_he + " " + variable }));
+    const textarea = bodyHeRef.current;
+    if (!textarea) {
+      setForm(prev => ({ ...prev, body_he: prev.body_he + " " + variable }));
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = form.body_he;
+    const newText = text.substring(0, start) + variable + text.substring(end);
+    setForm(prev => ({ ...prev, body_he: newText }));
+    // Restore cursor position after the inserted variable
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+    }, 0);
   };
+
+  // Variable bank grouped by category with Hebrew labels
+  const VARIABLE_BANK: Array<{ category: string; vars: Array<{ code: string; label: string }> }> = [
+    {
+      category: "חייל",
+      vars: [
+        { code: "{employee.name}", label: "שם החייל" },
+        { code: "{employee.number}", label: "מספר אישי" },
+      ],
+    },
+    {
+      category: "משימה",
+      vars: [
+        { code: "{mission.name}", label: "שם המשימה" },
+        { code: "{mission.date}", label: "תאריך משימה" },
+        { code: "{mission.start_time}", label: "שעת התחלה" },
+        { code: "{mission.end_time}", label: "שעת סיום" },
+        { code: "{change_type}", label: "סוג שינוי" },
+        { code: "{reason}", label: "סיבה" },
+        { code: "{minutes_until}", label: "דקות עד" },
+      ],
+    },
+    {
+      category: "החלפות",
+      vars: [
+        { code: "{requester.name}", label: "מבקש ההחלפה" },
+        { code: "{target.name}", label: "יעד ההחלפה" },
+        { code: "{swap_type}", label: "סוג החלפה" },
+      ],
+    },
+    {
+      category: "מערכת",
+      vars: [
+        { code: "{window.name}", label: "שם הלוח" },
+        { code: "{start_date}", label: "תאריך התחלה" },
+        { code: "{end_date}", label: "תאריך סיום" },
+        { code: "{old_status}", label: "סטטוס ישן" },
+        { code: "{new_status}", label: "סטטוס חדש" },
+        { code: "{title}", label: "כותרת" },
+        { code: "{body}", label: "תוכן" },
+        { code: "{conflict_type}", label: "סוג התנגשות" },
+      ],
+    },
+  ];
 
   const getPreviewText = () => {
     let text = form.body_he;
@@ -339,26 +454,89 @@ export default function NotificationsPage() {
 
       {/* Channels */}
       {activeTab === "channels" && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {channels.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">אין ערוצים מוגדרים</CardContent></Card>
-          ) : channels.map(ch => (
-            <Card key={ch.id}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium capitalize">{ch.channel}</h3>
-                    {ch.cost_per_message_usd && (
-                      <p className="text-xs text-muted-foreground">עלות: ${ch.cost_per_message_usd}/הודעה</p>
+        <div className="space-y-6">
+          {/* Push Notifications Control Panel */}
+          <Card className="border-primary-200 dark:border-primary-800">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Bell className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">התראות Push בדפדפן</h3>
+                  <p className="text-xs text-muted-foreground">קבל התראות ישירות בדפדפן גם כשהאפליקציה סגורה</p>
+                </div>
+              </div>
+
+              {!isPushSupported() ? (
+                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                  ⚠️ הדפדפן שלך לא תומך בהתראות Push. נסה Chrome או Edge.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm">סטטוס הרשאה:</span>
+                    <Badge className={
+                      pushPermission === "granted" ? "bg-green-100 text-green-700" :
+                      pushPermission === "denied" ? "bg-red-100 text-red-700" :
+                      "bg-gray-100 text-gray-700"
+                    }>
+                      {pushPermission === "granted" ? "✅ מאושר" :
+                       pushPermission === "denied" ? "❌ חסום" :
+                       "⏳ לא נשאל"}
+                    </Badge>
+                    {pushSubscribed && <Badge className="bg-blue-100 text-blue-700">📡 מנוי פעיל</Badge>}
+                  </div>
+
+                  {pushPermission === "denied" && (
+                    <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 p-3 text-sm text-red-700 dark:text-red-300">
+                      ❌ ההתראות חסומות בדפדפן. כדי להפעיל, לחץ על 🔒 ליד שורת הכתובת → הרשאות → התראות → אפשר
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {!pushSubscribed ? (
+                      <Button size="sm" onClick={handleEnablePush} disabled={pushLoading || pushPermission === "denied"}>
+                        {pushLoading ? "מפעיל..." : "🔔 הפעל התראות Push"}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={handleDisablePush} disabled={pushLoading}>
+                        {pushLoading ? "מכבה..." : "🔕 כבה התראות Push"}
+                      </Button>
+                    )}
+                    {pushSubscribed && (
+                      <Button size="sm" variant="outline" onClick={handleTestPush}>
+                        🧪 שלח התראת בדיקה
+                      </Button>
                     )}
                   </div>
-                  <Badge variant={ch.is_enabled ? "success" : "default"}>
-                    {ch.is_enabled ? "פעיל" : "מושבת"}
-                  </Badge>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Channel configs from backend */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {channels.length === 0 ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">אין ערוצים מוגדרים</CardContent></Card>
+            ) : channels.map(ch => (
+              <Card key={ch.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium capitalize">{ch.channel}</h3>
+                      {ch.cost_per_message_usd && (
+                        <p className="text-xs text-muted-foreground">עלות: ${ch.cost_per_message_usd}/הודעה</p>
+                      )}
+                    </div>
+                    <Badge variant={ch.is_enabled ? "success" : "default"}>
+                      {ch.is_enabled ? "פעיל" : "מושבת"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -535,26 +713,63 @@ export default function NotificationsPage() {
             {/* Message Body with Variable Picker */}
             <div className="space-y-3">
               <h3 className="text-sm font-bold text-muted-foreground">✍️ תוכן ההודעה</h3>
-              {form.event_type_code && getEventVars(form.event_type_code).length > 0 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">משתנים זמינים — לחץ להוספה:</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {getEventVars(form.event_type_code).map(v => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => insertVariable(v)}
-                        className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors font-mono"
-                      >
-                        {v}
-                      </button>
-                    ))}
+              {form.event_type_code && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-muted-foreground">🏷️ בנק משתנים — לחץ להוספה במיקום הסמן:</Label>
+                  <div className="rounded-xl border bg-muted/20 p-3 space-y-3">
+                    {VARIABLE_BANK.map(group => {
+                      // Filter to only show vars relevant to selected event type
+                      const eventVars = getEventVars(form.event_type_code);
+                      const relevantVars = group.vars.filter(v => eventVars.includes(v.code));
+                      if (relevantVars.length === 0) return null;
+                      return (
+                        <div key={group.category}>
+                          <p className="text-[11px] font-bold text-muted-foreground mb-1.5 border-b border-muted pb-1">
+                            {group.category}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {relevantVars.map(v => (
+                              <button
+                                key={v.code}
+                                type="button"
+                                onClick={() => insertVariable(v.code)}
+                                className="group/chip flex flex-col items-center gap-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 hover:scale-105 transition-all cursor-pointer"
+                              >
+                                <span className="text-[10px] text-blue-500 dark:text-blue-400 leading-none">{v.label}</span>
+                                <span className="text-xs font-mono font-medium leading-none">{v.code}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Also show any API-provided vars not in our bank */}
+                    {(() => {
+                      const eventVars = getEventVars(form.event_type_code);
+                      const bankCodes = VARIABLE_BANK.flatMap(g => g.vars.map(v => v.code));
+                      const extra = eventVars.filter(v => !bankCodes.includes(v));
+                      if (extra.length === 0) return null;
+                      return (
+                        <div>
+                          <p className="text-[11px] font-bold text-muted-foreground mb-1.5 border-b border-muted pb-1">נוסף</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {extra.map(v => (
+                              <button key={v} type="button" onClick={() => insertVariable(v)}
+                                className="text-xs bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 transition-colors font-mono">
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">הודעה (עברית) <span className="text-red-500">*</span></Label>
                 <textarea
+                  ref={bodyHeRef}
                   value={form.body_he}
                   onChange={e => setForm({...form, body_he: e.target.value})}
                   placeholder="לדוגמה: שלום {employee.name}, שובצת למשימה {mission.name} בתאריך {mission.date}"

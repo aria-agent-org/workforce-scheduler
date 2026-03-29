@@ -26,6 +26,7 @@ const secondaryItems = [
   { key: "swaps", path: "/swaps", icon: ArrowLeftRight },
   { key: "auditLog", path: "/audit-log", icon: History },
   { key: "help", path: "/help", icon: HelpCircle },
+  { key: "profile", path: "/profile", icon: UserCog },
   { key: "myPortal", path: "/my/schedule", icon: UserCircle },
 ];
 

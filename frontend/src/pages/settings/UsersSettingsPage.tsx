@@ -285,9 +285,25 @@ export default function UsersSettingsPage() {
               <Label>חייל</Label>
               <Select value={linkEmployeeId} onChange={e => setLinkEmployeeId(e.target.value)}>
                 <option value="">ללא קישור</option>
-                {employees.map((e: any) => <option key={e.id} value={e.id}>{e.full_name} ({e.employee_number})</option>)}
+                {employees.map((e: any) => {
+                  const linkedUser = users.find(u => u.employee_id === e.id && u.id !== linkUserId);
+                  return (
+                    <option key={e.id} value={e.id}>
+                      {e.full_name} ({e.employee_number}){linkedUser ? ` ⚠️ מקושר ל-${linkedUser.email}` : ""}
+                    </option>
+                  );
+                })}
               </Select>
             </div>
+            {linkEmployeeId && (() => {
+              const linkedUser = users.find(u => u.employee_id === linkEmployeeId && u.id !== linkUserId);
+              if (!linkedUser) return null;
+              return (
+                <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                  ⚠️ חייל זה כבר מקושר למשתמש <strong>{linkedUser.email}</strong>. קישור חדש ייכשל.
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLinkModal(false)}>ביטול</Button>

@@ -26,3 +26,4 @@ from app.models.bot import BotConfig, BotRegistrationToken, AIUsageConfig, AIUsa
 from app.models.resource import Resource  # noqa: F401
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.help import HelpTopic  # noqa: F401
+from app.models.push_subscription import PushSubscription  # noqa: F401

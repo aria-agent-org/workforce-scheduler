@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useThemeStore } from "@/stores/themeStore";
 import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
 import {
   LogOut, Globe, Menu, X, LayoutDashboard, Users, Calendar,
   ClipboardList, ShieldCheck, Bell, BarChart3, Settings, Sun, Moon, Monitor,
-  HelpCircle,
+  HelpCircle, BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import GlobalSearch from "../common/GlobalSearch";
+import api, { tenantApi } from "@/lib/api";
+import { subscribeToPush, isPushSupported, getPushPermission, isPushSubscribed } from "@/lib/push";
 
 const mobileNav = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -21,6 +24,7 @@ const mobileNav = [
   { key: "notifications", path: "/notifications", icon: Bell },
   { key: "reports", path: "/reports", icon: BarChart3 },
   { key: "settings", path: "/settings", icon: Settings },
+  { key: "profile", path: "/profile", icon: HelpCircle },
 ];
 
 export default function TopBar() {
@@ -28,6 +32,61 @@ export default function TopBar() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useThemeStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Load in-app notifications
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res = await api.get(tenantApi("/notifications/logs"), {
+        params: { page_size: 10, channel: "in_app" },
+      });
+      const items = res.data.items || res.data || [];
+      setNotifications(items.slice(0, 10));
+      // Count unread (sent in last 24h as proxy)
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const unread = items.filter((n: any) => n.sent_at > oneDayAgo && n.status === "sent").length;
+      setUnreadCount(unread);
+    } catch {
+      // Silent fail for notifications
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
+
+  // Auto-subscribe to push on first load (if permission not yet asked)
+  useEffect(() => {
+    const autoSubscribe = async () => {
+      if (isPushSupported() && getPushPermission() === "default") {
+        // Don't auto-prompt — wait for user action
+        return;
+      }
+      if (isPushSupported() && getPushPermission() === "granted") {
+        const subscribed = await isPushSubscribed();
+        if (!subscribed) {
+          await subscribeToPush();
+        }
+      }
+    };
+    autoSubscribe();
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const toggleLanguage = () => {
     const newLang = i18n.language === "he" ? "en" : "he";
@@ -56,6 +115,48 @@ export default function TopBar() {
         </div>
         <div className="flex items-center gap-2">
           <GlobalSearch />
+          {/* Notifications Bell */}
+          <div className="relative" ref={notifRef}>
+            <Button variant="ghost" size="sm" onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) loadNotifications(); }} className="relative">
+              {unreadCount > 0 ? <BellRing className="h-4 w-4 text-primary-500" /> : <Bell className="h-4 w-4" />}
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -end-0.5 h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold px-1">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Button>
+            {notifOpen && (
+              <div className="absolute end-0 top-full mt-2 w-80 rounded-xl border bg-card shadow-xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                  <h3 className="text-sm font-bold">התראות</h3>
+                  {unreadCount > 0 && (
+                    <Badge className="bg-red-100 text-red-700 text-xs">{unreadCount} חדשות</Badge>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">
+                      <Bell className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                      אין התראות
+                    </div>
+                  ) : notifications.map((n: any, i: number) => (
+                    <div key={n.id || i} className="px-4 py-3 border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      <p className="text-sm">{n.body_sent || n.event_type_code}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-muted-foreground">
+                          {n.sent_at ? new Date(n.sent_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : ""}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">{n.channel}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-4 py-2 border-t bg-muted/20">
+                  <a href="/notifications" className="text-xs text-primary-500 hover:underline">הצג הכל →</a>
+                </div>
+              </div>
+            )}
+          </div>
           {/* Dark Mode Toggle */}
           <Button variant="ghost" size="sm" onClick={cycleTheme} title={`Theme: ${theme}`}>
             <ThemeIcon className="h-4 w-4" />
@@ -63,6 +164,9 @@ export default function TopBar() {
           <Button variant="ghost" size="sm" onClick={toggleLanguage}>
             <Globe className="me-1 h-4 w-4" />
             {i18n.language === "he" ? "EN" : "עב"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => window.location.href = "/profile"} title="הפרופיל שלי">
+            <Users className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={logout}>
             <LogOut className="me-1 h-4 w-4" />

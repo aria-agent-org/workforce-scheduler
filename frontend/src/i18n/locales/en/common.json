@@ -48,7 +48,10 @@
     "swaps": "Swaps",
     "more": "More",
     "employees": "Employees",
-    "onboarding": "Setup"
+    "onboarding": "Setup",
+    "profile": "My Profile",
+    "myPortal": "My Portal",
+    "help": "Help Center"
   },
   "pagination": {
     "page": "Page",

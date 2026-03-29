@@ -75,6 +75,7 @@ function App() {
                   <Route path="swaps" element={<SwapRequestsPage />} />
                   <Route path="admin" element={<AdminPage />} />
                   <Route path="help" element={<HelpPage />} />
+                  <Route path="profile" element={<MyProfilePage />} />
                 </Route>
 
                 {/* Soldier self-service layout */}

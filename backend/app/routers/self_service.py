@@ -28,6 +28,11 @@ class ProfileUpdate(BaseModel):
     preferred_language: str | None = None
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 @router.get("/profile")
 async def get_my_profile(
     tenant: CurrentTenant, user: CurrentUser,
@@ -89,6 +94,27 @@ async def update_my_profile(
 
     await db.commit()
     return {"message": "פרופיל עודכן בהצלחה"}
+
+
+@router.post("/change-password")
+async def change_my_password(
+    data: ChangePasswordRequest,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Change current user's password."""
+    from app.services.auth_service import AuthService
+
+    # Verify current password
+    if not user.password_hash or not AuthService.verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="סיסמה נוכחית שגויה")
+
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="סיסמה חדשה חייבת להכיל לפחות 6 תווים")
+
+    user.password_hash = AuthService.hash_password(data.new_password)
+    await db.commit()
+    return {"message": "סיסמה שונתה בהצלחה"}
 
 
 # ═══════════════════════════════════════════
