@@ -51,4 +51,14 @@ api.interceptors.response.use(
   }
 );
 
+// Helper to get tenant slug
+export function getTenantSlug(): string {
+  return "demo"; // For now, hardcoded to demo tenant
+}
+
+// API helpers
+export function tenantApi(path: string) {
+  return `/api/v1/${getTenantSlug()}${path}`;
+}
+
 export default api;

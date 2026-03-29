@@ -1,0 +1,221 @@
+import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Settings, Users, Shield, Plus, Pencil, Trash2, Palette } from "lucide-react";
+import api, { tenantApi } from "@/lib/api";
+
+type Tab = "general" | "work-roles" | "role-definitions";
+
+export default function SettingsPage() {
+  const { t, i18n } = useTranslation();
+  const { toast } = useToast();
+  const lang = i18n.language as "he" | "en";
+
+  const [activeTab, setActiveTab] = useState<Tab>("general");
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<any[]>([]);
+  const [workRoles, setWorkRoles] = useState<any[]>([]);
+  const [roleDefinitions, setRoleDefinitions] = useState<any[]>([]);
+
+  // Modals
+  const [showWRModal, setShowWRModal] = useState(false);
+  const [wrForm, setWrForm] = useState({ name_he: "", name_en: "", color: "#3b82f6" });
+  const [editingWR, setEditingWR] = useState<any>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [settRes, wrRes, rdRes] = await Promise.all([
+        api.get(tenantApi("/settings")),
+        api.get(tenantApi("/settings/work-roles")),
+        api.get(tenantApi("/settings/role-definitions")),
+      ]);
+      setSettings(settRes.data);
+      setWorkRoles(wrRes.data);
+      setRoleDefinitions(rdRes.data);
+    } catch (e) {
+      toast("error", "שגיאה בטעינת הגדרות");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveWorkRole = async () => {
+    try {
+      const body = {
+        name: { he: wrForm.name_he, en: wrForm.name_en },
+        color: wrForm.color,
+      };
+      if (editingWR) {
+        await api.patch(tenantApi(`/settings/work-roles/${editingWR.id}`), body);
+        toast("success", "תפקיד עודכן");
+      } else {
+        await api.post(tenantApi("/settings/work-roles"), body);
+        toast("success", "תפקיד נוצר");
+      }
+      setShowWRModal(false);
+      setEditingWR(null);
+      load();
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה");
+    }
+  };
+
+  const deleteWorkRole = async (id: string) => {
+    try {
+      await api.delete(tenantApi(`/settings/work-roles/${id}`));
+      toast("success", "תפקיד נמחק");
+      load();
+    } catch (e) {
+      toast("error", "שגיאה");
+    }
+  };
+
+  const tabs: { key: Tab; label: string; icon: any }[] = [
+    { key: "general", label: "כללי", icon: Settings },
+    { key: "work-roles", label: "תפקידי עבודה", icon: Users },
+    { key: "role-definitions", label: "הרשאות", icon: Shield },
+  ];
+
+  if (loading) return <TableSkeleton rows={5} cols={3} />;
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">{t("nav.settings")}</h1>
+
+      <div className="flex gap-2 border-b pb-2">
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm ${
+              activeTab === key ? "bg-primary-500 text-white" : "bg-muted text-muted-foreground hover:bg-accent"
+            }`}>
+            <Icon className="h-4 w-4" />{label}
+          </button>
+        ))}
+      </div>
+
+      {/* General Settings */}
+      {activeTab === "general" && (
+        <div className="space-y-3">
+          {settings.length === 0 ? (
+            <Card><CardContent className="p-8 text-center text-muted-foreground">אין הגדרות מוגדרות</CardContent></Card>
+          ) : settings.map(s => (
+            <Card key={s.id}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">{s.label?.[lang] || s.label?.he || s.key}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    קבוצה: {s.group} · סוג: {s.value_type}
+                  </p>
+                </div>
+                <div className="text-sm font-mono">
+                  {JSON.stringify(s.value)?.slice(0, 50)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Work Roles */}
+      {activeTab === "work-roles" && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => {
+              setEditingWR(null);
+              setWrForm({ name_he: "", name_en: "", color: "#3b82f6" });
+              setShowWRModal(true);
+            }}>
+              <Plus className="me-1 h-4 w-4" />תפקיד חדש
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {workRoles.map(wr => (
+              <Card key={wr.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full" style={{ backgroundColor: wr.color || "#ccc" }} />
+                      <div>
+                        <h3 className="font-medium">{wr.name?.[lang] || wr.name?.he}</h3>
+                        <p className="text-xs text-muted-foreground">{wr.name?.en}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        setEditingWR(wr);
+                        setWrForm({ name_he: wr.name?.he || "", name_en: wr.name?.en || "", color: wr.color || "#3b82f6" });
+                        setShowWRModal(true);
+                      }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteWorkRole(wr.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Role Definitions */}
+      {activeTab === "role-definitions" && (
+        <div className="space-y-3">
+          {roleDefinitions.map(rd => (
+            <Card key={rd.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium">{rd.label?.[lang] || rd.label?.he || rd.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {Object.keys(rd.permissions || {}).length} הרשאות
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {rd.is_system && <Badge>מערכת</Badge>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Work Role Modal */}
+      <Dialog open={showWRModal} onOpenChange={setShowWRModal}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editingWR ? "עריכת תפקיד" : "תפקיד חדש"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2"><Label>שם (עברית)</Label><Input value={wrForm.name_he} onChange={e => setWrForm({...wrForm, name_he: e.target.value})} /></div>
+            <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={wrForm.name_en} onChange={e => setWrForm({...wrForm, name_en: e.target.value})} /></div>
+            <div className="space-y-2">
+              <Label>צבע</Label>
+              <div className="flex items-center gap-3">
+                <Input type="color" value={wrForm.color} onChange={e => setWrForm({...wrForm, color: e.target.value})} className="w-16 h-10" />
+                <span className="text-sm font-mono">{wrForm.color}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWRModal(false)}>ביטול</Button>
+            <Button onClick={saveWorkRole}>שמור</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

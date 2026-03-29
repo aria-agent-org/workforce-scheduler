@@ -6,12 +6,13 @@ from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import get_settings
 from app.database import engine
 from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, admin, health, employees, scheduling, attendance, rules, notifications, reports
+from app.routers import settings as settings_router
+from app.routers import audit as audit_router
 
 settings = get_settings()
 
@@ -36,7 +37,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="שבצק — Shavtzak API",
         description="Multi-Tenant Workforce Scheduling System",
-        version="0.1.0",
+        version="0.2.0",
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan,
@@ -87,6 +88,16 @@ def create_app() -> FastAPI:
         reports.router,
         prefix="/api/v1/{tenant_slug}/reports",
         tags=["reports"],
+    )
+    app.include_router(
+        settings_router.router,
+        prefix="/api/v1/{tenant_slug}/settings",
+        tags=["settings"],
+    )
+    app.include_router(
+        audit_router.router,
+        prefix="/api/v1/{tenant_slug}/audit-logs",
+        tags=["audit"],
     )
 
     return app
