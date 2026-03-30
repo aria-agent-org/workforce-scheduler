@@ -608,6 +608,22 @@ async def list_missions(
     return items
 
 
+
+
+@router.get("/missions/{mission_id}")
+async def get_mission(
+    mission_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single mission by ID."""
+    result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    mission = result.scalar_one_or_none()
+    if not mission:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+    return mission
+
 @router.post("/missions", status_code=status.HTTP_201_CREATED)
 async def create_mission(
     data: MissionCreate, tenant: CurrentTenant, user: CurrentUser,
