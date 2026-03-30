@@ -17,9 +17,14 @@ export default function AppLayout() {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal
+  // BUT only if they have an employee_id (otherwise they can't use /my/)
   const role = resolveRole(user?.role_name);
   if (role === "soldier" || role === "viewer" || role === "none") {
-    return <Navigate to="/my/schedule" replace />;
+    if (user?.employee_id) {
+      return <Navigate to="/my/schedule" replace />;
+    }
+    // User with no role AND no employee — show limited dashboard
+    // Don't redirect, let them see what PermissionGuard allows
   }
 
   return (
