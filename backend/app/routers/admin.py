@@ -14,6 +14,7 @@ from app.models.tenant import Plan, Tenant
 from app.models.user import User
 from app.models.resource import RoleDefinition
 from app.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
+from app.schemas.settings import RoleDefinitionCreate, RoleDefinitionUpdate, RoleDefinitionResponse
 
 router = APIRouter()
 
@@ -389,3 +390,148 @@ async def deactivate_user(
     target.is_active = False
     await db.flush()
     return {"id": str(target.id), "is_active": False, "message": "User deactivated"}
+
+
+# ═══════════════════════════════════════════
+# System-Level Role Definitions
+# ═══════════════════════════════════════════
+
+@router.get("/role-definitions")
+async def list_system_role_definitions(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List all role definitions across all tenants (system admin view)."""
+    await require_admin(user, db)
+    result = await db.execute(
+        select(RoleDefinition).order_by(RoleDefinition.is_system.desc(), RoleDefinition.name)
+    )
+    items = []
+    for rd in result.scalars().all():
+        # Get tenant name
+        tenant_name = None
+        if rd.tenant_id:
+            t_res = await db.execute(select(Tenant).where(Tenant.id == rd.tenant_id))
+            t = t_res.scalar_one_or_none()
+            tenant_name = t.name if t else None
+        # Count assigned users
+        user_count_q = await db.execute(
+            select(func.count(User.id)).where(User.role_definition_id == rd.id)
+        )
+        user_count = user_count_q.scalar() or 0
+        items.append({
+            "id": str(rd.id),
+            "tenant_id": str(rd.tenant_id) if rd.tenant_id else None,
+            "tenant_name": tenant_name,
+            "name": rd.name,
+            "label": rd.label,
+            "permissions": rd.permissions,
+            "ui_visibility": rd.ui_visibility,
+            "is_system": rd.is_system,
+            "user_count": user_count,
+            "created_at": str(rd.created_at),
+            "updated_at": str(rd.updated_at),
+        })
+    return items
+
+
+@router.post("/role-definitions", status_code=status.HTTP_201_CREATED)
+async def create_system_role_definition(
+    data: RoleDefinitionCreate,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID | None = None,
+) -> dict:
+    """Create a role definition (optionally scoped to a tenant)."""
+    await require_admin(user, db)
+    # Validate tenant if provided
+    if tenant_id:
+        t_res = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+        if not t_res.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Tenant not found")
+    rd = RoleDefinition(
+        tenant_id=tenant_id or user.tenant_id,
+        **data.model_dump(),
+    )
+    db.add(rd)
+    await db.flush()
+    await db.refresh(rd)
+    await db.commit()
+    return RoleDefinitionResponse.model_validate(rd).model_dump()
+
+
+@router.patch("/role-definitions/{rd_id}")
+async def update_system_role_definition(
+    rd_id: UUID,
+    data: RoleDefinitionUpdate,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update a role definition (system admin)."""
+    await require_admin(user, db)
+    result = await db.execute(select(RoleDefinition).where(RoleDefinition.id == rd_id))
+    rd = result.scalar_one_or_none()
+    if not rd:
+        raise HTTPException(status_code=404, detail="Role definition not found")
+    if rd.is_system:
+        raise HTTPException(status_code=403, detail="לא ניתן לערוך הגדרת מערכת")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(rd, key, value)
+    await db.flush()
+    await db.refresh(rd)
+    await db.commit()
+    return RoleDefinitionResponse.model_validate(rd).model_dump()
+
+
+@router.delete("/role-definitions/{rd_id}")
+async def delete_system_role_definition(
+    rd_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a role definition (system admin)."""
+    await require_admin(user, db)
+    result = await db.execute(select(RoleDefinition).where(RoleDefinition.id == rd_id))
+    rd = result.scalar_one_or_none()
+    if not rd:
+        raise HTTPException(status_code=404, detail="Role definition not found")
+    if rd.is_system:
+        raise HTTPException(status_code=403, detail="לא ניתן למחוק הגדרת מערכת")
+    # Check if any users assigned
+    user_count_q = await db.execute(
+        select(func.count(User.id)).where(User.role_definition_id == rd_id)
+    )
+    count = user_count_q.scalar() or 0
+    if count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"לא ניתן למחוק — {count} משתמשים משויכים לתפקיד זה"
+        )
+    await db.delete(rd)
+    await db.commit()
+    return {"id": str(rd_id), "deleted": True}
+
+
+# ═══════════════════════════════════════════
+# System Health / Stats
+# ═══════════════════════════════════════════
+
+@router.get("/stats")
+async def get_system_stats(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get system-wide statistics."""
+    await require_admin(user, db)
+    tenant_count = (await db.execute(select(func.count(Tenant.id)))).scalar() or 0
+    user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
+    active_users = (await db.execute(
+        select(func.count(User.id)).where(User.is_active.is_(True))
+    )).scalar() or 0
+    role_count = (await db.execute(select(func.count(RoleDefinition.id)))).scalar() or 0
+    return {
+        "tenants": tenant_count,
+        "users": user_count,
+        "active_users": active_users,
+        "role_definitions": role_count,
+    }

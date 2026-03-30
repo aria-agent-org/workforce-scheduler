@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye, Zap, X } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
-import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError, isIOS, isStandalone, getPushStatus, type PushStatus } from "@/lib/push";
+import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError, getPushDebugLog, clearPushDebugLog, isIOS, isStandalone, getPushStatus, type PushStatus } from "@/lib/push";
 
 type Tab = "templates" | "logs" | "channels";
 
@@ -42,29 +42,39 @@ export default function NotificationsPage() {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushStatus, setPushStatus] = useState<PushStatus>("prompt");
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
 
-  useEffect(() => {
+  const refreshPushState = () => {
     setPushPermission(getPushPermission());
     isPushSubscribed().then(setPushSubscribed);
     getPushStatus().then(setPushStatus);
+    setDebugLog(getPushDebugLog());
+  };
+
+  useEffect(() => {
+    refreshPushState();
   }, []);
 
   const handleEnablePush = async () => {
     setPushLoading(true);
     try {
       const ok = await subscribeToPush();
+      refreshPushState();
       if (ok) {
         toast("success", "התראות Push הופעלו בהצלחה! 🎉");
         setPushSubscribed(true);
         setPushPermission("granted");
       } else {
-        // Show the SPECIFIC error from push.ts
         const specificError = getLastPushError();
-        toast("error", specificError || "לא ניתן להפעיל התראות — בדוק קונסול לפרטים");
+        toast("error", specificError || "לא ניתן להפעיל התראות — בדוק יומן Debug למטה");
+        setShowDebug(true);
       }
     } catch (err: any) {
+      refreshPushState();
       const specificError = getLastPushError();
       toast("error", specificError || `שגיאה בהפעלת התראות: ${err.message}`);
+      setShowDebug(true);
     } finally {
       setPushLoading(false);
     }
@@ -583,6 +593,37 @@ export default function NotificationsPage() {
                       <p className="text-orange-700 dark:text-orange-300 font-mono text-xs break-all">{getLastPushError()}</p>
                     </div>
                   )}
+
+                  {/* Push Debug Log — visible diagnostic panel */}
+                  <div className="border-t pt-3">
+                    <button
+                      type="button"
+                      onClick={() => { setDebugLog(getPushDebugLog()); setShowDebug(!showDebug); }}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                    >
+                      🔧 {showDebug ? "הסתר" : "הצג"} יומן Push Debug
+                    </button>
+                    {showDebug && (
+                      <div className="mt-2 rounded-lg bg-gray-950 dark:bg-gray-900 border border-gray-700 p-3 text-xs font-mono space-y-0.5 max-h-48 overflow-y-auto" dir="ltr">
+                        {debugLog.length === 0 ? (
+                          <p className="text-gray-500">No push events yet. Click "הפעל התראות Push" to start.</p>
+                        ) : debugLog.map((entry, i) => (
+                          <div key={i} className={entry.includes('❌') ? 'text-red-400' : 'text-green-400'}>
+                            {entry}
+                          </div>
+                        ))}
+                        {debugLog.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => { clearPushDebugLog(); setDebugLog([]); }}
+                            className="mt-2 text-gray-500 hover:text-gray-300 text-[10px]"
+                          >
+                            [clear log]
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>

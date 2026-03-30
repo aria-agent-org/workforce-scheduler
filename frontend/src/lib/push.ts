@@ -9,6 +9,19 @@ import api, { tenantApi } from "./api";
 let _lastPushError: string | null = null;
 export function getLastPushError(): string | null { return _lastPushError; }
 
+/** Push debug log — visible in UI for diagnostics */
+const MAX_DEBUG_ENTRIES = 10;
+let _pushDebugLog: string[] = [];
+export function getPushDebugLog(): string[] { return [..._pushDebugLog]; }
+export function clearPushDebugLog(): void { _pushDebugLog = []; }
+function pushLog(msg: string, ok: boolean = true): void {
+  const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const entry = `[${time}] ${msg} ${ok ? '✅' : '❌'}`;
+  _pushDebugLog.push(entry);
+  if (_pushDebugLog.length > MAX_DEBUG_ENTRIES) _pushDebugLog.shift();
+  console.log('[Push Debug]', entry);
+}
+
 /** iOS detection — push only works on iOS 16.4+ when installed to Home Screen */
 export function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -170,87 +183,106 @@ async function ensureServiceWorkerReady(timeoutMs = 10000): Promise<ServiceWorke
  */
 export async function subscribeToPush(): Promise<boolean> {
   _lastPushError = null;
+  pushLog("מתחיל תהליך הרשמה ל-Push...");
 
   // Step 1: Check browser support
   if (!isPushSupported()) {
     _lastPushError = "PushManager לא נתמך בדפדפן זה — נסה Chrome, Edge או Firefox";
-    console.warn("[Push]", _lastPushError);
+    pushLog("דפדפן לא תומך ב-PushManager", false);
     return false;
+  }
+  pushLog("דפדפן תומך ב-Push");
+
+  // iOS-specific checks
+  if (isIOS()) {
+    pushLog(`iOS זוהה — standalone: ${isStandalone()}`);
+    if (!isStandalone()) {
+      _lastPushError = "באייפון יש להוסיף למסך הבית לפני הפעלת התראות";
+      pushLog("iOS: לא מותקן כ-PWA", false);
+      return false;
+    }
   }
 
   try {
     // Step 2: Request notification permission
-    console.log("[Push] Requesting permission...");
+    pushLog("מבקש הרשאת התראות...");
     const permission = await Notification.requestPermission();
-    console.log("[Push] Permission result:", permission);
     if (permission !== "granted") {
-      _lastPushError = "ההרשאה נדחתה — אפשר התראות בהגדרות הדפדפן (לחץ על 🔒 ליד שורת הכתובת)";
-      console.warn("[Push]", _lastPushError);
+      _lastPushError = permission === "denied"
+        ? "ההרשאה נדחתה — אפשר התראות בהגדרות הדפדפן (לחץ על 🔒 ליד שורת הכתובת)"
+        : "ההרשאה לא אושרה (dismissed) — נסה שוב";
+      pushLog(`הרשאה: ${permission}`, false);
       return false;
     }
+    pushLog(`הרשאה: ${permission}`);
 
     // Step 3: Get VAPID public key
-    console.log("[Push] Getting VAPID key...");
+    pushLog("מביא מפתח VAPID מהשרת...");
     const vapidKey = await getVapidPublicKey();
     if (!vapidKey) {
       _lastPushError = "שגיאה בקבלת מפתח VAPID מהשרת — בדוק שה-backend פועל ומחזיר vapid-public-key";
-      console.error("[Push]", _lastPushError);
+      pushLog("VAPID key — נכשל", false);
       return false;
     }
-    console.log("[Push] VAPID key received, length:", vapidKey.length);
+    pushLog(`VAPID key התקבל (${vapidKey.length} תווים)`);
 
     // Step 4: Ensure service worker is ready
-    console.log("[Push] Waiting for Service Worker...");
+    pushLog("ממתין ל-Service Worker...");
     let registration: ServiceWorkerRegistration;
     try {
       registration = await ensureServiceWorkerReady(15000);
     } catch (swErr: any) {
       _lastPushError = swErr.message || "Service Worker לא מוכן";
-      console.error("[Push]", _lastPushError);
+      pushLog(`SW: ${swErr.message}`, false);
       return false;
     }
-    console.log("[Push] SW ready, scope:", registration.scope);
+    pushLog(`SW מוכן — scope: ${registration.scope}`);
 
     // Step 5: Subscribe to push via PushManager
-    console.log("[Push] Subscribing to PushManager...");
+    pushLog("נרשם ל-PushManager...");
     let subscription: PushSubscription;
     try {
       const appServerKey = urlBase64ToUint8Array(vapidKey);
+      // IMPORTANT: Safari/iOS requires Uint8Array directly, NOT .buffer (ArrayBuffer)
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: appServerKey.buffer as ArrayBuffer,
+        applicationServerKey: appServerKey,
       });
     } catch (subErr: any) {
-      _lastPushError = `שגיאת הרשמה ל-PushManager: ${subErr.message}`;
-      console.error("[Push]", _lastPushError, subErr);
+      // Specific handling for common errors
+      if (subErr.name === "NotAllowedError") {
+        _lastPushError = "NotAllowedError — יש להפעיל מתוך לחיצת כפתור (user gesture)";
+      } else if (subErr.name === "AbortError") {
+        _lastPushError = "AbortError — ייתכן שמפתח VAPID שגוי";
+      } else {
+        _lastPushError = `שגיאת הרשמה ל-PushManager: ${subErr.name} — ${subErr.message}`;
+      }
+      pushLog(`PushManager.subscribe: ${subErr.name}: ${subErr.message}`, false);
       return false;
     }
-    console.log("[Push] PushManager subscription created:", subscription.endpoint.slice(0, 60) + "...");
+    pushLog(`מנוי Push נוצר — endpoint: ${subscription.endpoint.slice(0, 50)}...`);
 
     // Step 6: Send subscription to backend
-    console.log("[Push] Sending subscription to backend...");
+    pushLog("שולח מנוי לשרת...");
     const subJSON = subscription.toJSON();
     try {
       const url = tenantApi("/push/subscribe");
-      console.log("[Push] POST to:", url);
       await api.post(url, {
         endpoint: subJSON.endpoint,
         keys: subJSON.keys,
       });
     } catch (apiErr: any) {
       _lastPushError = `שגיאה בשמירת המנוי בשרת: ${apiErr.response?.status || ""} ${apiErr.response?.data?.detail || apiErr.message}`;
-      console.error("[Push]", _lastPushError, apiErr);
-      // Don't return false — the browser subscription exists; server issue is non-fatal
-      // but still report it
+      pushLog(`שמירה בשרת נכשלה: ${apiErr.response?.status || apiErr.message}`, false);
       return false;
     }
 
-    console.log("[Push] ✅ Subscribed successfully!");
+    pushLog("הרשמה הושלמה בהצלחה! 🎉");
     _lastPushError = null;
     return true;
   } catch (error: any) {
     _lastPushError = `שגיאה לא צפויה: ${error.message}`;
-    console.error("[Push] Unexpected error:", error);
+    pushLog(`שגיאה לא צפויה: ${error.message}`, false);
     return false;
   }
 }

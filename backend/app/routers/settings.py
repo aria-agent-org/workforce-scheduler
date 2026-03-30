@@ -157,6 +157,37 @@ async def update_role_definition(
     return RoleDefinitionResponse.model_validate(rd).model_dump()
 
 
+@router.delete("/role-definitions/{rd_id}", status_code=status.HTTP_200_OK)
+async def delete_role_definition(
+    rd_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a custom role definition. System roles cannot be deleted."""
+    from app.models.user import User
+
+    result = await db.execute(
+        select(RoleDefinition).where(RoleDefinition.id == rd_id, RoleDefinition.tenant_id == tenant.id)
+    )
+    rd = result.scalar_one_or_none()
+    if not rd:
+        raise HTTPException(status_code=404, detail="הגדרת תפקיד לא נמצאה")
+    if rd.is_system:
+        raise HTTPException(status_code=403, detail="לא ניתן למחוק הגדרת מערכת")
+    # Check if any users are assigned this role
+    user_count = await db.execute(
+        select(func.count(User.id)).where(User.role_definition_id == rd_id)
+    )
+    count = user_count.scalar() or 0
+    if count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"לא ניתן למחוק — {count} משתמשים משויכים לתפקיד זה. העבר אותם לתפקיד אחר קודם."
+        )
+    await db.delete(rd)
+    await db.commit()
+    return {"id": str(rd_id), "deleted": True}
+
+
 # ═══════════════════════════════════════════
 # Tenant Settings (catch-all at the end)
 # ═══════════════════════════════════════════

@@ -24,6 +24,7 @@ import BoardTemplateEditor from "./BoardTemplateEditor";
 import UsersSettingsPage from "./UsersSettingsPage";
 import RegistrationCodesPage from "./RegistrationCodesPage";
 import CommunicationChannelsPage from "./CommunicationChannelsPage";
+import RolePermissionsPage from "./RolePermissionsPage";
 import { KeyRound, Radio } from "lucide-react";
 
 type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels";
@@ -302,29 +303,8 @@ export default function SettingsPage() {
       {/* Bot Configuration */}
       {activeTab === "bot-config" && <BotConfigPage />}
 
-      {/* Role Definitions */}
-      {activeTab === "role-definitions" && (
-        loading ? <TableSkeleton rows={3} cols={3} /> : (
-        <div className="space-y-3">
-          {roleDefinitions.map(rd => (
-            <Card key={rd.id} className="hover:shadow-sm transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">{rd.label?.[lang] || rd.label?.he || rd.name}</h3>
-                    <p className="text-xs text-muted-foreground">
-                      {Object.keys(rd.permissions || {}).length} הרשאות
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {rd.is_system && <Badge>מערכת</Badge>}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ))}
+      {/* Role Definitions — Full Permission Matrix */}
+      {activeTab === "role-definitions" && <RolePermissionsPage mode="tenant" />}
 
       {/* Work Role Modal */}
       <Dialog open={showWRModal} onOpenChange={setShowWRModal}>

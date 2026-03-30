@@ -17,18 +17,21 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 
-type AdminTab = "tenants" | "plans" | "users" | "health";
+import RolePermissionsPage from "../settings/RolePermissionsPage";
+import { Shield } from "lucide-react";
+
+type AdminTab = "tenants" | "plans" | "users" | "roles" | "health";
 
 export default function AdminPage() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab") as AdminTab | null;
-  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl && ["tenants", "plans", "users", "health"].includes(tabFromUrl) ? tabFromUrl : "tenants");
+  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl && ["tenants", "plans", "users", "roles", "health"].includes(tabFromUrl) ? tabFromUrl : "tenants");
   const [loading, setLoading] = useState(true);
 
   // Sync tab with URL
   useEffect(() => {
-    if (tabFromUrl && ["tenants", "plans", "users", "health"].includes(tabFromUrl)) {
+    if (tabFromUrl && ["tenants", "plans", "users", "roles", "health"].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -183,6 +186,7 @@ export default function AdminPage() {
     { key: "tenants", label: "טננטים", icon: Building2 },
     { key: "plans", label: "תוכניות", icon: CreditCard },
     { key: "users", label: "משתמשים", icon: Users },
+    { key: "roles", label: "תפקידים והרשאות", icon: Shield },
     { key: "health", label: "בריאות מערכת", icon: Activity },
   ];
 
@@ -350,6 +354,9 @@ export default function AdminPage() {
       )}
 
       {/* Health Tab */}
+            {/* Roles & Permissions — System Level */}
+      {activeTab === "roles" && <RolePermissionsPage mode="system" />}
+
       {activeTab === "health" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[

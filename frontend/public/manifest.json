@@ -11,6 +11,7 @@
   "dir": "rtl",
   "lang": "he",
   "categories": ["productivity", "business"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
