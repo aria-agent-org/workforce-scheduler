@@ -28,6 +28,12 @@ celery_app.conf.update(
 # Auto-discover tasks
 celery_app.autodiscover_tasks(["app.tasks"])
 
+# Explicit task imports to ensure registration
+import app.tasks.notifications  # noqa
+import app.tasks.sheets_sync  # noqa
+import app.tasks.scheduling  # noqa
+import app.tasks.cleanup  # noqa
+
 # Beat schedule
 celery_app.conf.beat_schedule = {
     "whatsapp-daily-session-reminder": {
