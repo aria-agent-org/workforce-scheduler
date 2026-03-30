@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { User, KeyRound, Globe, Bell, Save, Shield } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { isPushSupported, getPushPermission, subscribeToPush, isPushSubscribed, sendTestPush } from "@/lib/push";
+import NotificationPreferences from "@/components/NotificationPreferences";
 
 export default function MyProfilePage() {
   const { t, i18n } = useTranslation();
@@ -277,6 +278,9 @@ export default function MyProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Notification Preferences */}
+      <NotificationPreferences />
     </div>
   );
 }
