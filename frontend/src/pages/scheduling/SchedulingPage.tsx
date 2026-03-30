@@ -506,10 +506,8 @@ export default function SchedulingPage() {
   const loadEligibleSoldiers = async (missionId: string, slotId: string) => {
     setEligibleLoading(true);
     try {
-      const res = await api.get(tenantApi(`/missions/${missionId}/eligible-soldiers`), {
-        params: { slot_id: slotId },
-      });
-      setEligibleSoldiers(res.data.eligible || res.data || []);
+      const res = await api.get(tenantApi(`/missions/${missionId}/eligible-soldiers/${encodeURIComponent(slotId)}`));
+      setEligibleSoldiers(Array.isArray(res.data) ? res.data : (res.data.eligible || []));
     } catch {
       // Fallback: show all window employees
       setEligibleSoldiers((windowEmployees.length > 0 ? windowEmployees : employees).map((e: any) => ({ ...e, score: 0 })));
@@ -544,16 +542,15 @@ export default function SchedulingPage() {
   const autoFindReplacement = async (missionId: string, assignmentId: string, slotId: string, workRoleId: string, currentEmployeeName: string) => {
     try {
       toast("info", "מחפש מחליף אוטומטי...");
-      const res = await api.get(tenantApi(`/missions/${missionId}/eligible-soldiers`), {
-        params: { slot_id: slotId },
-      });
-      const eligible = res.data.eligible || res.data || [];
+      const res = await api.get(tenantApi(`/missions/${missionId}/eligible-soldiers/${encodeURIComponent(slotId)}`));
+      const eligible = Array.isArray(res.data) ? res.data : (res.data.eligible || []);
       if (eligible.length === 0) {
         toast("warning", "לא נמצא מחליף מתאים");
         return;
       }
       const best = eligible[0]; // Already sorted by score
-      const confirmed = window.confirm(`מחליף מומלץ: ${best.full_name || best.employee_name} (ציון: ${best.score || "N/A"})\nלהחליף את ${currentEmployeeName}?`);
+      const empName = typeof best.employee_name === "object" ? (best.employee_name?.he || best.employee_name?.en || "") : (best.employee_name || best.full_name || "");
+      const confirmed = window.confirm(`מחליף מומלץ: ${empName} (ציון: ${best.score || "N/A"})\nלהחליף את ${currentEmployeeName}?`);
       if (confirmed) {
         await replaceAssignment(missionId, assignmentId, best.id || best.employee_id, slotId, workRoleId);
       }
@@ -838,7 +835,14 @@ export default function SchedulingPage() {
                           {mt?.icon || "📋"}
                         </div>
                         <div>
-                          <p className="font-semibold text-base">{m.name}</p>
+                          <p className="font-semibold text-base">
+                            <button
+                              className="hover:underline hover:text-primary-600 transition-colors text-start"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/missions/${m.id}`); }}
+                            >
+                              {m.name}
+                            </button>
+                          </p>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
                             <span>📅 {m.date}</span>
                             <span>⏰ {m.start_time?.slice(0, 5)}–{m.end_time?.slice(0, 5)}</span>
@@ -2277,7 +2281,7 @@ export default function SchedulingPage() {
                         }}
                       >
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-medium">{s.full_name || s.employee_name}</span>
+                          <span className="font-medium">{typeof s.employee_name === "object" ? (s.employee_name?.he || s.employee_name?.en || "") : (s.full_name || s.employee_name || "")}</span>
                           <div className="flex flex-wrap gap-1">
                             {s.score != null && <Badge className="text-[10px] bg-blue-100 text-blue-700">ציון: {s.score}</Badge>}
                             {s.rest_hours != null && <Badge className="text-[10px] bg-gray-100 text-gray-600">מנוחה: {s.rest_hours}ש</Badge>}

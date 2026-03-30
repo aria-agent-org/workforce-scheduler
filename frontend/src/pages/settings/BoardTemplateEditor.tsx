@@ -202,17 +202,17 @@ function ContextMenu({ x, y, onClose, items }: ContextMenuProps) {
   return (
     <div
       ref={ref}
-      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[200px]"
+      className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[200px]"
       style={{ left: x, top: y }}
     >
       {items.map((item, i) =>
         item.separator ? (
-          <div key={i} className="border-t border-gray-100 my-1" />
+          <div key={i} className="border-t border-border my-1" />
         ) : (
           <button
             key={i}
             className={cn(
-              "w-full px-3 py-2 text-right text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors",
+              "w-full px-3 py-2 text-right text-sm flex items-center gap-2 hover:bg-muted transition-colors",
               item.disabled && "opacity-40 cursor-not-allowed"
             )}
             onClick={() => { if (!item.disabled) { item.onClick(); onClose(); } }}
@@ -256,22 +256,22 @@ function ColorPickerPopover({ color, onChange, label }: { color: string; onChang
   return (
     <div className="relative" ref={ref}>
       <button
-        className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 text-xs"
+        className="flex items-center gap-1.5 px-2 py-1 rounded border border-border hover:bg-muted text-xs"
         onClick={() => setOpen(!open)}
         title={label}
       >
-        <div className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: color }} />
+        <div className="w-4 h-4 rounded border border-border" style={{ backgroundColor: color }} />
         <span className="hidden sm:inline">{label}</span>
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1 z-50 bg-white border rounded-lg shadow-xl p-3 w-[260px]">
+        <div className="absolute top-full right-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-xl p-3 w-[260px]">
           <div className="grid grid-cols-10 gap-1 mb-2">
             {PRESET_COLORS.map((c) => (
               <button
                 key={c}
                 className={cn(
                   "w-5 h-5 rounded border transition-transform hover:scale-125",
-                  c === color ? "ring-2 ring-blue-500 ring-offset-1" : "border-gray-200"
+                  c === color ? "ring-2 ring-blue-500 ring-offset-1" : "border-border"
                 )}
                 style={{ backgroundColor: c }}
                 onClick={() => { onChange(c); setOpen(false); }}
@@ -894,7 +894,7 @@ export default function BoardTemplateEditor() {
               <LayoutTemplate className="w-6 h-6" />
               עורך לוח מתקדם
             </h2>
-            <p className="text-gray-500 text-sm mt-1">עריכת תבניות לוח שיבוצים בסגנון Excel — מיזוג תאים, צבעים, קטעים מרובים</p>
+            <p className="text-muted-foreground text-sm mt-1">עריכת תבניות לוח שיבוצים בסגנון Excel — מיזוג תאים, צבעים, קטעים מרובים</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={createNewTemplate}>
@@ -913,9 +913,9 @@ export default function BoardTemplateEditor() {
         {templates.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">
-              <Table2 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500 text-lg mb-2">אין תבניות לוח עדיין</p>
-              <p className="text-gray-400 text-sm mb-6">צור תבנית חדשה כדי להתחיל לעצב את לוח השיבוצים</p>
+              <Table2 className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
+              <p className="text-muted-foreground text-lg mb-2">אין תבניות לוח עדיין</p>
+              <p className="text-muted-foreground/70 text-sm mb-6">צור תבנית חדשה כדי להתחיל לעצב את לוח השיבוצים</p>
               <Button onClick={createNewTemplate}>
                 <Plus className="w-4 h-4 ml-1" />
                 צור תבנית ראשונה
@@ -934,22 +934,22 @@ export default function BoardTemplateEditor() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold">{t.name}</h3>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         {t.sections.length} קטעים • {t.sections.reduce((a, s) => a + s.rows, 0)} שורות
                       </p>
                     </div>
-                    <Badge className="bg-green-50 text-green-700">{t.scheduleWindowId ? "מקושר" : "כללי"}</Badge>
+                    <Badge className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">{t.scheduleWindowId ? "מקושר" : "כללי"}</Badge>
                   </div>
                   {/* Mini preview */}
-                  <div className="border rounded p-2 bg-gray-50 space-y-1">
+                  <div className="border rounded p-2 bg-muted/50 space-y-1">
                     {t.sections.slice(0, 2).map((s) => (
                       <div key={s.id} className="text-xs">
                         <span className="font-medium">{s.name}</span>
-                        <span className="text-gray-400 mr-1">({s.rows}×{s.cols})</span>
+                        <span className="text-muted-foreground mr-1">({s.rows}×{s.cols})</span>
                       </div>
                     ))}
                     {t.sections.length > 2 && (
-                      <span className="text-xs text-gray-400">+{t.sections.length - 2} עוד...</span>
+                      <span className="text-xs text-muted-foreground">+{t.sections.length - 2} עוד...</span>
                     )}
                   </div>
                 </CardContent>
@@ -1038,7 +1038,7 @@ export default function BoardTemplateEditor() {
             חזרה
           </Button>
         </div>
-        <p className="text-sm text-gray-500 bg-yellow-50 border border-yellow-200 rounded p-2">
+        <p className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2">
           📱 תצוגה בלבד — העריכה זמינה במחשב שולחני
         </p>
         {activeTemplate.sections.map((section) => (
@@ -1102,7 +1102,7 @@ export default function BoardTemplateEditor() {
   return (
     <div className="flex flex-col h-full min-h-[600px]" dir="rtl">
       {/* ─── Top Bar ─────────────────────────────── */}
-      <div className="border-b bg-white px-4 py-2 flex items-center gap-2 flex-wrap">
+      <div className="border-b bg-card px-4 py-2 flex items-center gap-2 flex-wrap">
         <Button
           variant="ghost"
           size="sm"
@@ -1111,7 +1111,7 @@ export default function BoardTemplateEditor() {
           ← חזרה
         </Button>
 
-        <div className="h-6 border-r border-gray-200 mx-1" />
+        <div className="h-6 border-r border-border mx-1" />
 
         <Input
           value={activeTemplate.name}
@@ -1136,7 +1136,7 @@ export default function BoardTemplateEditor() {
           ))}
         </Select>
 
-        <div className="h-6 border-r border-gray-200 mx-1" />
+        <div className="h-6 border-r border-border mx-1" />
 
         <Button variant="outline" size="sm" onClick={addSection} className="text-xs h-7">
           <Plus className="w-3 h-3 ml-1" />
@@ -1165,7 +1165,7 @@ export default function BoardTemplateEditor() {
           פצל
         </Button>
 
-        <div className="h-6 border-r border-gray-200 mx-1" />
+        <div className="h-6 border-r border-border mx-1" />
 
         <ColorPickerPopover
           color={selectedCell?.backgroundColor || "#ffffff"}
@@ -1181,7 +1181,7 @@ export default function BoardTemplateEditor() {
         <button
           className={cn(
             "px-2 py-1 rounded border text-xs h-7",
-            selectedCell?.fontWeight === "bold" ? "bg-gray-200 border-gray-400" : "border-gray-200 hover:bg-gray-50"
+            selectedCell?.fontWeight === "bold" ? "bg-accent border-border" : "border-border hover:bg-muted/50"
           )}
           onClick={() => applyToSelected((c) => ({ ...c, fontWeight: c.fontWeight === "bold" ? "normal" : "bold" }))}
         >
@@ -1196,7 +1196,7 @@ export default function BoardTemplateEditor() {
                 key={align}
                 className={cn(
                   "px-1.5 text-xs border-l first:border-l-0",
-                  selectedCell?.textAlign === align ? "bg-gray-200" : "hover:bg-gray-50"
+                  selectedCell?.textAlign === align ? "bg-accent" : "hover:bg-muted/50"
                 )}
                 onClick={() => applyToSelected((c) => ({ ...c, textAlign: align }))}
               >
@@ -1209,7 +1209,7 @@ export default function BoardTemplateEditor() {
         <button
           className={cn(
             "px-2 py-1 rounded border text-xs h-7",
-            selectedCell?.borderTop ? "bg-gray-200 border-gray-400" : "border-gray-200"
+            selectedCell?.borderTop ? "bg-accent border-border" : "border-border"
           )}
           onClick={() =>
             applyToSelected((c) => {
@@ -1222,7 +1222,7 @@ export default function BoardTemplateEditor() {
           <Square className="w-3 h-3" />
         </button>
 
-        <div className="h-6 border-r border-gray-200 mx-1" />
+        <div className="h-6 border-r border-border mx-1" />
 
         <Button
           variant="outline"
@@ -1256,7 +1256,7 @@ export default function BoardTemplateEditor() {
           תצוגה מקדימה
         </Button>
         <button
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-500"
+          className="p-1.5 rounded hover:bg-muted text-muted-foreground"
           onClick={() => setShowSidePanel(!showSidePanel)}
           title={showSidePanel ? "הסתר פאנל" : "הצג פאנל"}
         >
@@ -1269,15 +1269,15 @@ export default function BoardTemplateEditor() {
       </div>
 
       {/* ─── Section Tabs ────────────────────────── */}
-      <div className="border-b bg-gray-50 px-4 py-1 flex items-center gap-1 overflow-x-auto">
+      <div className="border-b bg-muted/50 px-4 py-1 flex items-center gap-1 overflow-x-auto">
         {activeTemplate.sections.map((s) => (
           <div
             key={s.id}
             className={cn(
               "flex items-center gap-1 px-3 py-1 rounded-t text-sm cursor-pointer border border-b-0 transition-colors",
               s.id === activeSectionId
-                ? "bg-white border-gray-300 font-semibold"
-                : "bg-gray-100 border-transparent hover:bg-gray-200 text-gray-600"
+                ? "bg-card border-border font-semibold"
+                : "bg-muted border-transparent hover:bg-accent text-foreground/80"
             )}
             onClick={() => setActiveSectionId(s.id)}
           >
@@ -1308,7 +1308,7 @@ export default function BoardTemplateEditor() {
                 {s.name}
               </span>
             )}
-            <span className="text-[10px] text-gray-400">({s.rows}×{s.cols})</span>
+            <span className="text-[10px] text-muted-foreground">({s.rows}×{s.cols})</span>
             <div className="flex gap-0.5 mr-1">
               <button onClick={(e) => { e.stopPropagation(); moveSectionUp(s.id); }} className="hover:text-blue-600" title="הזז למעלה">
                 <ChevronUp className="w-3 h-3" />
@@ -1329,7 +1329,7 @@ export default function BoardTemplateEditor() {
           </div>
         ))}
         <button
-          className="px-2 py-1 text-gray-400 hover:text-gray-600 text-sm"
+          className="px-2 py-1 text-muted-foreground hover:text-foreground/80 text-sm"
           onClick={addSection}
           title="הוסף קטע"
         >
@@ -1340,12 +1340,12 @@ export default function BoardTemplateEditor() {
       {/* ─── Main Content ────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Grid Area */}
-        <div className="flex-1 overflow-auto p-4 bg-gray-100" ref={gridRef}>
+        <div className="flex-1 overflow-auto p-4 bg-muted" ref={gridRef}>
           {activeTemplate.sections.map((section) => (
             <div
               key={section.id}
               className={cn(
-                "mb-6 bg-white rounded-lg shadow-sm border",
+                "mb-6 bg-card rounded-lg shadow-sm border",
                 section.id === activeSectionId ? "ring-2 ring-blue-200" : ""
               )}
               onClick={() => setActiveSectionId(section.id)}
@@ -1473,7 +1473,7 @@ export default function BoardTemplateEditor() {
 
         {/* Side Panel */}
         {showSidePanel && (
-          <div className="w-64 border-r bg-white overflow-y-auto flex-shrink-0">
+          <div className="w-64 border-r bg-card overflow-y-auto flex-shrink-0">
             {/* Mission Types */}
             <div className="border-b p-3">
               <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
@@ -1481,13 +1481,13 @@ export default function BoardTemplateEditor() {
                 סוגי משימות
               </h3>
               {missionTypes.length === 0 ? (
-                <p className="text-xs text-gray-400">אין סוגי משימות</p>
+                <p className="text-xs text-muted-foreground">אין סוגי משימות</p>
               ) : (
                 <div className="space-y-1">
                   {missionTypes.map((mt) => (
                     <div
                       key={mt.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded border border-gray-100 cursor-grab hover:bg-gray-50 text-xs"
+                      className="flex items-center gap-2 px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs"
                       draggable
                       onDragStart={() => handleDragStart("missionType", mt)}
                     >
@@ -1506,13 +1506,13 @@ export default function BoardTemplateEditor() {
                 תפקידי עבודה
               </h3>
               {workRoles.length === 0 ? (
-                <p className="text-xs text-gray-400">אין תפקידים</p>
+                <p className="text-xs text-muted-foreground">אין תפקידים</p>
               ) : (
                 <div className="space-y-1">
                   {workRoles.map((wr) => (
                     <div
                       key={wr.id}
-                      className="px-2 py-1.5 rounded border border-gray-100 cursor-grab hover:bg-gray-50 text-xs"
+                      className="px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs"
                       draggable
                       onDragStart={() => handleDragStart("workRole", wr)}
                     >
@@ -1543,12 +1543,12 @@ export default function BoardTemplateEditor() {
                 ].map((tr, i) => (
                   <div
                     key={i}
-                    className="px-2 py-1.5 rounded border border-gray-100 cursor-grab hover:bg-gray-50 text-xs flex justify-between"
+                    className="px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs flex justify-between"
                     draggable
                     onDragStart={() => handleDragStart("timeRange", { start: tr.start, end: tr.end })}
                   >
                     <span>{tr.label}</span>
-                    <span className="text-gray-400">{tr.start}-{tr.end}</span>
+                    <span className="text-muted-foreground">{tr.start}-{tr.end}</span>
                   </div>
                 ))}
               </div>
@@ -1616,7 +1616,7 @@ export default function BoardTemplateEditor() {
                     </div>
                   )}
                   <div className="pt-1 border-t">
-                    <span className="text-gray-400">
+                    <span className="text-muted-foreground">
                       מיזוג: {selectedCell.colspan}×{selectedCell.rowspan}
                       {selectedCell.missionTypeId && " • משימה מקושרת"}
                       {selectedCell.workRoleId && " • תפקיד מקושר"}

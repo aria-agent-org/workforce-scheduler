@@ -33,6 +33,93 @@ import { KeyRound, Radio, Eye, Lock } from "lucide-react";
 
 type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels" | "visibility" | "security";
 
+function BrandingSection({ initialColor, initialLogo, initialFavicon, onSave }: {
+  initialColor: string;
+  initialLogo: string;
+  initialFavicon: string;
+  onSave: (color: string, logo: string, favicon: string) => Promise<void>;
+}) {
+  const [color, setColor] = useState(initialColor);
+  const [logo, setLogo] = useState(initialLogo);
+  const [favicon, setFavicon] = useState(initialFavicon);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(color, logo, favicon);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-bold flex items-center gap-2 border-b pb-2">
+        <span>🎨</span>
+        מיתוג
+        <Badge className="bg-muted text-muted-foreground text-xs">3</Badge>
+      </h2>
+      <Card>
+        <CardContent className="p-4 space-y-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">צבע ראשי</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                type="color"
+                value={color}
+                onChange={e => setColor(e.target.value)}
+                className="w-14 h-10 p-1 cursor-pointer"
+              />
+              <Input
+                value={color}
+                onChange={e => setColor(e.target.value)}
+                placeholder="#3b82f6"
+                className="w-32 min-h-[44px] font-mono text-sm"
+              />
+              <div className="h-8 w-8 rounded-lg" style={{ backgroundColor: color }} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">כתובת לוגו (URL)</Label>
+            <Input
+              value={logo}
+              onChange={e => setLogo(e.target.value)}
+              placeholder="https://example.com/logo.png"
+              className="min-h-[44px]"
+              dir="ltr"
+            />
+            {logo && (
+              <div className="rounded-lg border p-2 bg-muted/30">
+                <img src={logo} alt="לוגו" className="h-10 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">כתובת Favicon (URL)</Label>
+            <Input
+              value={favicon}
+              onChange={e => setFavicon(e.target.value)}
+              placeholder="https://example.com/favicon.ico"
+              className="min-h-[44px]"
+              dir="ltr"
+            />
+            {favicon && (
+              <div className="flex items-center gap-2">
+                <img src={favicon} alt="favicon" className="h-6 w-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <span className="text-xs text-muted-foreground">תצוגה מקדימה</span>
+              </div>
+            )}
+          </div>
+          <Button onClick={handleSave} disabled={saving} className="min-h-[44px]">
+            {saving ? "שומר..." : "💾 שמור מיתוג"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
@@ -163,6 +250,18 @@ export default function SettingsPage() {
       {/* General Settings — Grouped by Category */}
       {activeTab === "general" && (
         loading ? <TableSkeleton rows={5} cols={3} /> : (() => {
+          // Branding state & save handler (hoisted into the IIFE)
+          const brandingSettings = {
+            primary_color: settings.find((s: any) => s.key === "branding_primary_color")?.value || "#3b82f6",
+            logo_url: settings.find((s: any) => s.key === "branding_logo_url")?.value || "",
+            favicon_url: settings.find((s: any) => s.key === "branding_favicon_url")?.value || "",
+          };
+          // Unwrap _v wrapper if present
+          const unwrap = (v: any) => (v && typeof v === "object" && "_v" in v) ? v._v : v;
+          const brandColor = String(unwrap(brandingSettings.primary_color) || "#3b82f6");
+          const brandLogo = String(unwrap(brandingSettings.logo_url) || "");
+          const brandFavicon = String(unwrap(brandingSettings.favicon_url) || "");
+
           const GROUP_LABELS: Record<string, { label: string; icon: string; isAdvanced?: boolean }> = {
             general: { label: "הגדרות כלליות", icon: "⚙️" },
             scheduling: { label: "שיבוץ", icon: "📅" },
@@ -225,6 +324,34 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Branding Settings */}
+                  <BrandingSection
+                    initialColor={brandColor}
+                    initialLogo={brandLogo}
+                    initialFavicon={brandFavicon}
+                    onSave={async (color: string, logo: string, favicon: string) => {
+                      try {
+                        const brandKeys = [
+                          { key: "branding_primary_color", value: color },
+                          { key: "branding_logo_url", value: logo },
+                          { key: "branding_favicon_url", value: favicon },
+                        ];
+                        for (const { key, value } of brandKeys) {
+                          const existing = settings.find((s: any) => s.key === key);
+                          if (existing) {
+                            await api.patch(tenantApi(`/settings/${existing.id}`), { value });
+                          } else {
+                            await api.post(tenantApi("/settings"), { key, value, group: "branding" });
+                          }
+                        }
+                        toast("success", "הגדרות מיתוג נשמרו");
+                        load();
+                      } catch (e: any) {
+                        toast("error", e.response?.data?.detail || "שגיאה בשמירת מיתוג");
+                      }
+                    }}
+                  />
 
                   {/* Advanced Settings - Expandable */}
                   {advancedGroups.length > 0 && (

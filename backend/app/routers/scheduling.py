@@ -743,7 +743,53 @@ async def get_mission(
     mission = result.scalar_one_or_none()
     if not mission:
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
-    return mission
+
+    # Get mission type name
+    mt_name = None
+    if mission.mission_type_id:
+        mt_result = await db.execute(select(MissionType).where(MissionType.id == mission.mission_type_id))
+        mt = mt_result.scalar_one_or_none()
+        if mt:
+            mt_name = mt.name
+
+    # Get assignments
+    assign_result = await db.execute(
+        select(MissionAssignment, Employee)
+        .join(Employee, MissionAssignment.employee_id == Employee.id)
+        .where(MissionAssignment.mission_id == mission.id)
+    )
+    assignments = [
+        {
+            "id": str(ma.id),
+            "employee_id": str(ma.employee_id),
+            "employee_name": emp.full_name,
+            "work_role_id": str(ma.work_role_id),
+            "slot_id": ma.slot_id,
+            "status": ma.status,
+            "conflicts_detected": ma.conflicts_detected,
+        }
+        for ma, emp in assign_result.all()
+    ]
+
+    return {
+        "id": str(mission.id),
+        "tenant_id": str(mission.tenant_id),
+        "schedule_window_id": str(mission.schedule_window_id),
+        "mission_type_id": str(mission.mission_type_id),
+        "mission_type_name": mt_name,
+        "template_id": str(mission.template_id) if mission.template_id else None,
+        "name": mission.name,
+        "date": str(mission.date),
+        "start_time": str(mission.start_time) if mission.start_time else None,
+        "end_time": str(mission.end_time) if mission.end_time else None,
+        "status": mission.status,
+        "is_activated": mission.is_activated,
+        "version": mission.version,
+        "notes": getattr(mission, "notes", None),
+        "assignments": assignments,
+        "created_at": str(mission.created_at),
+        "updated_at": str(mission.updated_at),
+    }
 
 @router.post("/missions", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("missions", "write"))])
 async def create_mission(

@@ -191,9 +191,10 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={m.id}
-                      className={`flex items-center justify-between rounded-lg border p-3 hover:bg-muted/30 transition-colors ${
+                      className={`flex items-center justify-between rounded-lg border p-3 hover:bg-muted/30 transition-colors cursor-pointer ${
                         hasWarning ? "border-amber-300 dark:border-amber-700" : ""
                       }`}
+                      onClick={() => navigate(`/missions/${m.id}`)}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -303,9 +304,9 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {missions.slice(0, 8).map((m: any) => (
-                  <div key={m.id} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/30 transition-colors">
+                  <div key={m.id} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/missions/${m.id}`)}>
                     <div>
-                      <p className="font-medium">{m.name}</p>
+                      <p className="font-medium hover:text-primary-600 transition-colors">{m.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {m.start_time?.slice(0, 5)} - {m.end_time?.slice(0, 5)}
                         {m.assignments?.length > 0 && ` · ${m.assignments.length} משובצים`}
