@@ -528,7 +528,84 @@ async def update_notification_preference_defaults(
 # Notification Locked Events
 # ═══════════════════════════════════════════
 
+from app.models.retention import DataRetentionConfig
 from app.models.notification import NotificationLockedEvent
+
+
+# ═══════════════════════════════════════════
+# Data Retention Config
+# ═══════════════════════════════════════════
+
+class DataRetentionItem(BaseModel):
+    entity_type: str
+    retain_days: int = 365
+    archive_to_s3: bool = False
+
+
+class DataRetentionResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    entity_type: str
+    retain_days: int
+    archive_to_s3: bool
+
+    model_config = {"from_attributes": True}
+
+
+class DataRetentionBulkUpdate(BaseModel):
+    configs: list[DataRetentionItem]
+
+
+@router.get("/data-retention", dependencies=[Depends(require_permission("settings", "read"))])
+async def list_data_retention(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List data retention configurations for the tenant."""
+    result = await db.execute(
+        select(DataRetentionConfig).where(DataRetentionConfig.tenant_id == tenant.id)
+        .order_by(DataRetentionConfig.entity_type)
+    )
+    return [DataRetentionResponse.model_validate(c).model_dump() for c in result.scalars().all()]
+
+
+@router.put("/data-retention", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_data_retention(
+    data: DataRetentionBulkUpdate, tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Upsert data retention configs by entity_type."""
+    results = []
+    for item in data.configs:
+        existing = await db.execute(
+            select(DataRetentionConfig).where(
+                DataRetentionConfig.tenant_id == tenant.id,
+                DataRetentionConfig.entity_type == item.entity_type,
+            )
+        )
+        config = existing.scalar_one_or_none()
+        if config:
+            config.retain_days = item.retain_days
+            config.archive_to_s3 = item.archive_to_s3
+        else:
+            config = DataRetentionConfig(
+                tenant_id=tenant.id,
+                entity_type=item.entity_type,
+                retain_days=item.retain_days,
+                archive_to_s3=item.archive_to_s3,
+            )
+            db.add(config)
+        await db.flush()
+        await db.refresh(config)
+        results.append(DataRetentionResponse.model_validate(config).model_dump())
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="update_data_retention",
+        entity_type="data_retention_config", entity_id=tenant.id,
+        after_state={"count": len(results)},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return results
 
 
 class LockedEventItem(BaseModel):
