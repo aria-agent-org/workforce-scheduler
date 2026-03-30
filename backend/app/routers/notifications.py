@@ -228,6 +228,68 @@ async def list_channel_configs(
     ]
 
 
+from pydantic import BaseModel
+from decimal import Decimal
+
+
+class ChannelConfigUpdate(BaseModel):
+    is_enabled: bool | None = None
+    provider_config: dict | None = None
+    cost_per_message_usd: float | None = None
+    monthly_budget_usd: float | None = None
+    budget_alert_at_percent: int | None = None
+    notes: str | None = None
+
+
+@router.put("/channels/{channel}")
+async def update_channel_config(
+    channel: str, data: ChannelConfigUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update (or create) a notification channel configuration."""
+    result = await db.execute(
+        select(NotificationChannelConfig).where(
+            NotificationChannelConfig.tenant_id == tenant.id,
+            NotificationChannelConfig.channel == channel,
+        )
+    )
+    config = result.scalar_one_or_none()
+
+    if not config:
+        config = NotificationChannelConfig(
+            tenant_id=tenant.id,
+            channel=channel,
+        )
+        db.add(config)
+
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if key in ("cost_per_message_usd", "monthly_budget_usd") and value is not None:
+            value = Decimal(str(value))
+        setattr(config, key, value)
+
+    await db.flush()
+    await db.refresh(config)
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="update_channel_config",
+        entity_type="notification_channel_config", entity_id=config.id,
+        after_state={"channel": channel, **data.model_dump(exclude_unset=True)},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+
+    return {
+        "id": str(config.id),
+        "channel": config.channel,
+        "is_enabled": config.is_enabled,
+        "cost_per_message_usd": float(config.cost_per_message_usd) if config.cost_per_message_usd else None,
+        "monthly_budget_usd": float(config.monthly_budget_usd) if config.monthly_budget_usd else None,
+        "budget_alert_at_percent": config.budget_alert_at_percent,
+        "notes": config.notes,
+    }
+
+
 # ═══════════════════════════════════════════
 # Broadcast Notification
 # ═══════════════════════════════════════════

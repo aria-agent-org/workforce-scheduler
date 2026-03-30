@@ -3,13 +3,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
-from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference
+from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference, EmployeeFieldDefinition
 from app.models.resource import WorkRole
 from app.models.audit import AuditLog
 from app.permissions import require_permission
@@ -19,6 +20,122 @@ from app.schemas.employee import (
 )
 
 router = APIRouter()
+
+
+# ═══════════════════════════════════════════
+# Employee Field Definitions (before /{employee_id} catch-all)
+# ═══════════════════════════════════════════
+
+class FieldDefinitionCreate(BaseModel):
+    field_key: str
+    label: dict
+    field_type: str = "text"
+    options: dict | None = None
+    is_required: bool = False
+    show_in_list: bool = False
+    display_order: int = 0
+
+
+class FieldDefinitionUpdate(BaseModel):
+    label: dict | None = None
+    field_type: str | None = None
+    options: dict | None = None
+    is_required: bool | None = None
+    show_in_list: bool | None = None
+    display_order: int | None = None
+
+
+class FieldDefinitionResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    field_key: str
+    label: dict
+    field_type: str
+    options: dict | None = None
+    is_required: bool
+    show_in_list: bool
+    display_order: int
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/field-definitions", dependencies=[Depends(require_permission("settings", "read"))])
+async def list_field_definitions(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List custom field definitions for employees."""
+    result = await db.execute(
+        select(EmployeeFieldDefinition)
+        .where(EmployeeFieldDefinition.tenant_id == tenant.id)
+        .order_by(EmployeeFieldDefinition.display_order)
+    )
+    return [FieldDefinitionResponse.model_validate(fd).model_dump() for fd in result.scalars().all()]
+
+
+@router.post("/field-definitions", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("settings", "write"))])
+async def create_field_definition(
+    data: FieldDefinitionCreate, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create a custom field definition."""
+    # Check for duplicate field_key
+    existing = await db.execute(
+        select(EmployeeFieldDefinition).where(
+            EmployeeFieldDefinition.tenant_id == tenant.id,
+            EmployeeFieldDefinition.field_key == data.field_key,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"שדה מותאם '{data.field_key}' כבר קיים",
+        )
+    fd = EmployeeFieldDefinition(tenant_id=tenant.id, **data.model_dump())
+    db.add(fd)
+    await db.flush()
+    await db.refresh(fd)
+    await db.commit()
+    return FieldDefinitionResponse.model_validate(fd).model_dump()
+
+
+@router.patch("/field-definitions/{fd_id}", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_field_definition(
+    fd_id: UUID, data: FieldDefinitionUpdate, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update a custom field definition."""
+    result = await db.execute(
+        select(EmployeeFieldDefinition).where(
+            EmployeeFieldDefinition.id == fd_id, EmployeeFieldDefinition.tenant_id == tenant.id
+        )
+    )
+    fd = result.scalar_one_or_none()
+    if not fd:
+        raise HTTPException(status_code=404, detail="הגדרת שדה לא נמצאה")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(fd, key, value)
+    await db.flush()
+    await db.refresh(fd)
+    await db.commit()
+    return FieldDefinitionResponse.model_validate(fd).model_dump()
+
+
+@router.delete("/field-definitions/{fd_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_permission("settings", "write"))])
+async def delete_field_definition(
+    fd_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a custom field definition."""
+    result = await db.execute(
+        select(EmployeeFieldDefinition).where(
+            EmployeeFieldDefinition.id == fd_id, EmployeeFieldDefinition.tenant_id == tenant.id
+        )
+    )
+    fd = result.scalar_one_or_none()
+    if not fd:
+        raise HTTPException(status_code=404, detail="הגדרת שדה לא נמצאה")
+    await db.delete(fd)
+    await db.commit()
 
 
 @router.get("", dependencies=[Depends(require_permission("employees", "read"))])

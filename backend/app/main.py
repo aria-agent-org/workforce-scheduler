@@ -27,6 +27,9 @@ from app.routers import work_roles as work_roles_router
 from app.routers import push as push_router
 from app.routers import webhooks as webhooks_router
 from app.routers import board as board_router
+from app.routers import resources as resources_router
+from app.routers import integrations as integrations_router
+from app.routers import help_topics as help_topics_router
 
 settings = get_settings()
 
@@ -178,6 +181,21 @@ def create_app() -> FastAPI:
         push_router.router,
         prefix="/api/v1/{tenant_slug}/push",
         tags=["push-notifications"],
+    )
+    app.include_router(
+        resources_router.router,
+        prefix="/api/v1/{tenant_slug}/resources",
+        tags=["resources"],
+    )
+    app.include_router(
+        integrations_router.router,
+        prefix="/api/v1/{tenant_slug}/integrations",
+        tags=["integrations"],
+    )
+    app.include_router(
+        help_topics_router.router,
+        prefix="/api/v1/{tenant_slug}/help-topics",
+        tags=["help-topics"],
     )
 
     # Public registration endpoint (no tenant required)
