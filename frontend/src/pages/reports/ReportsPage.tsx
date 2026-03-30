@@ -17,6 +17,27 @@ import * as XLSX from "xlsx";
 
 type ReportType = "workload" | "missions" | "attendance" | "costs";
 
+// Hebrew translations for mission statuses from backend
+const STATUS_HE: Record<string, string> = {
+  draft: "טיוטה",
+  active: "פעיל",
+  approved: "מאושר",
+  completed: "הושלם",
+  cancelled: "בוטל",
+  proposed: "מוצע",
+  paused: "מושהה",
+  archived: "בארכיון",
+  assigned: "משובץ",
+  present: "נוכח",
+  home: "בבית",
+  sick: "חולה",
+  vacation: "חופשה",
+  training: "הכשרה",
+  reserve: "מילואים",
+};
+
+const hebrewStatus = (status: string) => STATUS_HE[status] || status;
+
 const COLORS = ["#2563eb", "#22c55e", "#ef4444", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
 
 export default function ReportsPage() {
@@ -179,10 +200,10 @@ export default function ReportsPage() {
                   <ResponsiveContainer width="100%" height={400}>
                     <BarChart data={data.employees?.slice(0, 20) || []} layout="vertical" margin={{ left: 100 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
+                      <XAxis type="number" label={{ value: "שעות", position: "insideBottom", offset: -5 }} />
                       <YAxis dataKey="employee_name" type="category" width={100} tick={{ fontSize: 12 }} />
-                      <RechartsTooltip formatter={(value: any) => [`${value} שעות`, "שעות"]} />
-                      <Bar dataKey="total_hours" fill="#2563eb" radius={[0, 4, 4, 0]}>
+                      <RechartsTooltip formatter={(value: any) => [`${value} שעות`, "שעות"]} labelFormatter={(label: any) => `עובד: ${label}`} />
+                      <Bar dataKey="total_hours" fill="#2563eb" radius={[0, 4, 4, 0]} name="שעות עבודה">
                         {(data.employees || []).map((_: any, i: number) => (
                           <Cell key={i} fill={COLORS[i % COLORS.length]} />
                         ))}
@@ -253,7 +274,7 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
-                          data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, value }))}
+                          data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name: hebrewStatus(name), value }))}
                           cx="50%"
                           cy="50%"
                           outerRadius={100}
@@ -272,15 +293,15 @@ export default function ReportsPage() {
 
                 {/* Bar Chart */}
                 <Card>
-                  <CardHeader><CardTitle className="text-lg">היסטוגרמה</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-lg">היסטוגרמה — משימות לפי סטטוס</CardTitle></CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, count: value }))}>
+                      <BarChart data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name: hebrewStatus(name), count: value }))}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <RechartsTooltip />
-                        <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                        <XAxis dataKey="name" label={{ value: "סטטוס", position: "insideBottom", offset: -5 }} />
+                        <YAxis label={{ value: "כמות", angle: -90, position: "insideLeft" }} />
+                        <RechartsTooltip formatter={(value: any) => [`${value}`, "כמות"]} />
+                        <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} name="כמות">
                           {Object.keys(data.by_status || {}).map((_, i) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
@@ -305,7 +326,7 @@ export default function ReportsPage() {
                           }}
                         />
                       </div>
-                      <p className="text-sm text-muted-foreground capitalize">{status}</p>
+                      <p className="text-sm text-muted-foreground capitalize">{hebrewStatus(status)}</p>
                       <p className="text-2xl font-bold">{count as number}</p>
                     </CardContent>
                   </Card>
@@ -332,7 +353,7 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
-                          data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, value }))}
+                          data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name: hebrewStatus(name), value }))}
                           cx="50%"
                           cy="50%"
                           innerRadius={60}
@@ -356,12 +377,12 @@ export default function ReportsPage() {
                   <CardHeader><CardTitle className="text-lg">דפוסי נוכחות</CardTitle></CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name, count: value }))}>
+                      <AreaChart data={Object.entries(data.by_status || {}).map(([name, value]) => ({ name: hebrewStatus(name), count: value }))}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <RechartsTooltip />
-                        <Area type="monotone" dataKey="count" stroke="#2563eb" fill="#2563eb30" />
+                        <XAxis dataKey="name" label={{ value: "סטטוס", position: "insideBottom", offset: -5 }} />
+                        <YAxis label={{ value: "כמות", angle: -90, position: "insideLeft" }} />
+                        <RechartsTooltip formatter={(value: any) => [`${value}`, "כמות"]} />
+                        <Area type="monotone" dataKey="count" stroke="#2563eb" fill="#2563eb30" name="כמות" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -373,7 +394,7 @@ export default function ReportsPage() {
                 {Object.entries(data.by_status || {}).map(([status, count], i) => (
                   <Card key={status}>
                     <CardContent className="p-4 text-center">
-                      <p className="text-sm text-muted-foreground">{status}</p>
+                      <p className="text-sm text-muted-foreground">{hebrewStatus(status)}</p>
                       <p className="text-2xl font-bold" style={{ color: COLORS[i % COLORS.length] }}>{count as number}</p>
                     </CardContent>
                   </Card>
@@ -436,9 +457,9 @@ export default function ReportsPage() {
                         name, messages: info.count, cost: info.cost_usd,
                       }))}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <RechartsTooltip />
+                        <XAxis dataKey="name" label={{ value: "ערוץ", position: "insideBottom", offset: -5 }} />
+                        <YAxis label={{ value: "כמות הודעות", angle: -90, position: "insideLeft" }} />
+                        <RechartsTooltip formatter={(value: any, name: string) => [`${value}`, name === "messages" ? "הודעות" : name]} />
                         <Legend />
                         <Bar dataKey="messages" fill="#2563eb" name="הודעות" radius={[4, 4, 0, 0]} />
                       </BarChart>

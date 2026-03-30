@@ -109,7 +109,7 @@ export default function SchedulingPage() {
   const [typeForm, setTypeForm] = useState({
     name_he: "", name_en: "", color: "#3b82f6", icon: "📋", duration_hours: 8, is_standby: false,
     standby_can_count_as_rest: false,
-    required_slots: [] as Array<{ slot_id: string; work_role_id: string; count: number; label_he: string; label_en: string }>,
+    required_slots: [] as Array<{ slot_id: string; work_role_id: string; count: number; label_he: string; label_en: string; role_mode?: "specific" | "all" | "all_except"; exclude_role_ids?: string[] }>,
     pre_mission_events: [] as Array<{ offset_minutes: number; label_he: string; label_en: string; location_he: string }>,
     post_mission_rule: null as any,
     timeline_items: [] as Array<{ item_id: string; offset_minutes: number; label_he: string; label_en: string; time_mode: "relative" | "exact"; exact_time: string }>,
@@ -197,9 +197,11 @@ export default function SchedulingPage() {
     try {
       const slots = typeForm.required_slots.map((s, i) => ({
         slot_id: s.slot_id || `s${i + 1}`,
-        work_role_id: s.work_role_id,
+        work_role_id: (s.role_mode === "all" || s.role_mode === "all_except") ? null : (s.work_role_id || null),
         count: s.count,
         label: { he: s.label_he, en: s.label_en },
+        role_mode: s.role_mode || "specific",
+        exclude_role_ids: s.role_mode === "all_except" ? (s.exclude_role_ids || []) : undefined,
       }));
       const preMission = typeForm.pre_mission_events.map(e => ({
         offset_minutes: e.offset_minutes,
@@ -249,8 +251,10 @@ export default function SchedulingPage() {
       is_standby: mt.is_standby || false,
       standby_can_count_as_rest: mt.standby_can_count_as_rest || false,
       required_slots: (mt.required_slots || []).map((s: any) => ({
-        slot_id: s.slot_id, work_role_id: s.work_role_id, count: s.count,
+        slot_id: s.slot_id, work_role_id: s.work_role_id || "", count: s.count,
         label_he: s.label?.he || "", label_en: s.label?.en || "",
+        role_mode: s.role_mode || (s.work_role_id ? "specific" : "all"),
+        exclude_role_ids: s.exclude_role_ids || [],
       })),
       pre_mission_events: (mt.pre_mission_events || []).map((e: any) => ({
         offset_minutes: e.offset_minutes, label_he: e.label?.he || "",
@@ -1253,13 +1257,20 @@ export default function SchedulingPage() {
                   </div>
                 </label>
                 {typeForm.is_standby && (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-dashed p-3 hover:bg-muted/50 transition-colors ms-4 animate-in slide-in-from-top-1">
-                    <input type="checkbox" checked={typeForm.standby_can_count_as_rest} onChange={e => setTypeForm({...typeForm, standby_can_count_as_rest: e.target.checked})} className="rounded accent-primary-500" />
-                    <div>
-                      <span className="font-medium">😴 כוננות נחשבת מנוחה</span>
-                      <p className="text-xs text-muted-foreground">כוננות שלא הופעלה נספרת כזמן מנוחה</p>
+                  <>
+                    <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-3 ms-4 animate-in slide-in-from-top-1">
+                      <p className="text-sm text-orange-800 dark:text-orange-200">
+                        ⚡ משימת כוננות: חיילים בכוננות ממתינים להקפצה. ניתן להגדיר אם הכוננות נחשבת למנוחה.
+                      </p>
                     </div>
-                  </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-dashed p-3 hover:bg-muted/50 transition-colors ms-4 animate-in slide-in-from-top-1">
+                      <input type="checkbox" checked={typeForm.standby_can_count_as_rest} onChange={e => setTypeForm({...typeForm, standby_can_count_as_rest: e.target.checked})} className="rounded accent-primary-500" />
+                      <div>
+                        <span className="font-medium">😴 כוננות נחשבת מנוחה</span>
+                        <p className="text-xs text-muted-foreground">כוננות שלא הופעלה נספרת כזמן מנוחה</p>
+                      </div>
+                    </label>
+                  </>
                 )}
               </div>
             </div>
@@ -1280,20 +1291,73 @@ export default function SchedulingPage() {
                 </Button>
               </div>
               {typeForm.required_slots.map((slot, i) => (
-                <div key={i} className="grid grid-cols-5 gap-2 items-end p-2 bg-muted/30 rounded">
-                  <div><Label className="text-xs">שם (עב)</Label><Input value={slot.label_he} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_he = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
-                  <div><Label className="text-xs">שם (en)</Label><Input value={slot.label_en} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_en = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
-                  <div>
-                    <Label className="text-xs">תפקיד</Label>
-                    <Select value={slot.work_role_id} onChange={e => { const s = [...typeForm.required_slots]; s[i].work_role_id = e.target.value; setTypeForm({...typeForm, required_slots: s}); }}>
-                      <option value="">בחר</option>
-                      {workRoles.map(wr => <option key={wr.id} value={wr.id}>{wr.name?.[lang] || wr.name?.he}</option>)}
-                    </Select>
+                <div key={i} className="p-3 bg-muted/30 rounded space-y-2">
+                  <div className="grid grid-cols-5 gap-2 items-end">
+                    <div><Label className="text-xs">שם (עב)</Label><Input value={slot.label_he} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_he = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
+                    <div><Label className="text-xs">שם (en)</Label><Input value={slot.label_en} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_en = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
+                    <div>
+                      <Label className="text-xs">תפקיד</Label>
+                      <Select value={slot.role_mode || "specific"} onChange={e => {
+                        const s = [...typeForm.required_slots];
+                        const mode = e.target.value as "specific" | "all" | "all_except";
+                        s[i].role_mode = mode;
+                        if (mode === "all") { s[i].work_role_id = ""; s[i].exclude_role_ids = []; }
+                        else if (mode === "all_except") { s[i].work_role_id = ""; }
+                        else { s[i].exclude_role_ids = []; }
+                        setTypeForm({...typeForm, required_slots: s});
+                      }}>
+                        <option value="specific">תפקיד ספציפי</option>
+                        <option value="all">הכל (כל התפקידים)</option>
+                        <option value="all_except">הכל למעט...</option>
+                      </Select>
+                    </div>
+                    <div><Label className="text-xs">כמות</Label><Input type="number" min={1} value={slot.count} onChange={e => { const s = [...typeForm.required_slots]; s[i].count = Number(e.target.value); setTypeForm({...typeForm, required_slots: s}); }} /></div>
+                    <Button size="sm" variant="ghost" onClick={() => setTypeForm({...typeForm, required_slots: typeForm.required_slots.filter((_, j) => j !== i)})}>
+                      <Trash2 className="h-3 w-3 text-red-500" />
+                    </Button>
                   </div>
-                  <div><Label className="text-xs">כמות</Label><Input type="number" min={1} value={slot.count} onChange={e => { const s = [...typeForm.required_slots]; s[i].count = Number(e.target.value); setTypeForm({...typeForm, required_slots: s}); }} /></div>
-                  <Button size="sm" variant="ghost" onClick={() => setTypeForm({...typeForm, required_slots: typeForm.required_slots.filter((_, j) => j !== i)})}>
-                    <Trash2 className="h-3 w-3 text-red-500" />
-                  </Button>
+                  {/* Specific role selector */}
+                  {(!slot.role_mode || slot.role_mode === "specific") && (
+                    <div>
+                      <Select value={slot.work_role_id} onChange={e => { const s = [...typeForm.required_slots]; s[i].work_role_id = e.target.value; setTypeForm({...typeForm, required_slots: s}); }}>
+                        <option value="">בחר תפקיד...</option>
+                        {workRoles.map(wr => <option key={wr.id} value={wr.id}>{wr.name?.[lang] || wr.name?.he}</option>)}
+                      </Select>
+                    </div>
+                  )}
+                  {/* All roles info */}
+                  {slot.role_mode === "all" && (
+                    <div className="text-xs text-muted-foreground bg-green-50 dark:bg-green-900/20 rounded px-2 py-1">
+                      ✓ כל התפקידים — כל חייל יכול להשתבץ למשבצת זו
+                    </div>
+                  )}
+                  {/* Exclude roles multi-select */}
+                  {slot.role_mode === "all_except" && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">תפקידים לא כלולים:</Label>
+                      <div className="flex flex-wrap gap-1.5 rounded-lg border p-2 min-h-[36px]">
+                        {workRoles.map(wr => {
+                          const excluded = (slot.exclude_role_ids || []).includes(wr.id);
+                          return (
+                            <button key={wr.id} type="button" onClick={() => {
+                              const s = [...typeForm.required_slots];
+                              const current = s[i].exclude_role_ids || [];
+                              s[i].exclude_role_ids = excluded ? current.filter(id => id !== wr.id) : [...current, wr.id];
+                              s[i].work_role_id = "";
+                              setTypeForm({...typeForm, required_slots: s});
+                            }} className={`text-xs px-2 py-1 rounded-lg border transition-colors ${excluded ? "bg-red-100 text-red-700 border-red-300" : "bg-muted hover:bg-accent border-transparent"}`}>
+                              {excluded ? "✕ " : ""}{wr.name?.[lang] || wr.name?.he}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(slot.exclude_role_ids || []).length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          כל התפקידים למעט: {(slot.exclude_role_ids || []).map(id => workRoles.find(wr => wr.id === id)?.name?.[lang] || workRoles.find(wr => wr.id === id)?.name?.he || id).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1331,12 +1395,14 @@ export default function SchedulingPage() {
                 <div className="flex items-center gap-1.5">
                   <Label className="text-base font-semibold">פריטי ציר זמן</Label>
                   <HelpTooltip
-                    title={{ he: "ציר זמן של משימה", en: "Mission timeline" }}
-                    content={{ he: "פריטים שקורים במהלך המשימה.\nניתן להגדיר כזמן יחסי (X דקות אחרי ההתחלה) או כשעה מדויקת.\nלדוגמה: החלפת משמרות בשעה 12:00.", en: "Items during the mission. Relative or exact time." }}
+                    title={{ he: "ציר זמן — מה זה?", en: "Mission timeline — what is it?" }}
+                    content={{ he: "ציר זמן מגדיר אירועים שקורים במהלך המשימה.\nהאירועים מוצגים לחיילים בסדר כרונולוגי.\n\nניתן להגדיר כל פריט כ:\n• זמן יחסי — X דקות אחרי תחילת המשימה\n• שעה מדויקת — למשל 12:00\n\nדוגמאות: ארוחה, החלפת משמרת, בדיקת ציוד, סיור.", en: "Timeline items are events during the mission, shown to soldiers chronologically." }}
                     examples={[
                       { he: "זמן יחסי: 60 דקות אחרי התחלה — ארוחת צהריים", en: "Relative: 60 min after start — lunch" },
                       { he: "שעה מדויקת: 12:00 — החלפת משמרת", en: "Exact: 12:00 — shift change" },
                     ]}
+                    mode="popover"
+                    size="lg"
                   />
                 </div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setTypeForm({...typeForm, timeline_items: [...typeForm.timeline_items, { item_id: `t${typeForm.timeline_items.length + 1}`, offset_minutes: 30, label_he: "", label_en: "", time_mode: "relative", exact_time: "08:00" }]})}>
@@ -1404,6 +1470,11 @@ export default function SchedulingPage() {
               </label>
               {typeForm.post_mission_rule && (
                 <div className="space-y-3 ms-4 animate-in slide-in-from-top-1 border-s-2 border-primary-200 ps-4">
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      🔄 לאחר סיום המשימה, תיווצר אוטומטית משימת המשך{typeForm.post_mission_rule.auto_transition_to_mission_type_id ? ` מסוג "${missionTypes.find(mt => mt.id === typeForm.post_mission_rule.auto_transition_to_mission_type_id)?.name?.[lang] || missionTypes.find(mt => mt.id === typeForm.post_mission_rule.auto_transition_to_mission_type_id)?.name?.he || ""}"` : ""} עם אותו צוות.
+                    </p>
+                  </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">סוג משימת המשך</Label>
                     <Select
