@@ -62,9 +62,10 @@ async def get_current_user(
 
 async def get_tenant(
     request: Request,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Tenant:
-    """Resolve tenant from URL slug."""
+    """Resolve tenant from URL slug AND verify user belongs to it."""
     slug = getattr(request.state, "tenant_slug", None)
     if not slug:
         raise HTTPException(
@@ -78,6 +79,14 @@ async def get_tenant(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Tenant '{slug}' not found",
+        )
+
+    # SECURITY: Verify user belongs to this tenant
+    # Super admins (no tenant_id) can access any tenant
+    if user.tenant_id is not None and user.tenant_id != tenant.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="אין גישה לטננט זה",
         )
 
     return tenant
