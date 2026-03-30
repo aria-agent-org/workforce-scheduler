@@ -68,7 +68,7 @@ export default function SecuritySettingsPage() {
     setActionLoading(true);
     try {
       const { data } = await api.post("/auth/2fa/enable");
-      setQrCodeUrl(data.qr_code_url || data.provisioning_uri || "");
+      setQrCodeUrl(data.qr_code_url || data.qr_code_uri || data.provisioning_uri || "");
       setSecret(data.secret || "");
       setTwoFAStep("setup-qr");
     } catch (err: any) {
@@ -321,7 +321,7 @@ export default function SecuritySettingsPage() {
             {qrCodeUrl && (
               <div className="flex justify-center">
                 <img
-                  src={qrCodeUrl}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`}
                   alt="QR Code for 2FA"
                   className="w-48 h-48 border rounded-lg"
                 />

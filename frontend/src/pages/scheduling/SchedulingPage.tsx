@@ -179,7 +179,7 @@ export default function SchedulingPage() {
       toast("success", "לוח עבודה נוצר בהצלחה");
       setShowWindowModal(false);
       loadAll();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   const windowAction = async (id: string, action: string) => {
@@ -187,7 +187,7 @@ export default function SchedulingPage() {
       await api.post(tenantApi(`/schedule-windows/${id}/${action}`));
       toast("success", `פעולה בוצעה: ${action}`);
       loadAll();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   // === MISSION TYPE CRUD ===
@@ -233,7 +233,7 @@ export default function SchedulingPage() {
       setShowTypeModal(false);
       setEditingTypeId(null);
       loadAll();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   const openEditType = (mt: any) => {
@@ -280,7 +280,7 @@ export default function SchedulingPage() {
       toast("success", "סוג משימה נמחק");
       setDeleteTypeTarget(null);
       loadAll();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   // === MISSIONS ===
@@ -291,7 +291,7 @@ export default function SchedulingPage() {
       setShowMissionModal(false);
       setEditingMissionId(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   const updateMission = async () => {
@@ -307,7 +307,7 @@ export default function SchedulingPage() {
       setShowMissionModal(false);
       setEditingMissionId(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בעדכון משימה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בעדכון משימה")); }
   };
 
   const openEditMission = (m: any) => {
@@ -338,7 +338,7 @@ export default function SchedulingPage() {
       toast("success", "תבנית נמחקה");
       setDeleteTemplateTarget(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה במחיקת תבנית"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה במחיקת תבנית")); }
   };
 
   // === TEMPLATES ===
@@ -360,7 +360,7 @@ export default function SchedulingPage() {
       toast("success", "תבנית נוצרה בהצלחה");
       setShowTemplateModal(false);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   // === ASSIGNMENT ===
@@ -422,7 +422,7 @@ export default function SchedulingPage() {
       toast("success", `נוצרו ${res.data.created} משימות`);
       setShowGenerateModal(false);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   // === AUTO ASSIGN ===
@@ -436,7 +436,7 @@ export default function SchedulingPage() {
       setAutoAssignResults(res.data);
       setShowAutoAssignResults(true);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בשיבוץ אוטומטי"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בשיבוץ אוטומטי")); }
   };
 
   // === IMPORT SOLDIERS TO WINDOW ===
@@ -482,7 +482,7 @@ export default function SchedulingPage() {
       setShowImportWizard(false);
       loadWindowData(selectedWindow.id);
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בייבוא");
+      toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בייבוא"));
     }
   };
 
@@ -491,7 +491,7 @@ export default function SchedulingPage() {
       await api.post(tenantApi(`/missions/${id}/${action}`));
       toast("success", "פעולה בוצעה");
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
   };
 
   // === INTERACTIVE BOARD ACTIONS ===
@@ -517,7 +517,7 @@ export default function SchedulingPage() {
       await api.delete(tenantApi(`/missions/${missionId}/assignments/${assignmentId}`));
       toast("success", "חייל הוסר מהמשימה");
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בהסרת שיבוץ"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בהסרת שיבוץ")); }
   };
 
   const replaceAssignment = async (missionId: string, oldAssignmentId: string, newEmployeeId: string, slotId: string, workRoleId: string) => {
@@ -532,7 +532,7 @@ export default function SchedulingPage() {
       setShowReplaceDialog(false);
       setReplaceTarget(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בהחלפת חייל"); }
+    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בהחלפת חייל")); }
   };
 
   const autoFindReplacement = async (missionId: string, assignmentId: string, slotId: string, workRoleId: string, currentEmployeeName: string) => {
@@ -1087,7 +1087,7 @@ export default function SchedulingPage() {
                           await api.patch(tenantApi(`/mission-templates/${tmpl.id}`), { is_active: tmpl.is_active === false ? true : false });
                           toast("success", tmpl.is_active === false ? "תבנית הופעלה" : "תבנית הושבתה — משימות שכבר נוצרו יישארו");
                           if (selectedWindow) loadWindowData(selectedWindow.id);
-                        } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+                        } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
                       }}
                       className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors min-h-[44px] min-w-[44px] ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
                       title={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}

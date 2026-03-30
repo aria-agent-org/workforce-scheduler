@@ -24,7 +24,9 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original._retry) {
+    // Don't intercept 401 on auth endpoints (login, 2FA verify, etc.)
+    const isAuthEndpoint = original.url?.startsWith('/auth/');
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
 
       const refreshToken = localStorage.getItem("refresh_token");
