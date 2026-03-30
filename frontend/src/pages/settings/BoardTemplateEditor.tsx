@@ -466,14 +466,27 @@ export default function BoardTemplateEditor() {
       if (isExisting) {
         // Update existing
         const dbId = templates.find((t) => t.id === activeTemplate.id)?._dbId;
-        await api.patch(tenantApi(`/daily-board-templates/${dbId}`), payload);
+        if (dbId) {
+          await api.patch(tenantApi(`/daily-board-templates/${dbId}`), payload);
+        } else {
+          // Fallback: create new if dbId missing
+          const res = await api.post(tenantApi("/daily-board-templates"), payload);
+          setTemplates((prev) => prev.map((t) =>
+            t.id === activeTemplate.id ? { ...t, _dbId: res.data.id } : t
+          ));
+        }
       } else {
         // Create new
         const res = await api.post(tenantApi("/daily-board-templates"), payload);
-        // Store DB id for future updates
-        setTemplates((prev) => prev.map((t) =>
-          t.id === activeTemplate.id ? { ...t, _dbId: res.data.id } : t
-        ));
+        // Add to templates list with DB id
+        const saved = { ...activeTemplate, _dbId: res.data.id };
+        setTemplates((prev) => {
+          const exists = prev.some((t) => t.id === activeTemplate.id);
+          if (exists) {
+            return prev.map((t) => t.id === activeTemplate.id ? saved : t);
+          }
+          return [...prev, saved];
+        });
       }
 
       // Also save to settings as backup
@@ -1056,6 +1069,19 @@ export default function BoardTemplateEditor() {
   }
 
   // ─── Editor View ────────────────────────────────
+
+  // Safety: if no active template, show template list
+  if (!activeTemplate) {
+    return (
+      <div className="p-8 text-center text-muted-foreground" dir="rtl">
+        <LayoutTemplate className="w-12 h-12 mx-auto mb-4 opacity-30" />
+        <p className="text-lg font-medium">לא נבחרה תבנית</p>
+        <Button className="mt-4" onClick={() => { setShowTemplateList(true); }}>
+          חזור לרשימת התבניות
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full min-h-[600px]" dir="rtl">
