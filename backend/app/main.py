@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import engine
+from app.middleware.metrics import PrometheusMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, admin, health, employees, scheduling, attendance, rules, notifications, reports
 from app.routers import settings as settings_router
@@ -66,6 +67,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Prometheus metrics middleware (outermost — captures all requests)
+    app.add_middleware(PrometheusMiddleware)
 
     # Tenant extraction middleware
     app.add_middleware(TenantMiddleware)
