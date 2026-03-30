@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Calendar, ArrowLeftRight, Bell, UserCircle, Home } from "lucide-react";
+import { Calendar, ArrowLeftRight, Bell, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useEffect } from "react";
@@ -28,10 +28,9 @@ export default function SoldierLayout() {
           <h1 className="text-lg font-bold text-primary-500 flex items-center gap-2">
             🎯 שבצק
           </h1>
-          <NavLink to="/dashboard" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary-500 transition-colors px-2 py-1 rounded-lg hover:bg-muted">
-            <Home className="h-4 w-4" />
-            <span className="hidden sm:inline">מסך ראשי</span>
-          </NavLink>
+          <span className="text-xs text-muted-foreground">
+            {/* Soldier portal — no admin link */}
+          </span>
         </div>
       </header>
 

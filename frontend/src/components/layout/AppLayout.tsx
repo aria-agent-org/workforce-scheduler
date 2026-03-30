@@ -1,5 +1,7 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useAuthStore } from "@/stores/authStore";
+import { resolveRole } from "@/lib/permissions";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import LoadingSpinner from "../common/LoadingSpinner";
@@ -9,9 +11,16 @@ import OfflineBanner from "../mobile/OfflineBanner";
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const user = useAuthStore((s) => s.user);
 
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal
+  const role = resolveRole(user?.role_name);
+  if (role === "soldier" || role === "viewer" || role === "none") {
+    return <Navigate to="/my/schedule" replace />;
+  }
 
   return (
     <div className="flex h-[100dvh] bg-background">

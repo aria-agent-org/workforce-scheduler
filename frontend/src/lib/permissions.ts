@@ -53,13 +53,13 @@ const ROLE_PAGES: Record<RoleName, Set<string>> = {
     "help", "profile", "my",
   ]),
   viewer: new Set([
-    "dashboard", "help", "profile", "my",
+    "help", "profile", "my",
   ]),
   soldier: new Set([
-    "dashboard", "help", "profile", "my",
+    "help", "profile", "my",
   ]),
   none: new Set([
-    "dashboard", "help", "profile", "my",
+    "help", "profile", "my",
   ]),
 };
 
