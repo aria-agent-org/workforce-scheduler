@@ -21,6 +21,7 @@ from app.routers import self_service as self_service_router
 from app.routers import registration as registration_router
 from app.routers import work_roles as work_roles_router
 from app.routers import push as push_router
+from app.routers import webhooks as webhooks_router
 
 settings = get_settings()
 
@@ -150,6 +151,13 @@ def create_app() -> FastAPI:
         prefix="/auth",
         tags=["auth-registration"],
         include_in_schema=False,
+    )
+
+    # Webhooks (WhatsApp / Telegram bots)
+    app.include_router(
+        webhooks_router.router,
+        prefix="/webhooks",
+        tags=["webhooks"],
     )
 
 
