@@ -22,6 +22,114 @@ import { Shield } from "lucide-react";
 
 type AdminTab = "tenants" | "plans" | "users" | "roles" | "health";
 
+function SystemHealthDashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get("/admin/stats");
+        setStats(res.data);
+      } catch {
+        toast("error", "שגיאה בטעינת נתוני מערכת");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <TableSkeleton rows={4} cols={4} />;
+  if (!stats) return <div className="text-center text-muted-foreground py-8">לא ניתן לטעון נתונים</div>;
+
+  const statCards = [
+    { label: "טננטים", value: stats.tenants, icon: "🏢" },
+    { label: "משתמשים פעילים", value: stats.active_users, icon: "👤" },
+    { label: "חיילים פעילים", value: stats.active_employees, icon: "🎖️" },
+    { label: "סה״כ משימות", value: stats.missions, icon: "📋" },
+    { label: "פעולות (24 שעות)", value: stats.audit_24h, icon: "📊" },
+    { label: "סה״כ פעולות", value: stats.audit_total, icon: "📈" },
+    { label: "Uptime", value: `${stats.uptime_days} ימים, ${stats.uptime_hours % 24} שעות`, icon: "⏱️" },
+    { label: "גודל מסד נתונים", value: `${stats.db_size_mb} MB`, icon: "💾" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map(s => (
+          <Card key={s.label}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">{s.icon}</span>
+                <span className="text-sm text-muted-foreground">{s.label}</span>
+              </div>
+              <p className="text-2xl font-bold">{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Health Checks */}
+      <Card>
+        <CardHeader><CardTitle>בריאות שירותים</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-4">
+            {[
+              { label: "API", status: "ok" },
+              { label: "Database", status: "ok" },
+              { label: "Redis", status: "ok" },
+              { label: "Celery", status: "ok" },
+            ].map(s => (
+              <div key={s.label} className="flex items-center justify-between rounded-lg border p-3">
+                <span className="font-medium text-sm">{s.label}</span>
+                <Badge variant="success">✅ {s.status}</Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader><CardTitle>פעילות אחרונה (כל הטננטים)</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-2 text-start">פעולה</th>
+                <th className="px-4 py-2 text-start">סוג</th>
+                <th className="px-4 py-2 text-start">משתמש</th>
+                <th className="px-4 py-2 text-start">טננט</th>
+                <th className="px-4 py-2 text-start">זמן</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(stats.recent_activity || []).map((a: any) => (
+                <tr key={a.id} className="border-b hover:bg-muted/30">
+                  <td className="px-4 py-2">
+                    <Badge className="text-xs">{a.action}</Badge>
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">{a.entity_type}</td>
+                  <td className="px-4 py-2">{a.user_email || "—"}</td>
+                  <td className="px-4 py-2">{a.tenant_name || "—"}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
+                    {a.created_at ? new Date(a.created_at).toLocaleString("he-IL") : "—"}
+                  </td>
+                </tr>
+              ))}
+              {(!stats.recent_activity || stats.recent_activity.length === 0) && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">אין פעילות</td></tr>
+              )}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -411,23 +519,7 @@ export default function AdminPage() {
             {/* Roles & Permissions — System Level */}
       {activeTab === "roles" && <RolePermissionsPage mode="system" />}
 
-      {activeTab === "health" && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "API", status: "ok", color: "text-green-500" },
-            { label: "Database", status: "ok", color: "text-green-500" },
-            { label: "Redis", status: "ok", color: "text-green-500" },
-            { label: "Celery", status: "ok", color: "text-green-500" },
-          ].map(s => (
-            <Card key={s.label}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <span className="font-medium">{s.label}</span>
-                <Badge variant="success" className={s.color}>{s.status}</Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {activeTab === "health" && <SystemHealthDashboard />}
 
       {/* Tenant Modal */}
       <Dialog open={showTenantModal} onOpenChange={setShowTenantModal}>

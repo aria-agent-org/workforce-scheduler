@@ -254,33 +254,47 @@ async def broadcast_notification(
 
     logger = logging.getLogger(__name__)
 
-    # Determine target employees
+    from app.models.employee import EmployeeWorkRole
+    from app.models.scheduling import ScheduleWindowEmployee
+
+    # Determine target employees — always scoped to current tenant
+    base_query = select(Employee).where(
+        Employee.tenant_id == tenant.id,
+        Employee.is_active.is_(True),
+    )
+
     if data.target == "all":
-        result = await db.execute(
-            select(Employee).where(
-                Employee.tenant_id == tenant.id,
-                Employee.is_active.is_(True),
-            )
-        )
+        result = await db.execute(base_query)
         employees = result.scalars().all()
     elif data.target == "present":
+        result = await db.execute(base_query.where(Employee.status == "present"))
+        employees = result.scalars().all()
+    elif data.target == "by_status":
+        if not data.status_filter:
+            raise HTTPException(status_code=400, detail="יש לבחור סטטוס לסינון")
+        result = await db.execute(base_query.where(Employee.status == data.status_filter))
+        employees = result.scalars().all()
+    elif data.target == "by_work_role":
+        if not data.work_role_id:
+            raise HTTPException(status_code=400, detail="יש לבחור תפקיד עבודה")
         result = await db.execute(
-            select(Employee).where(
-                Employee.tenant_id == tenant.id,
-                Employee.is_active.is_(True),
-                Employee.status == "present",
-            )
+            base_query.join(EmployeeWorkRole, Employee.id == EmployeeWorkRole.employee_id)
+            .where(EmployeeWorkRole.work_role_id == data.work_role_id)
+        )
+        employees = result.scalars().all()
+    elif data.target == "by_window":
+        if not data.schedule_window_id:
+            raise HTTPException(status_code=400, detail="יש לבחור לוח עבודה")
+        result = await db.execute(
+            base_query.join(ScheduleWindowEmployee, Employee.id == ScheduleWindowEmployee.employee_id)
+            .where(ScheduleWindowEmployee.schedule_window_id == data.schedule_window_id)
         )
         employees = result.scalars().all()
     elif data.target == "custom":
         if not data.soldier_ids:
             raise HTTPException(status_code=400, detail="יש לבחור חיילים לשליחה")
         result = await db.execute(
-            select(Employee).where(
-                Employee.tenant_id == tenant.id,
-                Employee.id.in_(data.soldier_ids),
-                Employee.is_active.is_(True),
-            )
+            base_query.where(Employee.id.in_(data.soldier_ids))
         )
         employees = result.scalars().all()
     else:
@@ -383,7 +397,8 @@ async def broadcast_notification(
     for stale_sub in stale_subs_to_delete:
         await db.delete(stale_sub)
 
-    # Audit log
+    # Audit log — record who sent what to whom
+    recipient_names = [emp.full_name for emp in employees]
     db.add(AuditLog(
         tenant_id=tenant.id,
         user_id=user.id,
@@ -394,9 +409,14 @@ async def broadcast_notification(
             "title": data.title,
             "body": data.body,
             "target": data.target,
+            "status_filter": data.status_filter,
+            "work_role_id": str(data.work_role_id) if data.work_role_id else None,
+            "schedule_window_id": str(data.schedule_window_id) if data.schedule_window_id else None,
             "sent": sent_push,
             "failed": failed_push,
             "no_subscription": no_subscription,
+            "total_recipients": len(employees),
+            "recipient_names": recipient_names[:50],  # Limit to 50 for audit log size
         },
         ip_address=request.client.host if request.client else None,
     ))

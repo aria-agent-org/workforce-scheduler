@@ -70,8 +70,12 @@ class NotificationSend(BaseModel):
 class BroadcastNotificationRequest(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     body: str = Field(min_length=1)
-    target: str  # "all" | "present" | "custom"
+    target: str  # "all" | "present" | "custom" | "by_role" | "by_status" | "by_work_role" | "by_window"
     soldier_ids: list[UUID] = []
+    # Filter options
+    status_filter: str | None = None  # "present", "home", "sick", etc.
+    work_role_id: UUID | None = None
+    schedule_window_id: UUID | None = None
 
 
 class BroadcastNotificationResponse(BaseModel):

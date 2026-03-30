@@ -521,17 +521,98 @@ async def get_system_stats(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get system-wide statistics."""
+    """Get system-wide statistics with dashboard data."""
+    import time as _time
     await require_admin(user, db)
+
+    from app.models.employee import Employee
+    from app.models.audit import AuditLog
+    from app.models.scheduling import Mission
+
     tenant_count = (await db.execute(select(func.count(Tenant.id)))).scalar() or 0
     user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
     active_users = (await db.execute(
         select(func.count(User.id)).where(User.is_active.is_(True))
     )).scalar() or 0
     role_count = (await db.execute(select(func.count(RoleDefinition.id)))).scalar() or 0
+    employee_count = (await db.execute(select(func.count(Employee.id)))).scalar() or 0
+    active_employees = (await db.execute(
+        select(func.count(Employee.id)).where(Employee.is_active.is_(True))
+    )).scalar() or 0
+    mission_count = (await db.execute(select(func.count(Mission.id)))).scalar() or 0
+
+    # API request count from audit logs (last 24h and total)
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    day_ago = now - timedelta(hours=24)
+    audit_total = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
+    audit_24h = (await db.execute(
+        select(func.count(AuditLog.id)).where(AuditLog.created_at >= day_ago)
+    )).scalar() or 0
+
+    # Server uptime (approximate from process start)
+    import os
+    try:
+        boot_time = os.popen("cat /proc/uptime").read().strip().split()[0]
+        uptime_seconds = float(boot_time)
+    except Exception:
+        uptime_seconds = 0
+
+    uptime_hours = int(uptime_seconds / 3600)
+    uptime_days = int(uptime_hours / 24)
+
+    # Recent activity across all tenants (last 20)
+    recent_result = await db.execute(
+        select(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .limit(20)
+    )
+    recent_activity = []
+    for log in recent_result.scalars().all():
+        # Get user email
+        user_email = None
+        if log.user_id:
+            u_res = await db.execute(select(User.email).where(User.id == log.user_id))
+            row = u_res.first()
+            user_email = row[0] if row else None
+        # Get tenant name
+        tenant_name = None
+        if log.tenant_id:
+            t_res = await db.execute(select(Tenant.name).where(Tenant.id == log.tenant_id))
+            row = t_res.first()
+            tenant_name = row[0] if row else None
+        recent_activity.append({
+            "id": str(log.id),
+            "action": log.action,
+            "entity_type": log.entity_type,
+            "user_email": user_email,
+            "tenant_name": tenant_name,
+            "created_at": str(log.created_at),
+            "ip_address": log.ip_address,
+        })
+
+    # DB size estimate
+    try:
+        size_result = await db.execute(
+            select(func.pg_database_size(func.current_database()))
+        )
+        db_size_bytes = size_result.scalar() or 0
+        db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
+    except Exception:
+        db_size_mb = 0
+
     return {
         "tenants": tenant_count,
         "users": user_count,
         "active_users": active_users,
         "role_definitions": role_count,
+        "employees": employee_count,
+        "active_employees": active_employees,
+        "missions": mission_count,
+        "audit_total": audit_total,
+        "audit_24h": audit_24h,
+        "uptime_hours": uptime_hours,
+        "uptime_days": uptime_days,
+        "db_size_mb": db_size_mb,
+        "recent_activity": recent_activity,
     }

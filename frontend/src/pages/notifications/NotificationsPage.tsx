@@ -108,14 +108,21 @@ export default function NotificationsPage() {
 
   // Broadcast state
   const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastStep, setBroadcastStep] = useState<1 | 2 | 3 | 4>(1);
   const [broadcastForm, setBroadcastForm] = useState({
     title: "",
     body: "",
-    target: "all" as "all" | "present" | "custom",
+    target: "all" as "all" | "present" | "by_status" | "by_work_role" | "by_window" | "custom",
     soldier_ids: [] as string[],
+    status_filter: "",
+    work_role_id: "",
+    schedule_window_id: "",
   });
   const [soldiers, setSoldiers] = useState<any[]>([]);
+  const [workRoles, setWorkRoles] = useState<any[]>([]);
+  const [scheduleWindows, setScheduleWindows] = useState<any[]>([]);
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [filteredPreview, setFilteredPreview] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,25 +153,58 @@ export default function NotificationsPage() {
     } catch (e) {}
   }, []);
 
+  const loadWorkRoles = useCallback(async () => {
+    try {
+      const res = await api.get(tenantApi("/work-roles"));
+      setWorkRoles(res.data);
+    } catch {}
+  }, []);
+
+  const loadScheduleWindows = useCallback(async () => {
+    try {
+      const res = await api.get(tenantApi("/scheduling/schedule-windows"));
+      setScheduleWindows(res.data);
+    } catch {}
+  }, []);
+
   const openBroadcast = () => {
-    setBroadcastForm({ title: "", body: "", target: "all", soldier_ids: [] });
+    setBroadcastForm({ title: "", body: "", target: "all", soldier_ids: [], status_filter: "", work_role_id: "", schedule_window_id: "" });
+    setBroadcastStep(1);
     setShowBroadcast(true);
     loadSoldiers();
+    loadWorkRoles();
+    loadScheduleWindows();
   };
+
+  const getFilteredSoldierPreview = useCallback(() => {
+    if (!soldiers.length) return [];
+    const form = broadcastForm;
+    if (form.target === "all") return soldiers;
+    if (form.target === "present") return soldiers.filter((s: any) => s.status === "present");
+    if (form.target === "by_status") return soldiers.filter((s: any) => s.status === form.status_filter);
+    if (form.target === "custom") return soldiers.filter((s: any) => form.soldier_ids.includes(s.id));
+    // by_work_role and by_window can't be easily filtered client-side
+    return soldiers;
+  }, [soldiers, broadcastForm]);
 
   const sendBroadcast = async () => {
     if (!broadcastForm.title || !broadcastForm.body) {
       toast("error", "יש למלא כותרת ותוכן");
       return;
     }
-    if (broadcastForm.target === "custom" && broadcastForm.soldier_ids.length === 0) {
-      toast("error", "יש לבחור חיילים");
-      return;
-    }
     setBroadcastSending(true);
     try {
-      const res = await api.post(tenantApi("/notifications/broadcast"), broadcastForm);
-      toast("success", `ההודעה נשלחה ל-${res.data.sent} חיילים`);
+      const payload: any = {
+        title: broadcastForm.title,
+        body: broadcastForm.body,
+        target: broadcastForm.target,
+      };
+      if (broadcastForm.target === "custom") payload.soldier_ids = broadcastForm.soldier_ids;
+      if (broadcastForm.target === "by_status") payload.status_filter = broadcastForm.status_filter;
+      if (broadcastForm.target === "by_work_role") payload.work_role_id = broadcastForm.work_role_id;
+      if (broadcastForm.target === "by_window") payload.schedule_window_id = broadcastForm.schedule_window_id;
+      const res = await api.post(tenantApi("/notifications/broadcast"), payload);
+      toast("success", `ההודעה נשלחה ל-${res.data.sent} חיילים (${res.data.total_employees} סה״כ)`);
       setShowBroadcast(false);
       load();
     } catch (e: any) {
@@ -654,81 +694,218 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Broadcast Modal */}
+      {/* Broadcast Modal — Multi-Step */}
       <Dialog open={showBroadcast} onOpenChange={setShowBroadcast}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>שלח הודעה לכולם</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              📢 שליחת הודעה — שלב {broadcastStep} מתוך 4
+            </DialogTitle>
+            <div className="flex gap-1 mt-2">
+              {[1,2,3,4].map(s => (
+                <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${s <= broadcastStep ? "bg-primary-500" : "bg-muted"}`} />
+              ))}
+            </div>
+          </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>כותרת</Label>
-              <Input value={broadcastForm.title} onChange={e => setBroadcastForm({...broadcastForm, title: e.target.value})} placeholder="כותרת ההודעה" />
-            </div>
-            <div className="space-y-2">
-              <Label>תוכן ההודעה</Label>
-              <textarea
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
-                value={broadcastForm.body}
-                onChange={e => setBroadcastForm({...broadcastForm, body: e.target.value})}
-                placeholder="הקלד את תוכן ההודעה..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>יעד</Label>
-              <div className="flex gap-2">
-                {([
-                  { value: "all", label: "כולם" },
-                  { value: "present", label: "נוכחים בלבד" },
-                  { value: "custom", label: "בחירה ידנית" },
-                ] as const).map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setBroadcastForm({...broadcastForm, target: opt.value, soldier_ids: []})}
-                    className={`rounded-md px-4 py-2 text-sm border ${
-                      broadcastForm.target === opt.value
-                        ? "bg-primary-500 text-white border-primary-500"
-                        : "bg-background text-foreground border-input hover:bg-accent"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {broadcastForm.target === "custom" && (
-              <div className="space-y-2">
-                <Label>בחר חיילים ({broadcastForm.soldier_ids.length} נבחרו)</Label>
-                <div className="max-h-48 overflow-y-auto rounded-md border p-2 space-y-1">
-                  {soldiers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-2">טוען...</p>
-                  ) : soldiers.map((s: any) => (
+            {/* Step 1: Choose Target */}
+            {broadcastStep === 1 && (
+              <div className="space-y-3">
+                <Label className="text-base font-bold">בחר יעד שליחה</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: "all", label: "כל החיילים", icon: "👥", desc: "שלח לכולם" },
+                    { value: "present", label: "נוכחים בלבד", icon: "✅", desc: "רק מי שבסטטוס נוכח" },
+                    { value: "by_status", label: "לפי סטטוס", icon: "📊", desc: "בחר סטטוס ספציפי" },
+                    { value: "by_work_role", label: "לפי תפקיד עבודה", icon: "🔧", desc: "נהגים, חובשים..." },
+                    { value: "by_window", label: "לפי לוח עבודה", icon: "📅", desc: "חיילים בלוח מסוים" },
+                    { value: "custom", label: "בחירה ידנית", icon: "✋", desc: "בחר חיילים ספציפיים" },
+                  ] as const).map(opt => (
                     <button
-                      key={s.id}
+                      key={opt.value}
                       type="button"
-                      onClick={() => toggleSoldier(s.id)}
-                      className={`w-full flex items-center gap-2 rounded px-3 py-2 text-sm text-start ${
-                        broadcastForm.soldier_ids.includes(s.id)
-                          ? "bg-primary-100 dark:bg-primary-900"
-                          : "hover:bg-accent"
+                      onClick={() => setBroadcastForm({...broadcastForm, target: opt.value, soldier_ids: []})}
+                      className={`rounded-xl border p-3 text-start transition-all ${
+                        broadcastForm.target === opt.value
+                          ? "ring-2 ring-primary-500 border-primary-300 bg-primary-50 dark:bg-primary-900/20"
+                          : "hover:bg-muted/50"
                       }`}
                     >
-                      <div className={`h-4 w-4 rounded border flex items-center justify-center ${
-                        broadcastForm.soldier_ids.includes(s.id) ? "bg-primary-500 border-primary-500" : "border-input"
-                      }`}>
-                        {broadcastForm.soldier_ids.includes(s.id) && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                      {s.full_name}
+                      <div className="text-xl mb-1">{opt.icon}</div>
+                      <div className="text-sm font-medium">{opt.label}</div>
+                      <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Step 2: Filter (if needed) */}
+            {broadcastStep === 2 && (
+              <div className="space-y-4">
+                <Label className="text-base font-bold">
+                  {broadcastForm.target === "by_status" && "בחר סטטוס"}
+                  {broadcastForm.target === "by_work_role" && "בחר תפקיד עבודה"}
+                  {broadcastForm.target === "by_window" && "בחר לוח עבודה"}
+                  {broadcastForm.target === "custom" && `בחר חיילים (${broadcastForm.soldier_ids.length} נבחרו)`}
+                  {(broadcastForm.target === "all" || broadcastForm.target === "present") && "אישור יעד"}
+                </Label>
+
+                {broadcastForm.target === "by_status" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {["present", "home", "going_home", "returning_home", "sick", "training", "released"].map(st => (
+                      <button key={st} type="button"
+                        onClick={() => setBroadcastForm({...broadcastForm, status_filter: st})}
+                        className={`rounded-lg border p-2.5 text-sm text-start ${broadcastForm.status_filter === st ? "ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"}`}>
+                        {st === "present" ? "✅ נוכח" : st === "home" ? "🏠 בבית" : st === "going_home" ? "🚪 יוצא הביתה" : st === "returning_home" ? "🔙 חוזר" : st === "sick" ? "🤒 חולה" : st === "training" ? "📚 הכשרה" : "🎖️ שוחרר"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {broadcastForm.target === "by_work_role" && (
+                  <div className="space-y-2">
+                    {workRoles.map((wr: any) => (
+                      <button key={wr.id} type="button"
+                        onClick={() => setBroadcastForm({...broadcastForm, work_role_id: wr.id})}
+                        className={`w-full rounded-lg border p-3 text-start flex items-center gap-2 ${broadcastForm.work_role_id === wr.id ? "ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"}`}>
+                        <div className="h-3 w-3 rounded-full" style={{backgroundColor: wr.color || "#999"}} />
+                        <span className="text-sm font-medium">{wr.name?.he || wr.name?.en || wr.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {broadcastForm.target === "by_window" && (
+                  <div className="space-y-2">
+                    {scheduleWindows.map((w: any) => (
+                      <button key={w.id} type="button"
+                        onClick={() => setBroadcastForm({...broadcastForm, schedule_window_id: w.id})}
+                        className={`w-full rounded-lg border p-3 text-start ${broadcastForm.schedule_window_id === w.id ? "ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"}`}>
+                        <div className="text-sm font-medium">{w.name}</div>
+                        <div className="text-xs text-muted-foreground">{w.start_date} — {w.end_date} ({w.employee_count} חיילים)</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {broadcastForm.target === "custom" && (
+                  <div className="max-h-60 overflow-y-auto rounded-md border p-2 space-y-1">
+                    {soldiers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-2">טוען...</p>
+                    ) : soldiers.map((s: any) => (
+                      <button key={s.id} type="button" onClick={() => toggleSoldier(s.id)}
+                        className={`w-full flex items-center gap-2 rounded px-3 py-2 text-sm text-start ${broadcastForm.soldier_ids.includes(s.id) ? "bg-primary-100 dark:bg-primary-900" : "hover:bg-accent"}`}>
+                        <div className={`h-4 w-4 rounded border flex items-center justify-center ${broadcastForm.soldier_ids.includes(s.id) ? "bg-primary-500 border-primary-500" : "border-input"}`}>
+                          {broadcastForm.soldier_ids.includes(s.id) && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                        <span>{s.full_name}</span>
+                        <Badge className="mr-auto text-[10px]" variant="default">{s.status === "present" ? "✅" : s.status === "home" ? "🏠" : s.status}</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {(broadcastForm.target === "all" || broadcastForm.target === "present") && (
+                  <div className="rounded-lg bg-muted/30 border p-4 text-center">
+                    <p className="text-sm">
+                      {broadcastForm.target === "all" ? `📢 ההודעה תישלח לכל ${soldiers.length} החיילים הפעילים` : `✅ ההודעה תישלח רק לחיילים בסטטוס "נוכח"`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Write Message */}
+            {broadcastStep === 3 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-base font-bold">כתוב את ההודעה</Label>
+                  <Input value={broadcastForm.title} onChange={e => setBroadcastForm({...broadcastForm, title: e.target.value})} placeholder="כותרת ההודעה" />
+                </div>
+                <div className="space-y-2">
+                  <Label>תוכן ההודעה</Label>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-y"
+                    value={broadcastForm.body}
+                    onChange={e => setBroadcastForm({...broadcastForm, body: e.target.value})}
+                    placeholder="הקלד את תוכן ההודעה..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Preview & Send */}
+            {broadcastStep === 4 && (
+              <div className="space-y-4">
+                <Label className="text-base font-bold">תצוגה מקדימה</Label>
+                <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="h-5 w-5 text-primary-500" />
+                    <span className="font-bold">{broadcastForm.title || "ללא כותרת"}</span>
+                  </div>
+                  <p className="text-sm">{broadcastForm.body || "ללא תוכן"}</p>
+                  <div className="border-t pt-2 text-xs text-muted-foreground space-y-1">
+                    <p>🎯 יעד: {
+                      broadcastForm.target === "all" ? "כל החיילים" :
+                      broadcastForm.target === "present" ? "נוכחים בלבד" :
+                      broadcastForm.target === "by_status" ? `סטטוס: ${broadcastForm.status_filter}` :
+                      broadcastForm.target === "by_work_role" ? `תפקיד: ${workRoles.find((wr: any) => wr.id === broadcastForm.work_role_id)?.name?.he || ""}` :
+                      broadcastForm.target === "by_window" ? `לוח: ${scheduleWindows.find((w: any) => w.id === broadcastForm.schedule_window_id)?.name || ""}` :
+                      `${broadcastForm.soldier_ids.length} חיילים נבחרו`
+                    }</p>
+                    <p>📡 ערוץ: Push Notification</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {broadcastStep > 1 && (
+              <Button variant="outline" onClick={() => setBroadcastStep((broadcastStep - 1) as any)}>
+                → חזור
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setShowBroadcast(false)}>ביטול</Button>
-            <Button onClick={sendBroadcast} disabled={broadcastSending}>
-              {broadcastSending ? "שולח..." : "שלח"}
-            </Button>
+            {broadcastStep < 4 ? (
+              <Button onClick={() => {
+                // Validate current step
+                if (broadcastStep === 1) {
+                  // Target chosen, check if step 2 needs filter or skip
+                  if (broadcastForm.target === "all" || broadcastForm.target === "present") {
+                    setBroadcastStep(2); // Show confirmation
+                  } else {
+                    setBroadcastStep(2); // Show filter
+                  }
+                } else if (broadcastStep === 2) {
+                  // Validate filter
+                  if (broadcastForm.target === "by_status" && !broadcastForm.status_filter) {
+                    toast("error", "יש לבחור סטטוס"); return;
+                  }
+                  if (broadcastForm.target === "by_work_role" && !broadcastForm.work_role_id) {
+                    toast("error", "יש לבחור תפקיד"); return;
+                  }
+                  if (broadcastForm.target === "by_window" && !broadcastForm.schedule_window_id) {
+                    toast("error", "יש לבחור לוח עבודה"); return;
+                  }
+                  if (broadcastForm.target === "custom" && broadcastForm.soldier_ids.length === 0) {
+                    toast("error", "יש לבחור חיילים"); return;
+                  }
+                  setBroadcastStep(3);
+                } else if (broadcastStep === 3) {
+                  if (!broadcastForm.title || !broadcastForm.body) {
+                    toast("error", "יש למלא כותרת ותוכן"); return;
+                  }
+                  setBroadcastStep(4);
+                }
+              }}>
+                ← המשך
+              </Button>
+            ) : (
+              <Button onClick={sendBroadcast} disabled={broadcastSending} className="bg-green-600 hover:bg-green-700">
+                {broadcastSending ? "שולח..." : "📤 שלח עכשיו"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
