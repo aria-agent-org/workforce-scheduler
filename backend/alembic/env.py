@@ -10,7 +10,11 @@ from sqlalchemy import engine_from_config, pool
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.models import Base  # noqa: E402
+from app.models.base import Base  # noqa: E402
+from app.models import (  # noqa: E402, F401 — ensure all models registered
+    tenant, user, employee, scheduling, attendance, rules,
+    notification, resource, audit, help, bot, push_subscription,
+)
 from app.config import get_settings  # noqa: E402
 
 config = context.config
