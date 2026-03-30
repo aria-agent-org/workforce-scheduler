@@ -406,7 +406,7 @@ class AutoScheduler:
                 Mission.end_time > start_time,
             )
         )
-        return result.scalar_one_or_none() is not None
+        return result.scalars().first() is not None
 
     async def _evaluate_hard_rules(
         self, employee, mission, mission_type, rules, attendance
@@ -820,7 +820,7 @@ class AutoScheduler:
                 Mission.is_activated.is_(False),
             )
         )
-        return result.scalar_one_or_none() is not None
+        return result.scalars().first() is not None
 
     async def _check_future_impact(self, employee_id, mission) -> bool:
         """Legacy wrapper — now delegates to rules_engine.simulate_future_impact."""
