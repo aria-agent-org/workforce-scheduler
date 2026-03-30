@@ -254,24 +254,39 @@ async def get_my_schedule(
             "crew": [],
         })
 
-    # Fill crew info for each assignment
-    for item in items:
+    # Fill crew info — batch load to avoid N+1
+    mission_ids = list(set(UUID(item["mission_id"]) for item in items))
+    if mission_ids:
         crew_result = await db.execute(
             select(MissionAssignment, Employee)
             .join(Employee, MissionAssignment.employee_id == Employee.id)
             .where(
-                MissionAssignment.mission_id == UUID(item["mission_id"]),
+                MissionAssignment.mission_id.in_(mission_ids),
                 MissionAssignment.status != "replaced",
             )
         )
-        crew = []
+        # Group by mission_id
+        crew_by_mission: dict[str, list] = {}
         for crew_ma, crew_emp in crew_result.all():
-            crew.append({
+            mid = str(crew_ma.mission_id)
+            if mid not in crew_by_mission:
+                crew_by_mission[mid] = []
+            # Get the slot label from mission type required_slots
+            slot_label = crew_ma.slot_id
+            # Try to find the mission type for this mission
+            for item in items:
+                if item["mission_id"] == mid:
+                    mt_name = item.get("mission_type_name")
+                    break
+            crew_by_mission[mid].append({
                 "name": crew_emp.full_name,
-                "slot_label": item.get("slot_label", crew_ma.slot_id),
+                "slot_id": crew_ma.slot_id,
+                "slot_label": _get_slot_label(None, crew_ma.slot_id),
                 "is_me": str(crew_emp.id) == str(user.employee_id),
             })
-        item["crew"] = crew
+
+        for item in items:
+            item["crew"] = crew_by_mission.get(item["mission_id"], [])
 
     return items
 
