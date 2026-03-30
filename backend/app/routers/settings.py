@@ -683,3 +683,60 @@ async def update_locked_events(
     ))
     await db.commit()
     return items
+
+
+# ═══════════════════════════════════════════
+# Preferences Configuration (which prefs employees can set)
+# ═══════════════════════════════════════════
+
+@router.get("/preferences-config")
+async def get_preferences_config(
+    tenant: CurrentTenant, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get which preference types are enabled for employees."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "preferences_config",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if setting and setting.value:
+        return setting.value
+    # Default: only partner preferences enabled
+    return {
+        "partner_preferences_enabled": True,
+        "mission_type_preferences_enabled": False,
+        "time_slot_preferences_enabled": False,
+        "per_employee_overrides": {},
+    }
+
+
+@router.put("/preferences-config", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_preferences_config(
+    data: dict,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update which preference types are enabled. Admin can also set per-employee overrides."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "preferences_config",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        setting.value = data
+    else:
+        db.add(TenantSetting(
+            tenant_id=tenant.id,
+            key="preferences_config",
+            value=data,
+            value_type="json",
+            label={"he": "הגדרות העדפות חיילים", "en": "Employee Preferences Config"},
+            group="scheduling",
+            is_editable_by_tenant_admin=True,
+        ))
+    await db.commit()
+    return data

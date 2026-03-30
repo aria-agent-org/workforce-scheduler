@@ -70,18 +70,45 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
   const [partnerSearch, setPartnerSearch] = useState("");
   const [showPartnerSearch, setShowPartnerSearch] = useState(false);
 
+  // Preference visibility config (admin controls what soldiers can set)
+  const [prefConfig, setPrefConfig] = useState({
+    partner_preferences_enabled: true,
+    mission_type_preferences_enabled: false,
+    time_slot_preferences_enabled: false,
+    per_employee_overrides: {} as Record<string, any>,
+  });
+
   const apiBase = selfService
     ? tenantApi("/my/preferences")
     : tenantApi(`/employees/${employeeId}/preferences`);
 
+  // Check if a specific preference type is enabled for this employee
+  const isEnabled = (type: "partner" | "mission_type" | "time_slot") => {
+    // Admin mode (editing someone else) → always show all
+    if (!selfService && employeeId) return true;
+    
+    const override = employeeId ? prefConfig.per_employee_overrides[employeeId] : null;
+    if (override) {
+      if (type === "partner") return override.partner_preferences_enabled ?? prefConfig.partner_preferences_enabled;
+      if (type === "mission_type") return override.mission_type_preferences_enabled ?? prefConfig.mission_type_preferences_enabled;
+      if (type === "time_slot") return override.time_slot_preferences_enabled ?? prefConfig.time_slot_preferences_enabled;
+    }
+    if (type === "partner") return prefConfig.partner_preferences_enabled;
+    if (type === "mission_type") return prefConfig.mission_type_preferences_enabled;
+    if (type === "time_slot") return prefConfig.time_slot_preferences_enabled;
+    return false;
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prefsRes, empRes, mtRes] = await Promise.all([
+      const [prefsRes, empRes, mtRes, configRes] = await Promise.all([
         api.get(apiBase),
         api.get(tenantApi("/employees"), { params: { page_size: 200, is_active: true } }),
         api.get(tenantApi("/mission-types")),
+        api.get(tenantApi("/settings/preferences-config")).catch(() => ({ data: prefConfig })),
       ]);
+      setPrefConfig(configRes.data);
       setPrefs({
         partner_preferences: prefsRes.data.partner_preferences || [],
         mission_type_preferences: prefsRes.data.mission_type_preferences || [],
@@ -190,6 +217,7 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
   return (
     <div className="space-y-4">
       {/* Partner Preferences */}
+      {isEnabled("partner") && (
       <CardWrapper className={compact ? "" : undefined}>
         {!compact && (
           <HeaderWrapper>
@@ -276,8 +304,10 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
           </div>
         </ContentWrapper>
       </CardWrapper>
+      )}
 
       {/* Mission Type Preferences */}
+      {isEnabled("mission_type") && (
       <CardWrapper>
         {!compact && (
           <HeaderWrapper>
@@ -336,8 +366,10 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
           )}
         </ContentWrapper>
       </CardWrapper>
+      )}
 
       {/* Time Slot Preferences */}
+      {isEnabled("time_slot") && (
       <CardWrapper>
         {!compact && (
           <HeaderWrapper>
@@ -395,6 +427,7 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
           })}
         </ContentWrapper>
       </CardWrapper>
+      )}
 
       {/* Notes */}
       <CardWrapper>
