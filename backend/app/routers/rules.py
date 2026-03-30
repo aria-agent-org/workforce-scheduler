@@ -16,8 +16,32 @@ from app.schemas.rules import (
     RuleEvaluateRequest, RuleEvaluateResponse,
     RuleTestRequest, RuleTestResponse,
 )
+from app.schemas.jsonb_validators import ConditionGroup, ActionExpression
+from pydantic import ValidationError as PydanticValidationError
 
 router = APIRouter()
+
+
+def _validate_condition_expression(expr: dict | None) -> None:
+    """Validate condition_expression JSONB against ConditionGroup schema."""
+    if expr is None:
+        return
+    try:
+        ConditionGroup.model_validate(expr)
+    except PydanticValidationError as exc:
+        errors = [f"{'.'.join(str(l) for l in e['loc'])}: {e['msg']}" for e in exc.errors()]
+        raise HTTPException(status_code=422, detail={"message": "שגיאת אימות ביטוי תנאי", "errors": errors})
+
+
+def _validate_action_expression(expr: dict | None) -> None:
+    """Validate action_expression JSONB against ActionExpression schema."""
+    if expr is None:
+        return
+    try:
+        ActionExpression.model_validate(expr)
+    except PydanticValidationError as exc:
+        errors = [f"{'.'.join(str(l) for l in e['loc'])}: {e['msg']}" for e in exc.errors()]
+        raise HTTPException(status_code=422, detail={"message": "שגיאת אימות ביטוי פעולה", "errors": errors})
 
 
 @router.get("", dependencies=[Depends(require_permission("rules", "read"))])
@@ -40,6 +64,8 @@ async def create_rule(
     data: RuleCreate, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _validate_condition_expression(data.condition_expression)
+    _validate_action_expression(data.action_expression)
     rule = RuleDefinition(tenant_id=tenant.id, **data.model_dump())
     db.add(rule)
     await db.flush()
@@ -176,7 +202,12 @@ async def update_rule(
     rule = result.scalar_one_or_none()
     if not rule:
         raise HTTPException(status_code=404, detail="חוק לא נמצא")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    if "condition_expression" in update_data:
+        _validate_condition_expression(update_data["condition_expression"])
+    if "action_expression" in update_data:
+        _validate_action_expression(update_data["action_expression"])
+    for key, value in update_data.items():
         setattr(rule, key, value)
     await db.flush()
     await db.refresh(rule)

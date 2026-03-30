@@ -27,8 +27,38 @@ from app.schemas.scheduling import (
     MissionAssignmentCreate, MissionAssignmentResponse,
     SwapRequestCreate, SwapRequestResponse,
 )
+from app.schemas.jsonb_validators import MissionSlot, RecurrencePattern, TimelineItem
+from pydantic import ValidationError as PydanticValidationError
 
 router = APIRouter()
+
+
+def _validate_jsonb(items: list | None, model_cls: type, field_name: str) -> None:
+    """Validate a list of JSONB items against a Pydantic model. Raises HTTPException 422."""
+    if items is None:
+        return
+    if not isinstance(items, list):
+        raise HTTPException(status_code=422, detail=f"שדה {field_name} חייב להיות רשימה")
+    errors = []
+    for i, item in enumerate(items):
+        try:
+            model_cls.model_validate(item)
+        except PydanticValidationError as exc:
+            for err in exc.errors():
+                errors.append(f"{field_name}[{i}].{'.'.join(str(l) for l in err['loc'])}: {err['msg']}")
+    if errors:
+        raise HTTPException(status_code=422, detail={"message": "שגיאת אימות נתונים", "errors": errors})
+
+
+def _validate_recurrence(rec: dict | None) -> None:
+    """Validate recurrence JSONB against RecurrencePattern."""
+    if rec is None:
+        return
+    try:
+        RecurrencePattern.model_validate(rec)
+    except PydanticValidationError as exc:
+        errors = [f"{'.'.join(str(l) for l in e['loc'])}: {e['msg']}" for e in exc.errors()]
+        raise HTTPException(status_code=422, detail={"message": "שגיאת אימות תבנית חזרה", "errors": errors})
 
 
 # ═══════════════════════════════════════════
@@ -408,6 +438,9 @@ async def create_mission_type(
     data: MissionTypeCreate, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _validate_jsonb(data.required_slots, MissionSlot, "required_slots")
+    if isinstance(data.timeline_items, list):
+        _validate_jsonb(data.timeline_items, TimelineItem, "timeline_items")
     mt = MissionType(tenant_id=tenant.id, **data.model_dump())
     db.add(mt)
     await db.flush()
@@ -446,7 +479,12 @@ async def update_mission_type(
     mt = result.scalar_one_or_none()
     if not mt:
         raise HTTPException(status_code=404, detail="סוג משימה לא נמצא")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    if "required_slots" in update_data:
+        _validate_jsonb(update_data["required_slots"], MissionSlot, "required_slots")
+    if "timeline_items" in update_data and isinstance(update_data["timeline_items"], list):
+        _validate_jsonb(update_data["timeline_items"], TimelineItem, "timeline_items")
+    for key, value in update_data.items():
         setattr(mt, key, value)
     await db.flush()
     await db.refresh(mt)
@@ -503,6 +541,7 @@ async def create_mission_template(
     data: MissionTemplateCreate, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _validate_recurrence(data.recurrence)
     tmpl = MissionTemplate(tenant_id=tenant.id, **data.model_dump())
     db.add(tmpl)
     await db.flush()
@@ -522,7 +561,10 @@ async def update_mission_template(
     tmpl = result.scalar_one_or_none()
     if not tmpl:
         raise HTTPException(status_code=404, detail="תבנית לא נמצאה")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    if "recurrence" in update_data:
+        _validate_recurrence(update_data["recurrence"])
+    for key, value in update_data.items():
         setattr(tmpl, key, value)
     await db.flush()
     await db.refresh(tmpl)

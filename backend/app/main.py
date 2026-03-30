@@ -6,12 +6,15 @@ from collections.abc import AsyncGenerator
 
 import json
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
+from app.core.exceptions import AppError
 from app.database import engine
 from app.middleware.metrics import PrometheusMiddleware
+from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, admin, health, employees, scheduling, attendance, rules, notifications, reports
 from app.routers import settings as settings_router
@@ -69,11 +72,29 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Security headers middleware
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # Prometheus metrics middleware (outermost — captures all requests)
     app.add_middleware(PrometheusMiddleware)
 
     # Tenant extraction middleware
     app.add_middleware(TenantMiddleware)
+
+    # ── Exception Handlers (Spec Section 15) ──────────────────
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: FastAPIRequest, exc: AppError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.http_status,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": exc.details,
+                    "retryable": exc.is_retryable,
+                }
+            },
+        )
 
     # Routers
     app.include_router(health.router, tags=["health"])
