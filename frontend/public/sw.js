@@ -1,5 +1,5 @@
-const CACHE_NAME = 'shavtzak-v1';
-const API_CACHE = 'shavtzak-api-v1';
+const CACHE_NAME = 'shavtzak-v3';
+const API_CACHE = 'shavtzak-api-v3';
 const OFFLINE_QUEUE_KEY = 'shavtzak-offline-queue';
 
 // App shell files to precache
@@ -76,18 +76,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: Cache first, network fallback
+  // Static assets: Network first (ensures new deploys are picked up immediately)
   if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|gif|woff2?|ttf|ico)$/)) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) return cached;
-        return fetch(event.request).then((response) => {
-          if (response.ok) {
-            const cloned = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
-          }
-          return response;
-        });
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+        }
+        return response;
+      }).catch(() => {
+        // Fallback to cache only when offline
+        return caches.match(event.request);
       })
     );
     return;
