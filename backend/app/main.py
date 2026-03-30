@@ -35,6 +35,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown."""
     logger.info("Starting Shavtzak API...")
+    # Security: warn about default secret key
+    if "INSECURE-DEFAULT" in settings.secret_key or "change" in settings.secret_key.lower():
+        logger.warning(
+            "⚠️  SECURITY WARNING: Using default JWT secret key! "
+            "Set SECRET_KEY environment variable to a random 64-char string in production."
+        )
     yield
     logger.info("Shutting down Shavtzak API...")
     await engine.dispose()

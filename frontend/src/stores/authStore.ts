@@ -80,6 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdmin: () => {
     const user = get().user;
     if (!user) return false;
-    return user.role_name === "super_admin" || user.role_name === "tenant_admin";
+    const r = user.role_name?.toLowerCase();
+    return r === "super_admin" || r === "tenant_admin" || r === "admin";
   },
 }));

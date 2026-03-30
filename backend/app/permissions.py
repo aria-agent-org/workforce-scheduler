@@ -16,9 +16,9 @@ from app.models.resource import RoleDefinition
 SUPER_ADMIN_ROLES = {"super_admin"}
 ADMIN_ROLES = {"super_admin", "tenant_admin"}
 
-# All possible resources and actions
+# All possible resources and actions (must match role_definitions.permissions keys)
 RESOURCES = [
-    "soldiers", "missions", "rules", "attendance", "settings",
+    "employees", "missions", "rules", "attendance", "settings",
     "reports", "audit_log", "notifications", "users",
 ]
 ACTIONS = ["read", "write", "delete", "approve", "export"]
@@ -34,6 +34,7 @@ async def get_user_permissions(user, db: AsyncSession) -> dict:
             perms["override_soft"] = True
             perms["override_hard"] = True
             return perms
+        # User with no role in a tenant — minimal read-only (dashboard only)
         return {}
 
     result = await db.execute(

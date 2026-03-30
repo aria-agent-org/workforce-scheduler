@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
+from app.permissions import require_permission
 from app.models.scheduling import (
     ScheduleWindow, ScheduleWindowEmployee, MissionType, MissionTemplate,
     Mission, MissionAssignment, SwapRequest,
@@ -69,7 +70,7 @@ async def list_schedule_windows(
     return items
 
 
-@router.post("/schedule-windows", status_code=status.HTTP_201_CREATED)
+@router.post("/schedule-windows", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("missions", "write"))])
 async def create_schedule_window(
     data: ScheduleWindowCreate,
     tenant: CurrentTenant,
@@ -551,34 +552,43 @@ async def delete_mission_template(
 async def list_missions(
     tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
     window_id: UUID | None = None, date_from: date | None = None, date_to: date | None = None,
-    status_filter: str | None = None,
+    status_filter: str | None = None, page: int = 1, page_size: int = 200,
 ) -> list[dict]:
-    query = select(Mission).where(Mission.tenant_id == tenant.id)
+    """List missions with pagination. Returns list for backward compat (frontend expects array)."""
+    base_query = select(Mission).where(Mission.tenant_id == tenant.id)
     if window_id:
-        query = query.where(Mission.schedule_window_id == window_id)
+        base_query = base_query.where(Mission.schedule_window_id == window_id)
     if date_from:
-        query = query.where(Mission.date >= date_from)
+        base_query = base_query.where(Mission.date >= date_from)
     if date_to:
-        query = query.where(Mission.date <= date_to)
+        base_query = base_query.where(Mission.date <= date_to)
     if status_filter:
-        query = query.where(Mission.status == status_filter)
-    query = query.order_by(Mission.date, Mission.start_time)
+        base_query = base_query.where(Mission.status == status_filter)
+
+    # Paginate
+    query = base_query.order_by(Mission.date, Mission.start_time).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     missions = result.scalars().all()
-    items = []
-    for m in missions:
-        # Get mission type name
-        mt_result = await db.execute(select(MissionType).where(MissionType.id == m.mission_type_id))
-        mt = mt_result.scalar_one_or_none()
-        # Get assignments
+
+    # Batch-load mission types to avoid N+1
+    mt_ids = list({m.mission_type_id for m in missions})
+    mt_map = {}
+    if mt_ids:
+        mt_result = await db.execute(select(MissionType).where(MissionType.id.in_(mt_ids)))
+        for mt in mt_result.scalars().all():
+            mt_map[str(mt.id)] = mt
+
+    # Batch-load assignments
+    mission_ids = [m.id for m in missions]
+    assignment_map: dict[str, list] = {str(mid): [] for mid in mission_ids}
+    if mission_ids:
         assign_result = await db.execute(
             select(MissionAssignment, Employee)
             .join(Employee, MissionAssignment.employee_id == Employee.id)
-            .where(MissionAssignment.mission_id == m.id)
+            .where(MissionAssignment.mission_id.in_(mission_ids))
         )
-        assignments = []
         for ma, emp in assign_result.all():
-            assignments.append({
+            assignment_map[str(ma.mission_id)].append({
                 "id": str(ma.id),
                 "employee_id": str(ma.employee_id),
                 "employee_name": emp.full_name,
@@ -587,6 +597,10 @@ async def list_missions(
                 "status": ma.status,
                 "conflicts_detected": ma.conflicts_detected,
             })
+
+    items = []
+    for m in missions:
+        mt = mt_map.get(str(m.mission_type_id))
         items.append({
             "id": str(m.id),
             "tenant_id": str(m.tenant_id),
@@ -601,7 +615,7 @@ async def list_missions(
             "status": m.status,
             "is_activated": m.is_activated,
             "version": m.version,
-            "assignments": assignments,
+            "assignments": assignment_map.get(str(m.id), []),
             "created_at": str(m.created_at),
             "updated_at": str(m.updated_at),
         })
@@ -624,7 +638,7 @@ async def get_mission(
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
     return mission
 
-@router.post("/missions", status_code=status.HTTP_201_CREATED)
+@router.post("/missions", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("missions", "write"))])
 async def create_mission(
     data: MissionCreate, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),
@@ -685,7 +699,7 @@ async def update_mission(
     return {"id": str(m.id), "name": m.name, "status": m.status, "version": m.version}
 
 
-@router.post("/missions/{mission_id}/approve")
+@router.post("/missions/{mission_id}/approve", dependencies=[Depends(require_permission("missions", "approve"))])
 async def approve_mission(
     mission_id: UUID, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -813,7 +827,7 @@ async def list_assignments(
     ]
 
 
-@router.post("/missions/{mission_id}/assignments", status_code=status.HTTP_201_CREATED)
+@router.post("/missions/{mission_id}/assignments", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("missions", "write"))])
 async def create_assignment(
     mission_id: UUID, data: MissionAssignmentCreate,
     tenant: CurrentTenant, user: CurrentUser, request: Request,
@@ -1056,7 +1070,7 @@ class AutoAssignRequest(PydanticBaseModel):
     date_to: date | None = None
 
 
-@router.post("/missions/auto-assign", status_code=status.HTTP_200_OK)
+@router.post("/missions/auto-assign", status_code=status.HTTP_200_OK, dependencies=[Depends(require_permission("missions", "write"))])
 async def auto_assign_missions(
     tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),

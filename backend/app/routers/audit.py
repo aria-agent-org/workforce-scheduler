@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
+from app.permissions import require_permission
 from app.models.audit import AuditLog
 from app.models.user import User
 from app.schemas.audit import AuditLogResponse
@@ -16,7 +17,7 @@ from app.schemas.audit import AuditLogResponse
 router = APIRouter()
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("audit_log", "read"))])
 async def list_audit_logs(
     tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
     page: int = 1, page_size: int = 50,

@@ -12,6 +12,7 @@ from app.dependencies import CurrentUser, CurrentTenant
 from app.models.employee import Employee, EmployeeWorkRole
 from app.models.resource import WorkRole
 from app.models.audit import AuditLog
+from app.permissions import require_permission
 from app.schemas.employee import (
     EmployeeCreate, EmployeeResponse, EmployeeUpdate, EmployeeBulkImportRequest,
 )
@@ -19,7 +20,7 @@ from app.schemas.employee import (
 router = APIRouter()
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("employees", "read"))])
 async def list_employees(
     tenant: CurrentTenant,
     user: CurrentUser,
@@ -88,7 +89,7 @@ async def list_employees(
     }
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("employees", "write"))])
 async def create_employee(
     data: EmployeeCreate,
     tenant: CurrentTenant,
@@ -164,7 +165,7 @@ async def get_employee(
     return emp_data
 
 
-@router.patch("/{employee_id}")
+@router.patch("/{employee_id}", dependencies=[Depends(require_permission("employees", "write"))])
 async def update_employee(
     employee_id: UUID,
     data: EmployeeUpdate,
@@ -172,8 +173,9 @@ async def update_employee(
     user: CurrentUser,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    expected_version: int | None = None,
 ) -> dict:
-    """Update an employee."""
+    """Update an employee. Supports optimistic locking via expected_version query param."""
     result = await db.execute(
         select(Employee).where(Employee.id == employee_id, Employee.tenant_id == tenant.id)
     )
@@ -181,9 +183,17 @@ async def update_employee(
     if not employee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="עובד לא נמצא")
 
+    # Optimistic locking: if client sent expected_version, check it matches
+    if expected_version is not None and employee.version != expected_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="הנתונים השתנו על ידי משתמש אחר. רענן את הדף ונסה שוב.",
+        )
+
     before = {"full_name": employee.full_name, "status": employee.status}
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(employee, key, value)
+    employee.version = (employee.version or 1) + 1
     await db.flush()
     await db.refresh(employee)
 
@@ -199,10 +209,12 @@ async def update_employee(
     ))
     await db.commit()
 
-    return EmployeeResponse.model_validate(employee).model_dump()
+    emp_data = EmployeeResponse.model_validate(employee).model_dump()
+    emp_data["version"] = employee.version
+    return emp_data
 
 
-@router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_permission("employees", "delete"))])
 async def delete_employee(
     employee_id: UUID,
     tenant: CurrentTenant,

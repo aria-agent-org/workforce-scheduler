@@ -47,6 +47,20 @@ export default function SettingsPage() {
   const [showWRModal, setShowWRModal] = useState(false);
   const [wrForm, setWrForm] = useState({ name_he: "", name_en: "", color: "#3b82f6" });
   const [editingWR, setEditingWR] = useState<any>(null);
+  // Inline editing for settings
+  const [editingSettingId, setEditingSettingId] = useState<string | null>(null);
+  const [editingSettingValue, setEditingSettingValue] = useState<string>("");
+
+  const saveSetting = async (settingId: string, value: any) => {
+    try {
+      await api.patch(tenantApi(`/settings/${settingId}`), { value });
+      toast("success", "הגדרה נשמרה");
+      setEditingSettingId(null);
+      load();
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בשמירת הגדרה");
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);

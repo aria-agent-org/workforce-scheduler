@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
+from app.permissions import require_permission
 from app.models.rules import RuleDefinition
 from app.models.audit import AuditLog
 from app.schemas.rules import (
@@ -19,7 +20,7 @@ from app.schemas.rules import (
 router = APIRouter()
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("rules", "read"))])
 async def list_rules(
     tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
     category: str | None = None, active_only: bool = False,
@@ -34,7 +35,7 @@ async def list_rules(
     return [RuleResponse.model_validate(r).model_dump() for r in result.scalars().all()]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("rules", "write"))])
 async def create_rule(
     data: RuleCreate, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),

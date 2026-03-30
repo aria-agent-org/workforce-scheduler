@@ -25,6 +25,7 @@ class Employee(TenantBase):
     status: Mapped[str] = mapped_column(String(50), default="present", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     profile = relationship("EmployeeProfile", uselist=False, back_populates="employee", lazy="selectin")
     work_roles = relationship("EmployeeWorkRole", back_populates="employee", lazy="selectin")

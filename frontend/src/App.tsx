@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AppLayout from "./components/layout/AppLayout";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import ErrorBoundary from "./components/common/ErrorBoundary";
+import PermissionGuard from "./components/common/PermissionGuard";
 import { ToastProvider } from "./components/ui/toast";
 import { useThemeStore } from "./stores/themeStore";
 import { KeyboardShortcutsProvider } from "./components/common/KeyboardShortcuts";
@@ -59,26 +60,76 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/onboarding" element={<OnboardingWizard />} />
 
-                {/* Main admin/manager layout */}
+                {/* Main admin/manager layout — all guarded */}
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
-                  <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="soldiers" element={<SoldiersPage />} />
+
+                  {/* Dashboard — everyone can see */}
+                  <Route path="dashboard" element={
+                    <PermissionGuard page="dashboard"><DashboardPage /></PermissionGuard>
+                  } />
+
+                  {/* Soldiers — scheduler+ */}
+                  <Route path="soldiers" element={
+                    <PermissionGuard page="soldiers"><SoldiersPage /></PermissionGuard>
+                  } />
                   <Route path="employees" element={<Navigate to="/soldiers" replace />} />
-                  <Route path="scheduling" element={<SchedulingPage />} />
-                  <Route path="attendance" element={<AttendancePage />} />
-                  <Route path="rules" element={<RulesPage />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
-                  <Route path="reports" element={<ReportsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                  <Route path="audit-log" element={<AuditLogPage />} />
-                  <Route path="swaps" element={<SwapRequestsPage />} />
-                  <Route path="admin" element={<AdminPage />} />
-                  <Route path="help" element={<HelpPage />} />
-                  <Route path="profile" element={<MyProfilePage />} />
+
+                  {/* Scheduling — scheduler+ */}
+                  <Route path="scheduling" element={
+                    <PermissionGuard page="scheduling"><SchedulingPage /></PermissionGuard>
+                  } />
+
+                  {/* Attendance — scheduler+ */}
+                  <Route path="attendance" element={
+                    <PermissionGuard page="attendance"><AttendancePage /></PermissionGuard>
+                  } />
+
+                  {/* Rules — scheduler+ */}
+                  <Route path="rules" element={
+                    <PermissionGuard page="rules"><RulesPage /></PermissionGuard>
+                  } />
+
+                  {/* Notifications — commander+ */}
+                  <Route path="notifications" element={
+                    <PermissionGuard page="notifications"><NotificationsPage /></PermissionGuard>
+                  } />
+
+                  {/* Reports — commander+ */}
+                  <Route path="reports" element={
+                    <PermissionGuard page="reports"><ReportsPage /></PermissionGuard>
+                  } />
+
+                  {/* Settings — tenant_admin+ */}
+                  <Route path="settings" element={
+                    <PermissionGuard page="settings"><SettingsPage /></PermissionGuard>
+                  } />
+
+                  {/* Audit log — tenant_admin+ */}
+                  <Route path="audit-log" element={
+                    <PermissionGuard page="audit-log"><AuditLogPage /></PermissionGuard>
+                  } />
+
+                  {/* Swaps — commander+ */}
+                  <Route path="swaps" element={
+                    <PermissionGuard page="swaps"><SwapRequestsPage /></PermissionGuard>
+                  } />
+
+                  {/* Admin panel — super_admin ONLY */}
+                  <Route path="admin" element={
+                    <PermissionGuard roles={["super_admin"]}><AdminPage /></PermissionGuard>
+                  } />
+
+                  {/* Help / profile — everyone */}
+                  <Route path="help" element={
+                    <PermissionGuard page="help"><HelpPage /></PermissionGuard>
+                  } />
+                  <Route path="profile" element={
+                    <PermissionGuard page="profile"><MyProfilePage /></PermissionGuard>
+                  } />
                 </Route>
 
-                {/* Soldier self-service layout */}
+                {/* Soldier self-service layout — any authenticated user */}
                 <Route path="/my" element={<SoldierLayout />}>
                   <Route index element={<Navigate to="/my/schedule" replace />} />
                   <Route path="schedule" element={<MySchedulePage />} />

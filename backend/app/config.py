@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # App
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
-    secret_key: str = "change-this-to-a-random-64-char-string"
+    secret_key: str = "INSECURE-DEFAULT-CHANGE-ME-TO-RANDOM-64-CHARS-IN-PRODUCTION-NOW"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
     cors_origins: str = "http://localhost:3000,http://localhost:5173"

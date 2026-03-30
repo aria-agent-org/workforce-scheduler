@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   LayoutDashboard, Users, Calendar, ClipboardList, ShieldCheck,
   Bell, BarChart3, Settings, ArrowLeftRight, History, Shield,
@@ -10,8 +10,17 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { tenantApi } from "@/lib/api";
 import api from "@/lib/api";
+import { canAccessPage, isSuperAdmin } from "@/lib/permissions";
 
-const navItems = [
+interface NavItem {
+  key: string;
+  /** The page-key used by the permissions system (defaults to `key`). */
+  pageKey?: string;
+  path: string;
+  icon: any;
+}
+
+const allNavItems: NavItem[] = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard },
   { key: "soldiers", path: "/soldiers", icon: Users },
   { key: "scheduling", path: "/scheduling", icon: Calendar },
@@ -22,12 +31,12 @@ const navItems = [
   { key: "settings", path: "/settings", icon: Settings },
 ];
 
-const secondaryItems = [
+const allSecondaryItems: NavItem[] = [
   { key: "swaps", path: "/swaps", icon: ArrowLeftRight },
-  { key: "auditLog", path: "/audit-log", icon: History },
+  { key: "auditLog", pageKey: "audit-log", path: "/audit-log", icon: History },
   { key: "help", path: "/help", icon: HelpCircle },
   { key: "profile", path: "/profile", icon: UserCog },
-  { key: "myPortal", path: "/my/schedule", icon: UserCircle },
+  { key: "myPortal", pageKey: "my", path: "/my/schedule", icon: UserCircle },
 ];
 
 const adminNavItems = [
@@ -50,8 +59,20 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export default function Sidebar() {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
-  const isAdmin = useAuthStore((s) => s.isAdmin());
   const [counts, setCounts] = useState<Record<string, number>>({});
+
+  const roleName = user?.role_name ?? null;
+  const showAdmin = isSuperAdmin(roleName);
+
+  // Filter nav items by user's role
+  const navItems = useMemo(
+    () => allNavItems.filter((n) => canAccessPage(roleName, n.pageKey ?? n.key)),
+    [roleName]
+  );
+  const secondaryItems = useMemo(
+    () => allSecondaryItems.filter((n) => canAccessPage(roleName, n.pageKey ?? n.key)),
+    [roleName]
+  );
 
   // Load counts for sidebar badges
   useEffect(() => {
@@ -91,7 +112,9 @@ export default function Sidebar() {
             )}
           </NavLink>
         ))}
-        <div className="my-3 border-t" />
+
+        {secondaryItems.length > 0 && <div className="my-3 border-t" />}
+
         {secondaryItems.map(({ key, path, icon: Icon }) => (
           <NavLink key={key} to={path} className={linkClass}>
             <Icon className="h-5 w-5 flex-shrink-0" />
@@ -104,8 +127,8 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        {/* Admin Section - always visible for admin users */}
-        {isAdmin && (
+        {/* Admin Section — super_admin only */}
+        {showAdmin && (
           <>
             <div className="my-3 border-t" />
             <div className="px-3 py-2">

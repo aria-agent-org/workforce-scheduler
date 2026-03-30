@@ -501,7 +501,7 @@ export default function SoldiersPage() {
                             <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-4 w-4" />
                           </td>
                           <td className="px-4 py-3 font-mono text-sm">{s.employee_number}</td>
-                          <td className="px-4 py-3 font-medium">{s.full_name}</td>
+                          <td className="px-4 py-3 font-medium max-w-[200px] truncate" title={s.full_name}>{s.full_name}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
                               {s.work_roles?.map((r) => (

@@ -3,27 +3,42 @@ import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Calendar, ClipboardList, Settings, MoreHorizontal,
   Users, ShieldCheck, Bell, BarChart3, ArrowLeftRight, History,
-  HelpCircle, Shield,
+  HelpCircle, Shield, UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuthStore } from "@/stores/authStore";
+import { canAccessPage, isSuperAdmin } from "@/lib/permissions";
 
-const primaryNav = [
+interface MobileNavItem {
+  key: string;
+  pageKey?: string;
+  path: string;
+  icon: any;
+  label: string;
+}
+
+const allPrimaryNav: MobileNavItem[] = [
   { key: "dashboard", path: "/dashboard", icon: LayoutDashboard, label: "בית" },
   { key: "scheduling", path: "/scheduling", icon: Calendar, label: "שיבוץ" },
   { key: "attendance", path: "/attendance", icon: ClipboardList, label: "נוכחות" },
   { key: "settings", path: "/settings", icon: Settings, label: "הגדרות" },
 ];
 
-const moreNav = [
+/** Fallback primary nav for low-permission users (viewer/soldier/none). */
+const minimalPrimaryNav: MobileNavItem[] = [
+  { key: "dashboard", path: "/dashboard", icon: LayoutDashboard, label: "בית" },
+  { key: "myPortal", pageKey: "my", path: "/my/schedule", icon: UserCircle, label: "הלוח שלי" },
+  { key: "help", path: "/help", icon: HelpCircle, label: "עזרה" },
+];
+
+const allMoreNav: MobileNavItem[] = [
   { key: "soldiers", path: "/soldiers", icon: Users, label: "חיילים" },
   { key: "rules", path: "/rules", icon: ShieldCheck, label: "חוקים" },
   { key: "notifications", path: "/notifications", icon: Bell, label: "התראות" },
   { key: "reports", path: "/reports", icon: BarChart3, label: "דוחות" },
   { key: "swaps", path: "/swaps", icon: ArrowLeftRight, label: "החלפות" },
-  { key: "auditLog", path: "/audit-log", icon: History, label: "יומן" },
-  { key: "help", path: "/help", icon: HelpCircle, label: "עזרה" },
+  { key: "auditLog", pageKey: "audit-log", path: "/audit-log", icon: History, label: "יומן" },
   { key: "admin", path: "/admin", icon: Shield, label: "ניהול" },
 ];
 
@@ -32,14 +47,23 @@ export default function BottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const user = useAuthStore((s) => s.user);
+  const roleName = user?.role_name ?? null;
 
-  const filteredMoreNav = useMemo(() => {
-    if (isAdmin) return moreNav;
-    return moreNav.filter(n => n.key !== "admin");
-  }, [isAdmin]);
+  // Filter items by permissions
+  const filteredPrimary = useMemo(() => {
+    const allowed = allPrimaryNav.filter(n => canAccessPage(roleName, n.pageKey ?? n.key));
+    // If very few items, use minimal nav
+    return allowed.length >= 3 ? allowed : minimalPrimaryNav.filter(n => canAccessPage(roleName, n.pageKey ?? n.key));
+  }, [roleName]);
+
+  const filteredMoreNav = useMemo(
+    () => allMoreNav.filter(n => canAccessPage(roleName, n.pageKey ?? n.key)),
+    [roleName]
+  );
 
   const isMoreActive = filteredMoreNav.some(n => location.pathname.startsWith(n.path));
+  const hasMoreItems = filteredMoreNav.length > 0;
 
   // Close overlay on route change
   useEffect(() => {
@@ -49,7 +73,7 @@ export default function BottomNav() {
   return (
     <>
       {/* More menu overlay */}
-      {showMore && (
+      {showMore && hasMoreItems && (
         <div
           className="fixed inset-0 z-40 bg-black/40 md:hidden"
           onClick={() => setShowMore(false)}
@@ -84,7 +108,7 @@ export default function BottomNav() {
       {/* Bottom nav bar */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-card/95 backdrop-blur-lg safe-area-bottom">
         <div className="flex items-center justify-around h-[68px] px-1">
-          {primaryNav.map(({ key, path, icon: Icon, label }) => (
+          {filteredPrimary.map(({ key, path, icon: Icon, label }) => (
             <NavLink
               key={key}
               to={path}
@@ -108,22 +132,25 @@ export default function BottomNav() {
               )}
             </NavLink>
           ))}
-          {/* More button */}
-          <button
-            onClick={() => setShowMore(!showMore)}
-            className={cn(
-              "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl min-w-[52px] transition-all active:scale-95",
-              showMore || isMoreActive ? "text-primary-600 dark:text-primary-400" : "text-muted-foreground"
-            )}
-          >
-            <div className={cn(
-              "flex items-center justify-center h-8 w-8 rounded-full transition-colors",
-              showMore || isMoreActive ? "bg-primary-100 dark:bg-primary-900/40" : ""
-            )}>
-              <MoreHorizontal className="h-5 w-5" />
-            </div>
-            <span className="text-[10px] font-medium leading-tight">עוד</span>
-          </button>
+
+          {/* More button — only if there are extra items */}
+          {hasMoreItems && (
+            <button
+              onClick={() => setShowMore(!showMore)}
+              className={cn(
+                "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl min-w-[52px] transition-all active:scale-95",
+                showMore || isMoreActive ? "text-primary-600 dark:text-primary-400" : "text-muted-foreground"
+              )}
+            >
+              <div className={cn(
+                "flex items-center justify-center h-8 w-8 rounded-full transition-colors",
+                showMore || isMoreActive ? "bg-primary-100 dark:bg-primary-900/40" : ""
+              )}>
+                <MoreHorizontal className="h-5 w-5" />
+              </div>
+              <span className="text-[10px] font-medium leading-tight">עוד</span>
+            </button>
+          )}
         </div>
       </nav>
     </>

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
+from app.permissions import require_permission, require_tenant_admin
 from app.models.user import User, UserSession
 from app.models.employee import Employee
 from app.models.resource import RoleDefinition
@@ -43,7 +44,7 @@ class ResetPasswordRequest(BaseModel):
 # Tenant User CRUD
 # ═══════════════════════════════════════════
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("users", "read"))])
 async def list_tenant_users(
     tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -120,7 +121,7 @@ async def list_tenant_users(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("users", "write"))])
 async def create_tenant_user(
     data: TenantUserCreate,
     tenant: CurrentTenant, user: CurrentUser,
@@ -266,7 +267,7 @@ async def get_tenant_user(
     }
 
 
-@router.patch("/{user_id}")
+@router.patch("/{user_id}", dependencies=[Depends(require_permission("users", "write"))])
 async def update_tenant_user(
     user_id: UUID,
     data: TenantUserUpdate,
@@ -335,7 +336,7 @@ async def update_tenant_user(
     }
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", dependencies=[Depends(require_permission("users", "write"))])
 async def deactivate_tenant_user(
     user_id: UUID,
     tenant: CurrentTenant, user: CurrentUser,
@@ -430,7 +431,7 @@ async def link_user_to_soldier(
     }
 
 
-@router.post("/{user_id}/reset-password")
+@router.post("/{user_id}/reset-password", dependencies=[Depends(require_permission("users", "write"))])
 async def reset_user_password(
     user_id: UUID,
     data: ResetPasswordRequest,
@@ -490,7 +491,7 @@ async def list_user_sessions(
     ]
 
 
-@router.post("/{user_id}/force-logout")
+@router.post("/{user_id}/force-logout", dependencies=[Depends(require_permission("users", "write"))])
 async def force_logout_user(
     user_id: UUID,
     tenant: CurrentTenant, user: CurrentUser,

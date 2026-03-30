@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
+from app.permissions import require_permission, require_tenant_admin
 from app.models.tenant import TenantSetting
 from app.models.resource import WorkRole, RoleDefinition
 from app.models.bot import BotRegistrationToken
@@ -49,7 +50,7 @@ async def list_work_roles(
     return [WorkRoleResponse.model_validate(wr).model_dump() for wr in result.scalars().all()]
 
 
-@router.post("/work-roles", status_code=status.HTTP_201_CREATED)
+@router.post("/work-roles", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("settings", "write"))])
 async def create_work_role(
     data: WorkRoleCreate, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -312,7 +313,7 @@ async def delete_bot_token(
         await db.commit()
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("settings", "read"))])
 async def list_settings(
     tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
     group: str | None = None,
@@ -337,7 +338,7 @@ async def get_setting(
     return TenantSettingResponse.model_validate(setting).model_dump()
 
 
-@router.patch("/key/{key}")
+@router.patch("/key/{key}", dependencies=[Depends(require_permission("settings", "write"))])
 async def update_setting(
     key: str, data: TenantSettingUpdate, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),

@@ -48,6 +48,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Listen for global permission-denied events from PermissionGuard
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      addToast("error", detail?.message || "אין לך הרשאה לדף זה", 5000);
+    };
+    document.addEventListener("shavtzak:permission-denied", handler);
+    return () => document.removeEventListener("shavtzak:permission-denied", handler);
+  }, [addToast]);
+
   return (
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}

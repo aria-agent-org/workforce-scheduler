@@ -140,6 +140,15 @@ class AutoScheduler:
 
                     if not eligible:
                         unresolved_slots += 1
+                        assignment_results.append({
+                            "mission_name": mission.name,
+                            "slot_id": slot_key,
+                            "employee_name": None,
+                            "score": 0,
+                            "soft_warnings": [],
+                            "status": "unresolved",
+                            "reason": "אין חיילים זמינים לסלוט זה — כולם חולים, בבית, או עם התנגשות",
+                        })
                         continue
 
                     # STEP 3: SCORING

@@ -154,9 +154,27 @@ export default function AttendancePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto-save a single attendance cell change
+  const autoSaveCell = async (empId: string, cellDate: string, statusCode: string) => {
+    try {
+      await api.post(tenantApi("/attendance/bulk"), {
+        schedule_window_id: selectedWindow,
+        date: cellDate,
+        entries: [{ employee_id: empId, status_code: statusCode }],
+      });
+    } catch (e) {
+      console.error("Auto-save failed", e);
+      toast("error", "שגיאה בשמירה אוטומטית");
+    }
+  };
+
   const updateAttendance = (empId: string, date: string, status: string) => {
     setAttendance(prev => ({ ...prev, [`${empId}_${date}`]: status }));
     setEditingCell(null);
+    // Instant auto-save for this cell
+    if (selectedWindow && status) {
+      autoSaveCell(empId, date, status);
+    }
   };
 
   const saveAll = async () => {

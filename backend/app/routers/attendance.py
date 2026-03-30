@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
+from app.permissions import require_permission
 from app.models.attendance import AttendanceSchedule, AttendanceStatusDefinition, AttendanceSyncConflict
 from app.models.employee import Employee
 from app.models.audit import AuditLog
@@ -65,7 +66,7 @@ async def list_attendance(
     ]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("attendance", "write"))])
 async def create_attendance(
     data: AttendanceCreate,
     tenant: CurrentTenant,
@@ -149,7 +150,7 @@ async def update_attendance(
     return AttendanceResponse.model_validate(record).model_dump()
 
 
-@router.post("/bulk")
+@router.post("/bulk", dependencies=[Depends(require_permission("attendance", "write"))])
 async def bulk_update_attendance(
     data: AttendanceBulkUpdate,
     tenant: CurrentTenant,
