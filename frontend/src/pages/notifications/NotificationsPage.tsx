@@ -497,11 +497,47 @@ export default function NotificationsPage() {
                 </div>
               </div>
 
-              {!isPushSupported() ? (
-                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-sm text-yellow-700 dark:text-yellow-300">
-                  ⚠️ הדפדפן שלך לא תומך בהתראות Push. נסה Chrome או Edge.
+              {/* Clear status display */}
+              <div className="rounded-lg border p-3 text-sm font-medium">
+                {pushStatus === 'active' && (
+                  <span className="text-green-700 dark:text-green-400">✅ התראות Push פעילות</span>
+                )}
+                {pushStatus === 'ios-not-installed' && (
+                  <span className="text-blue-700 dark:text-blue-400">📱 הוסף למסך הבית לקבלת התראות</span>
+                )}
+                {pushStatus === 'prompt' && (
+                  <span className="text-amber-700 dark:text-amber-400">🔔 לחץ להפעלת התראות</span>
+                )}
+                {pushStatus === 'denied' && (
+                  <span className="text-red-700 dark:text-red-400">❌ התראות חסומות — שנה בהגדרות הדפדפן</span>
+                )}
+                {pushStatus === 'unsupported' && (
+                  <span className="text-gray-700 dark:text-gray-400">⚠️ הדפדפן לא תומך בהתראות Push</span>
+                )}
+              </div>
+
+              {/* iOS not installed to Home Screen — show instructions */}
+              {pushStatus === 'ios-not-installed' && (
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm text-blue-700 dark:text-blue-300 space-y-2">
+                  <p className="font-bold">📱 כדי לקבל התראות Push באייפון, הוסף את שבצק למסך הבית</p>
+                  <ol className="list-decimal list-inside space-y-1 text-xs">
+                    <li>לחץ על כפתור השיתוף (Share) <span className="font-mono">⎙</span> בתחתית Safari</li>
+                    <li>גלול למטה ולחץ על &quot;Add to Home Screen&quot;</li>
+                    <li>לחץ &quot;Add&quot; — האפליקציה תופיע במסך הבית</li>
+                    <li>פתח את שבצק מהאייקון במסך הבית והפעל התראות</li>
+                  </ol>
                 </div>
-              ) : (
+              )}
+
+              {/* Push unsupported */}
+              {pushStatus === 'unsupported' && (
+                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                  ⚠️ הדפדפן שלך לא תומך בהתראות Push. נסה Chrome, Edge, או Safari 16.4+.
+                </div>
+              )}
+
+              {/* Push supported and not iOS-blocked */}
+              {pushStatus !== 'unsupported' && pushStatus !== 'ios-not-installed' && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <span className="text-sm">סטטוס הרשאה:</span>
