@@ -356,8 +356,8 @@ async def get_my_notifications(
             "id": str(n.id),
             "event_type_code": n.event_type_code,
             "channel": n.channel,
+            "body_sent": n.body_sent,
             "status": n.status,
-            "payload": n.payload,
             "created_at": str(n.created_at),
         }
         for n in result.scalars().all()
