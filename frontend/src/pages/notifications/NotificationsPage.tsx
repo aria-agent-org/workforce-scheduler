@@ -162,7 +162,7 @@ export default function NotificationsPage() {
 
   const loadScheduleWindows = useCallback(async () => {
     try {
-      const res = await api.get(tenantApi("/scheduling/schedule-windows"));
+      const res = await api.get(tenantApi("/schedule-windows"));
       setScheduleWindows(res.data);
     } catch {}
   }, []);

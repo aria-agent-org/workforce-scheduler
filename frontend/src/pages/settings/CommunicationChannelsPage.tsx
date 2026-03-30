@@ -79,7 +79,7 @@ export default function CommunicationChannelsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get(tenantApi("/settings/notification-channels")).catch(() => null);
+      const res = await api.get(tenantApi("/notifications/channels")).catch(() => null);
       if (res?.data) {
         setChannels(prev => prev.map(ch => {
           const saved = res.data.find((s: any) => s.key === ch.key);
@@ -107,7 +107,7 @@ export default function CommunicationChannelsPage() {
   const saveAll = async () => {
     setSaving(true);
     try {
-      await api.put(tenantApi("/settings/notification-channels"), {
+      await api.put(tenantApi("/notifications/channels"), {
         channels: channels.map(ch => ({
           key: ch.key,
           enabled: ch.enabled,
