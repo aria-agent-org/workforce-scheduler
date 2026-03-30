@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import api from "@/lib/api";
+import api, { setTenantSlug } from "@/lib/api";
 import { setTokens, clearTokens, isAuthenticated } from "@/lib/auth";
 import { autoSubscribeAfterLogin } from "@/lib/push";
 
@@ -48,6 +48,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       setTokens(data.access_token, data.refresh_token);
+      // Store tenant slug for API calls
+      if (data.user?.tenant_slug) {
+        setTenantSlug(data.user.tenant_slug);
+      }
       set({ user: data.user, isAuthenticated: true, isLoading: false });
 
       // Auto-subscribe to push notifications after successful login (non-blocking)
@@ -76,6 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // ignore — clear tokens anyway
     }
     clearTokens();
+    localStorage.removeItem("tenant_slug");
     set({ user: null, isAuthenticated: false });
   },
 
@@ -88,6 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const { data } = await api.get("/auth/me");
+      if (data.tenant_slug) setTenantSlug(data.tenant_slug);
       set({ user: data, isAuthenticated: true, isLoading: false });
     } catch {
       clearTokens();

@@ -51,9 +51,18 @@ api.interceptors.response.use(
   }
 );
 
-// Helper to get tenant slug
+// Helper to get tenant slug from stored user data
 export function getTenantSlug(): string {
-  return "demo"; // For now, hardcoded to demo tenant
+  // Try to get from localStorage (set after login)
+  const slug = localStorage.getItem("tenant_slug");
+  if (slug) return slug;
+  // Fallback to demo
+  return "demo";
+}
+
+// Set tenant slug (called after login)
+export function setTenantSlug(slug: string) {
+  localStorage.setItem("tenant_slug", slug);
 }
 
 // API helpers
