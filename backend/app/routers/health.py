@@ -1,8 +1,10 @@
-"""Health check endpoints."""
+"""Health check and metrics endpoints."""
 
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import PlainTextResponse
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,3 +40,12 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
             version="0.1.0",
             timestamp=datetime.now(timezone.utc),
         )
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+async def prometheus_metrics() -> PlainTextResponse:
+    """Expose Prometheus metrics."""
+    return PlainTextResponse(
+        content=generate_latest().decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST,
+    )
