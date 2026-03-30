@@ -8,11 +8,11 @@ import { Select } from "@/components/ui/select";
 // Badge available for future use
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { Save, Download, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Save, Download, Search, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import * as XLSX from "xlsx";
 
-type ViewMode = "weekly" | "monthly" | "period";
+type ViewMode = "weekly" | "monthly" | "period" | "calendar";
 
 interface StatusDef {
   id: string;
@@ -45,6 +45,7 @@ export default function AttendancePage() {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [workRoles, setWorkRoles] = useState<any[]>([]);
   const tableRef = useRef<HTMLDivElement>(null);
+  const [calendarExpandedDay, setCalendarExpandedDay] = useState<string | null>(null);
 
   // Generate dates based on view mode
   const dates = useMemo(() => {
@@ -60,6 +61,13 @@ export default function AttendancePage() {
         result.push(day.toISOString().split("T")[0]);
       }
     } else if (viewMode === "monthly") {
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
+        result.push(new Date(cur).toISOString().split("T")[0]);
+      }
+    } else if (viewMode === "calendar") {
+      // Full month with padding for calendar grid
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
       for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
@@ -240,7 +248,7 @@ export default function AttendancePage() {
   const navigateDate = (direction: number) => {
     const d = new Date(selectedDate);
     if (viewMode === "weekly") d.setDate(d.getDate() + direction * 7);
-    else if (viewMode === "monthly") d.setMonth(d.getMonth() + direction);
+    else if (viewMode === "monthly" || viewMode === "calendar") d.setMonth(d.getMonth() + direction);
     setSelectedDate(d.toISOString().split("T")[0]);
   };
 
@@ -298,13 +306,14 @@ export default function AttendancePage() {
         <div className="space-y-1">
           <Label className="text-xs">תצוגה</Label>
           <div className="flex rounded-lg border overflow-hidden">
-            {(["weekly", "monthly", "period"] as ViewMode[]).map(mode => (
+            {(["weekly", "monthly", "period", "calendar"] as ViewMode[]).map(mode => (
               <button
                 key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 text-sm ${viewMode === mode ? "bg-primary-500 text-white" : "bg-background hover:bg-accent"}`}
+                onClick={() => { setViewMode(mode); if (mode === "calendar") setCalendarExpandedDay(null); }}
+                className={`px-3 py-1.5 text-sm flex items-center gap-1 ${viewMode === mode ? "bg-primary-500 text-white" : "bg-background hover:bg-accent"}`}
               >
-                {mode === "weekly" ? "שבועי" : mode === "monthly" ? "חודשי" : "תקופה"}
+                {mode === "calendar" && <CalendarDays className="h-3.5 w-3.5" />}
+                {mode === "weekly" ? "שבועי" : mode === "monthly" ? "חודשי" : mode === "period" ? "תקופה" : "לוח שנה"}
               </button>
             ))}
           </div>
@@ -374,7 +383,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Mobile Card View for Attendance */}
-      <div className="md:hidden space-y-2">
+      <div className={`md:hidden space-y-2 ${viewMode === "calendar" ? "hidden" : ""}`}>
         {filteredEmployees.length === 0 ? (
           <Card><CardContent className="p-8 text-center text-muted-foreground">אין עובדים</CardContent></Card>
         ) : filteredEmployees.map(emp => (
@@ -434,7 +443,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Desktop Attendance Grid */}
-      <Card className="hidden md:block">
+      <Card className={`hidden ${viewMode === "calendar" ? "" : "md:block"}`}>
         <CardContent className="p-0">
           <div ref={tableRef} className="overflow-x-auto max-h-[calc(100vh-350px)]">
             <table className="w-full border-collapse" style={{ minWidth: `${150 + dates.length * 80}px` }}>
@@ -529,6 +538,150 @@ export default function AttendancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Calendar View */}
+      {viewMode === "calendar" && (
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-2 sm:p-4">
+              {/* Calendar Month Header */}
+              <div className="text-center mb-3 font-bold text-lg">
+                {new Date(selectedDate).toLocaleDateString("he-IL", { month: "long", year: "numeric" })}
+              </div>
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {dayNames.map(d => (
+                  <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-1">{d}</div>
+                ))}
+              </div>
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1">
+                {/* Padding for first day of month */}
+                {(() => {
+                  const firstDay = new Date(new Date(selectedDate).getFullYear(), new Date(selectedDate).getMonth(), 1).getDay();
+                  return Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`pad-${i}`} className="min-h-[60px] sm:min-h-[80px]" />
+                  ));
+                })()}
+                {dates.map(date => {
+                  const isToday = date === today;
+                  const isExpanded = calendarExpandedDay === date;
+                  // Count statuses for this day
+                  const statusCounts: Record<string, number> = {};
+                  filteredEmployees.forEach(emp => {
+                    const code = attendance[`${emp.id}_${date}`];
+                    if (code) statusCounts[code] = (statusCounts[code] || 0) + 1;
+                  });
+                  const totalPresent = Object.entries(statusCounts)
+                    .filter(([code]) => statusDefs.find(s => s.code === code)?.counts_as_present)
+                    .reduce((sum, [, c]) => sum + c, 0);
+                  const totalAbsent = filteredEmployees.length - totalPresent;
+
+                  return (
+                    <button
+                      key={date}
+                      onClick={() => setCalendarExpandedDay(isExpanded ? null : date)}
+                      className={`rounded-lg border p-1 sm:p-2 text-start min-h-[60px] sm:min-h-[80px] transition-all hover:shadow-sm ${
+                        isToday ? "ring-2 ring-primary-500 bg-primary-50/50 dark:bg-primary-900/10" : "hover:bg-muted/30"
+                      } ${isExpanded ? "ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
+                    >
+                      <div className="text-xs sm:text-sm font-bold mb-0.5">{parseInt(date.slice(8))}</div>
+                      {/* Status dots - compact mobile */}
+                      <div className="flex flex-wrap gap-0.5">
+                        {Object.entries(statusCounts).slice(0, 4).map(([code, count]) => {
+                          const def = statusDefs.find(s => s.code === code);
+                          return (
+                            <span
+                              key={code}
+                              className="inline-flex items-center rounded-full px-1 sm:px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium"
+                              style={{
+                                backgroundColor: (def?.color || "#6b7280") + "25",
+                                color: def?.color || "#6b7280",
+                              }}
+                            >
+                              {def?.icon || ""}{count}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {/* Summary line on desktop */}
+                      <div className="hidden sm:block mt-1 text-[10px] text-muted-foreground">
+                        {totalPresent > 0 && <span className="text-green-600">נוכחים: {totalPresent}</span>}
+                        {totalPresent > 0 && totalAbsent > 0 && " · "}
+                        {totalAbsent > 0 && <span className="text-gray-500">אחר: {totalAbsent}</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Expanded Day Detail */}
+          {calendarExpandedDay && (
+            <Card className="animate-in slide-in-from-top-2">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5" />
+                  {new Date(calendarExpandedDay).toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {filteredEmployees.map(emp => {
+                    const key = `${emp.id}_${calendarExpandedDay}`;
+                    const code = attendance[key] || "";
+                    const def = statusDefs.find(s => s.code === code);
+                    const style = code ? getStatusStyle(code) : {};
+                    return (
+                      <div key={emp.id} className="flex items-center justify-between rounded-lg border p-2 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {emp.full_name?.[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{emp.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{emp.employee_number}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {code ? (
+                            <span
+                              className="rounded-full px-2.5 py-1 text-xs font-medium border"
+                              style={{
+                                backgroundColor: (style as any).backgroundColor,
+                                color: (style as any).color,
+                                borderColor: (style as any).borderColor,
+                              }}
+                            >
+                              {def?.icon} {def?.name[lang] || def?.name.he || code}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                          <Select
+                            value={code}
+                            onChange={e => updateAttendance(emp.id, calendarExpandedDay, e.target.value)}
+                            className="w-28 text-xs"
+                          >
+                            <option value="">—</option>
+                            {statusDefs.map(s => (
+                              <option key={s.code} value={s.code}>{s.icon} {s.name[lang] || s.name.he || s.code}</option>
+                            ))}
+                          </Select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {filteredEmployees.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">אין עובדים</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Conflicts */}
       {conflicts.length > 0 && (

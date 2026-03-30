@@ -5,7 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Calendar, AlertTriangle, CheckCircle, Clock, BarChart3 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { Users, Calendar, AlertTriangle, CheckCircle, Clock, BarChart3, ArrowLeftRight, Zap } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 
 interface DashboardStats {
@@ -16,26 +17,83 @@ interface DashboardStats {
   active_windows: number;
 }
 
+interface UpcomingMission {
+  id: string;
+  name: string;
+  start_time: string | null;
+  end_time: string | null;
+  date: string;
+  status: string;
+  assignments?: Array<{ employee_name?: string }>;
+  unfilled_slots?: number;
+}
+
 export default function DashboardPage() {
   const { t } = useTranslation("dashboard");
+  const { toast } = useToast();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [missions, setMissions] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [upcoming48h, setUpcoming48h] = useState<UpcomingMission[]>([]);
+  const [weeklyWorkload, setWeeklyWorkload] = useState<{ day: string; label: string; count: number }[]>([]);
+  const [pendingSwapsCount, setPendingSwapsCount] = useState(0);
+  const [autoAssigning, setAutoAssigning] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
         const today = new Date().toISOString().split("T")[0];
-        const [statsRes, missionsRes, activityRes] = await Promise.all([
+        const in48h = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+        // Compute week range for workload chart
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        const [statsRes, missionsRes, activityRes, upcoming48hRes, weekMissionsRes, swapsRes] = await Promise.all([
           api.get(tenantApi("/reports/dashboard")),
           api.get(tenantApi("/missions"), { params: { date_from: today, date_to: today } }),
           api.get(tenantApi("/audit-logs"), { params: { page_size: 10 } }).catch(() => ({ data: { items: [] } })),
+          api.get(tenantApi("/missions"), { params: { date_from: today, date_to: in48h } }).catch(() => ({ data: [] })),
+          api.get(tenantApi("/missions"), {
+            params: { date_from: weekStart.toISOString().split("T")[0], date_to: weekEnd.toISOString().split("T")[0] },
+          }).catch(() => ({ data: [] })),
+          api.get(tenantApi("/swap-requests")).catch(() => ({ data: [] })),
         ]);
         setStats(statsRes.data);
         setMissions(missionsRes.data || []);
         setRecentActivity(activityRes.data.items || []);
+
+        // Upcoming 48h
+        const upcoming = Array.isArray(upcoming48hRes.data) ? upcoming48hRes.data : upcoming48hRes.data.items || [];
+        setUpcoming48h(upcoming);
+
+        // Weekly workload chart
+        const weekMissions = Array.isArray(weekMissionsRes.data) ? weekMissionsRes.data : weekMissionsRes.data.items || [];
+        const dayNames = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+        const workloadMap: Record<string, number> = {};
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(weekStart);
+          d.setDate(weekStart.getDate() + i);
+          workloadMap[d.toISOString().split("T")[0]] = 0;
+        }
+        weekMissions.forEach((m: any) => {
+          const d = m.date || m.start_date;
+          if (d && workloadMap[d] !== undefined) workloadMap[d]++;
+        });
+        const workload = Object.entries(workloadMap).map(([day, count]) => ({
+          day,
+          label: dayNames[new Date(day).getDay()],
+          count,
+        }));
+        setWeeklyWorkload(workload);
+
+        // Pending swaps
+        const allSwaps = Array.isArray(swapsRes.data) ? swapsRes.data : swapsRes.data.items || [];
+        setPendingSwapsCount(allSwaps.filter((s: any) => s.status === "pending").length);
       } catch (e) {
         console.error("Failed to load dashboard", e);
         setStats({ total_employees: 0, present_today: 0, missions_today: 0, conflicts: 0, active_windows: 0 });
@@ -45,6 +103,18 @@ export default function DashboardPage() {
     };
     load();
   }, []);
+
+  const handleAutoAssign = async () => {
+    setAutoAssigning(true);
+    try {
+      await api.post(tenantApi("/missions/auto-assign"));
+      toast("success", t("autoAssignSuccess"));
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || t("autoAssignError"));
+    } finally {
+      setAutoAssigning(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -57,6 +127,8 @@ export default function DashboardPage() {
     );
   }
 
+  const maxWorkload = Math.max(...weeklyWorkload.map(w => w.count), 1);
+
   const statCards = [
     { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, color: "text-blue-500 bg-blue-50", link: "/soldiers" },
     { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, color: "text-green-500 bg-green-50", link: "/attendance" },
@@ -68,7 +140,8 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("title")}</h1>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Stat Cards + Pending Swaps */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {statCards.map(({ key, value, icon: Icon, color, link }) => (
           <Card key={key} className="hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]" onClick={() => navigate(link)}>
             <CardContent className="flex items-center gap-4 p-6">
@@ -82,8 +155,109 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+
+        {/* Pending Swaps Card */}
+        <Card className="hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]" onClick={() => navigate("/swaps")}>
+          <CardContent className="flex items-center gap-4 p-6">
+            <div className="rounded-full p-3 text-orange-500 bg-orange-50">
+              <ArrowLeftRight className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t("pendingSwaps")}</p>
+              <p className="text-2xl font-bold">{pendingSwapsCount}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Upcoming 48h + Weekly Workload */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Upcoming 48h */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              {t("upcoming48h")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {upcoming48h.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t("noUpcoming48h")}</p>
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {upcoming48h.slice(0, 12).map((m) => {
+                  const hasWarning = (m.unfilled_slots && m.unfilled_slots > 0) ||
+                    (!m.assignments || m.assignments.length === 0);
+                  return (
+                    <div
+                      key={m.id}
+                      className={`flex items-center justify-between rounded-lg border p-3 hover:bg-muted/30 transition-colors ${
+                        hasWarning ? "border-amber-300 dark:border-amber-700" : ""
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {hasWarning && <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />}
+                          <p className="font-medium text-sm truncate">{m.name}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {m.date} · {m.start_time?.slice(0, 5) || "—"} - {m.end_time?.slice(0, 5) || "—"}
+                          {m.assignments && m.assignments.length > 0 && ` · ${m.assignments.length} משובצים`}
+                          {m.unfilled_slots && m.unfilled_slots > 0 && (
+                            <span className="text-amber-600 font-medium"> · {m.unfilled_slots} חסרים</span>
+                          )}
+                        </p>
+                      </div>
+                      <Badge className={
+                        m.status === "approved" ? "bg-green-100 text-green-700" :
+                        m.status === "draft" ? "bg-gray-100 text-gray-700" :
+                        m.status === "proposed" ? "bg-purple-100 text-purple-700" :
+                        "bg-blue-100 text-blue-700"
+                      }>
+                        {m.status}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Weekly Workload Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              {t("weeklyWorkload")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-2 h-[200px] pt-4">
+              {weeklyWorkload.map(({ day, label, count }) => {
+                const height = maxWorkload > 0 ? (count / maxWorkload) * 100 : 0;
+                const isToday = day === new Date().toISOString().split("T")[0];
+                return (
+                  <div key={day} className="flex flex-col items-center flex-1 h-full justify-end">
+                    <span className="text-xs font-bold mb-1">{count}</span>
+                    <div
+                      className={`w-full rounded-t-md transition-all ${
+                        isToday ? "bg-primary-500" : "bg-primary-200 dark:bg-primary-800"
+                      }`}
+                      style={{ height: `${Math.max(height, 4)}%` }}
+                    />
+                    <span className={`text-xs mt-1 ${isToday ? "font-bold text-primary-600" : "text-muted-foreground"}`}>
+                      {label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions + Today's Schedule */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -104,7 +278,17 @@ export default function DashboardPage() {
             </Button>
             <Button onClick={() => navigate("/reports")} variant="outline" size="sm" className="min-h-[44px]">
               <BarChart3 className="me-1 h-4 w-4" />
-              דוחות
+              {t("reports")}
+            </Button>
+            <Button
+              onClick={handleAutoAssign}
+              variant="outline"
+              size="sm"
+              className="min-h-[44px] border-primary-300 text-primary-600 hover:bg-primary-50"
+              disabled={autoAssigning}
+            >
+              <Zap className="me-1 h-4 w-4" />
+              {autoAssigning ? "..." : t("autoAssign")}
             </Button>
           </CardContent>
         </Card>
@@ -147,7 +331,7 @@ export default function DashboardPage() {
       {recentActivity.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">📋 פעילות אחרונה</CardTitle>
+            <CardTitle className="text-lg">📋 {t("recentActivity")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -189,12 +373,12 @@ export default function DashboardPage() {
       {(stats?.active_windows ?? 0) > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">לוחות עבודה פעילים</CardTitle>
+            <CardTitle className="text-lg">{t("activeWindows")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">{stats?.active_windows} לוחות פעילים</p>
+            <p className="text-muted-foreground">{stats?.active_windows} {t("activeWindowsCount")}</p>
             <Button variant="link" size="sm" onClick={() => navigate("/scheduling")} className="mt-2">
-              צפה בלוחות →
+              {t("viewWindows")} ←
             </Button>
           </CardContent>
         </Card>
