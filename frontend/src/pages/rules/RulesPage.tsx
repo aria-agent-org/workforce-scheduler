@@ -388,7 +388,7 @@ export default function RulesPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
                     <Label>קטגוריה</Label>
-                    <HelpTooltip content={{ he: "קטגוריה עוזרת לארגן את החוקים.\n• כללי — חוקים רגילים\n• מנוחה — הפסקות ושעות מנוחה\n• הוגנות — חלוקה שוויונית\n• בטיחות — כללי בטיחות", en: "Category for organizing rules." }} />
+                    <HelpTooltip content={{ he: "קטגוריית החוק — מנוחה, שעות עבודה, יציאה, חזרה.\n\nקטגוריה עוזרת לארגן את החוקים:\n• כללי — חוקים רגילים\n• מנוחה — הפסקות ושעות מנוחה\n• הוגנות — חלוקה שוויונית\n• בטיחות — כללי בטיחות", en: "Rule category — rest, work hours, departure, return." }} />
                   </div>
                   <Select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="min-h-[44px]">
                     {CATEGORY_OPTIONS.map(cat => (
@@ -400,8 +400,8 @@ export default function RulesPage() {
                   <div className="flex items-center gap-1.5">
                     <Label>חומרה *</Label>
                     <HelpTooltip
-                      title={{ he: "מה ההבדל?", en: "What's the difference?" }}
-                      content={{ he: "רך (אזהרה) — המשבץ יראה אזהרה צהובה, אבל יוכל לשבץ בכל זאת.\n\nחמור (חסימה) — המערכת תחסום את השיבוץ לגמרי. רק מנהל מערכת יכול לעקוף.", en: "Soft = warning only. Hard = blocks assignment." }}
+                      title={{ he: "חומרה — hard = חוסם שיבוץ, soft = אזהרה בלבד", en: "Severity — hard blocks, soft warns" }}
+                      content={{ he: "רך (soft / אזהרה) — המשבץ יראה אזהרה צהובה, אבל יוכל לשבץ בכל זאת.\n\nחמור (hard / חסימה) — המערכת תחסום את השיבוץ לגמרי. רק מנהל מערכת יכול לעקוף.", en: "Soft = warning only. Hard = blocks assignment completely." }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -431,7 +431,7 @@ export default function RulesPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
                     <Label>עדיפות</Label>
-                    <HelpTooltip content={{ he: "מספר גבוה יותר = חוק חשוב יותר.\nכשיש התנגשות בין חוקים, החוק עם העדיפות הגבוהה מנצח.", en: "Higher number = more important rule." }} />
+                    <HelpTooltip content={{ he: "סדר עדיפות — מספר גבוה = חוק חשוב יותר.\n\nכשיש התנגשות בין חוקים, החוק עם העדיפות הגבוהה מנצח.\nלדוגמה: חוק מנוחה (עדיפות 90) גובר על חוק הוגנות (עדיפות 50).", en: "Priority — higher number = more important rule." }} />
                   </div>
                   <Input
                     type="number"
@@ -452,7 +452,7 @@ export default function RulesPage() {
                   🔍 תנאים — מתי החוק חל?
                   <HelpTooltip
                     title={{ he: "מהו תנאי?", en: "What is a condition?" }}
-                    content={{ he: "תנאי בודק נתון מסוים לפני כל שיבוץ.\nלדוגמה: אם עברו פחות מ-16 שעות מנוחה → החוק חל.\n\nאם יש כמה תנאים, כולם צריכים להתקיים (וגם).", en: "A condition checks a value before each assignment." }}
+                    content={{ he: "תנאי בודק נתון מסוים לפני כל שיבוץ.\nלדוגמה: אם עברו פחות מ-16 שעות מנוחה → החוק חל.\n\nאם יש כמה תנאים, כולם צריכים להתקיים (וגם).\n\nהיקף החוק (scope) נקבע לפי השדות שתבחר:\n• שדות עובד → חל על עובד ספציפי\n• שדות משימה → חל על סוג משימה\n• שניהם → גלובלי (כל הטננט)", en: "A condition checks a value before each assignment. Scope is determined by the fields you choose." }}
                     examples={[
                       { he: "שעות מנוחה < 16 → חסום שיבוץ", en: "Rest hours < 16 → block" },
                       { he: "שעות עבודה היום > 8 → אזהרה", en: "Work hours today > 8 → warn" },
@@ -513,25 +513,37 @@ export default function RulesPage() {
                         >
                           <option value="">בחר שדה...</option>
                           <optgroup label="👤 עובד">
-                            {conditionFields.filter(f => f.field.startsWith("employee.")).map(f => (
-                              <option key={f.field} value={f.field}>
-                                {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type})
-                              </option>
-                            ))}
+                            {conditionFields.filter(f => f.field.startsWith("employee.")).map(f => {
+                              const desc = f.description?.[lang] || f.description?.he || "";
+                              const shortDesc = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
+                              return (
+                                <option key={f.field} value={f.field}>
+                                  {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type}){shortDesc ? ` — ${shortDesc}` : ""}
+                                </option>
+                              );
+                            })}
                           </optgroup>
                           <optgroup label="📋 משימה">
-                            {conditionFields.filter(f => f.field.startsWith("mission.")).map(f => (
-                              <option key={f.field} value={f.field}>
-                                {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type})
-                              </option>
-                            ))}
+                            {conditionFields.filter(f => f.field.startsWith("mission.")).map(f => {
+                              const desc = f.description?.[lang] || f.description?.he || "";
+                              const shortDesc = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
+                              return (
+                                <option key={f.field} value={f.field}>
+                                  {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type}){shortDesc ? ` — ${shortDesc}` : ""}
+                                </option>
+                              );
+                            })}
                           </optgroup>
                           <optgroup label="🔗 שיבוץ">
-                            {conditionFields.filter(f => f.field.startsWith("assignment.")).map(f => (
-                              <option key={f.field} value={f.field}>
-                                {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type})
-                              </option>
-                            ))}
+                            {conditionFields.filter(f => f.field.startsWith("assignment.")).map(f => {
+                              const desc = f.description?.[lang] || f.description?.he || "";
+                              const shortDesc = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
+                              return (
+                                <option key={f.field} value={f.field}>
+                                  {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type}){shortDesc ? ` — ${shortDesc}` : ""}
+                                </option>
+                              );
+                            })}
                           </optgroup>
                         </Select>
                       </div>
@@ -540,7 +552,7 @@ export default function RulesPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-1">
                           <Label className="text-xs">איך?</Label>
-                          <HelpTooltip content={{ he: "בחר את ההשוואה:\n• גדול מ → >\n• קטן מ → <\n• שווה ל → =\n• כן/לא → לשדות בוליאניים", en: "Choose comparison operator" }} />
+                          <HelpTooltip content={{ he: "בחר את סוג ההשוואה:\n• גדול מ (>) — ערך גבוה מהמספר שתזין\n• קטן מ (<) — ערך נמוך מהמספר\n• שווה ל (=) — ערך זהה\n• שונה מ (≠) — ערך שונה\n• בין (↔) — טווח מספרים\n• אחד מ (∈) — אחד מרשימת ערכים\n• כן/לא (✓/✗) — לשדות בוליאניים\n• ריק/לא ריק (∅) — בדיקת קיום ערך", en: "Choose comparison: >, <, =, ≠, between, in, is_true/false, is_null/not_null" }} />
                         </div>
                         <Select
                           value={cond.operator}
@@ -713,7 +725,10 @@ export default function RulesPage() {
               </h3>
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label>סוג פעולה</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label>סוג פעולה</Label>
+                    <HelpTooltip content={{ he: "סוג פעולה — block = חסום, warn = הזהרה, score = השפע על ניקוד.\n\n• אזהרה (warn) — הודעה צהובה למשבץ\n• חסימה (block) — לא ניתן לשבץ כלל\n• ניקוד (score) — השפעה על ציון בשיבוץ אוטומטי", en: "Action type — block, warn, or score." }} />
+                  </div>
                   <Select value={form.action_type} onChange={e => setForm({...form, action_type: e.target.value})} className="min-h-[44px]">
                     <option value="warn">⚠️ אזהרה — הצג הודעה למשבץ</option>
                     <option value="block">🚫 חסימה — מנע שיבוץ לגמרי</option>
