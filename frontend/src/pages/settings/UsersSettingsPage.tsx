@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Users, Plus, Pencil, Key, UserX, Link, Search, AlertCircle } from "lucide-react";
+import { Users, Plus, Pencil, Key, UserX, Link, Search, AlertCircle, Upload, FileSpreadsheet, CheckCircle, XCircle } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 
 // Hebrew labels for built-in role names
@@ -79,6 +79,14 @@ export default function UsersSettingsPage() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUserId, setLinkUserId] = useState("");
   const [linkEmployeeId, setLinkEmployeeId] = useState("");
+
+  // Bulk import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importStep, setImportStep] = useState<"upload" | "preview" | "done">("upload");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -239,6 +247,52 @@ export default function UsersSettingsPage() {
     }
   };
 
+  // Bulk import functions
+  const openImport = () => {
+    setImportFile(null);
+    setImportPreview(null);
+    setImportResult(null);
+    setImportStep("upload");
+    setShowImportModal(true);
+  };
+
+  const handleImportPreview = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+      const res = await api.post(tenantApi("/users/bulk-import/preview"), formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setImportPreview(res.data);
+      setImportStep("preview");
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בקריאת הקובץ");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+      const res = await api.post(tenantApi("/users/bulk-import"), formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setImportResult(res.data);
+      setImportStep("done");
+      load();
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בייבוא");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const openCreate = () => {
     setEditingUser(null);
     setForm({ email: "", password: "", role_definition_id: "", employee_id: "" });
@@ -267,6 +321,9 @@ export default function UsersSettingsPage() {
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="חיפוש לפי אימייל..." className="ps-10" />
         </div>
+        <Button size="sm" variant="outline" onClick={openImport} className="min-h-[44px]">
+          <Upload className="me-1 h-4 w-4" />ייבוא מאקסל
+        </Button>
         <Button size="sm" onClick={openCreate} className="min-h-[44px]">
           <Plus className="me-1 h-4 w-4" />משתמש חדש
         </Button>
@@ -540,6 +597,196 @@ export default function UsersSettingsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLinkModal(false)} className="min-h-[44px]">ביטול</Button>
             <Button onClick={linkSoldier} className="min-h-[44px]">שמור</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Import Modal */}
+      <Dialog open={showImportModal} onOpenChange={(open) => { setShowImportModal(open); if (!open) { setImportFile(null); setImportPreview(null); setImportResult(null); setImportStep("upload"); } }}>
+        <DialogContent className="max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              <FileSpreadsheet className="inline-block me-2 h-5 w-5" />
+              ייבוא משתמשים מאקסל
+            </DialogTitle>
+          </DialogHeader>
+
+          {importStep === "upload" && (
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 text-center">
+                <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  העלה קובץ Excel (.xlsx) או CSV עם העמודות הבאות:
+                </p>
+                <div className="inline-block text-start bg-muted/50 rounded-md p-3 text-xs mb-4">
+                  <code>שם מלא | מספר עובד | טלפון | אימייל | תפקיד</code>
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    className="text-sm"
+                  />
+                </div>
+                {importFile && (
+                  <p className="mt-2 text-sm text-green-600">
+                    <CheckCircle className="inline-block me-1 h-4 w-4" />
+                    {importFile.name}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                💡 המשתמשים ייווצרו ללא סיסמה — הם יקבלו קישור הזמנה לרישום עצמאי.
+              </p>
+            </div>
+          )}
+
+          {importStep === "preview" && importPreview && (
+            <div className="space-y-4 py-4">
+              {/* Summary */}
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-center">
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">{importPreview.valid}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">תקינים</p>
+                </div>
+                <div className="flex-1 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-center">
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">{importPreview.errors.length}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400">שגיאות</p>
+                </div>
+                <div className="flex-1 rounded-lg bg-muted p-3 text-center">
+                  <p className="text-2xl font-bold">{importPreview.total_rows}</p>
+                  <p className="text-xs text-muted-foreground">סה&quot;כ שורות</p>
+                </div>
+              </div>
+
+              {/* Errors */}
+              {importPreview.errors.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-red-600">שגיאות:</p>
+                  <div className="max-h-[200px] overflow-y-auto rounded-md border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="px-3 py-2 text-start">שורה</th>
+                          <th className="px-3 py-2 text-start">שדה</th>
+                          <th className="px-3 py-2 text-start">שגיאה</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreview.errors.map((err: any, idx: number) => (
+                          <tr key={idx} className="border-b bg-red-50/50 dark:bg-red-900/10">
+                            <td className="px-3 py-1.5">{err.row}</td>
+                            <td className="px-3 py-1.5">{err.field}</td>
+                            <td className="px-3 py-1.5 text-red-600">{err.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview table */}
+              {importPreview.preview.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-green-600">ייובאו בהצלחה:</p>
+                  <div className="max-h-[200px] overflow-y-auto rounded-md border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="px-3 py-2 text-start">שורה</th>
+                          <th className="px-3 py-2 text-start">שם מלא</th>
+                          <th className="px-3 py-2 text-start">מספר עובד</th>
+                          <th className="px-3 py-2 text-start">טלפון</th>
+                          <th className="px-3 py-2 text-start">אימייל</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreview.preview.map((row: any, idx: number) => (
+                          <tr key={idx} className="border-b">
+                            <td className="px-3 py-1.5">{row.row}</td>
+                            <td className="px-3 py-1.5">{row.full_name}</td>
+                            <td className="px-3 py-1.5 dir-ltr">{row.employee_number}</td>
+                            <td className="px-3 py-1.5 dir-ltr">{row.phone || "—"}</td>
+                            <td className="px-3 py-1.5 dir-ltr">{row.email || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {importStep === "done" && importResult && (
+            <div className="space-y-4 py-4">
+              <div className="text-center py-4">
+                <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-500" />
+                <p className="text-lg font-semibold">הייבוא הושלם!</p>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-center">
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">{importResult.created}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">נוצרו</p>
+                </div>
+                <div className="flex-1 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-center">
+                  <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{importResult.skipped}</p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">דולגו</p>
+                </div>
+                <div className="flex-1 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-center">
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">{importResult.errors.length}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400">שגיאות</p>
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="max-h-[150px] overflow-y-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="px-3 py-2 text-start">שורה</th>
+                        <th className="px-3 py-2 text-start">שגיאה</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importResult.errors.map((err: any, idx: number) => (
+                        <tr key={idx} className="border-b">
+                          <td className="px-3 py-1.5">{err.row}</td>
+                          <td className="px-3 py-1.5 text-red-600">{err.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            {importStep === "upload" && (
+              <>
+                <Button variant="outline" onClick={() => setShowImportModal(false)} className="min-h-[44px]">ביטול</Button>
+                <Button onClick={handleImportPreview} disabled={!importFile || importLoading} className="min-h-[44px]">
+                  {importLoading ? "טוען..." : "תצוגה מקדימה"}
+                </Button>
+              </>
+            )}
+            {importStep === "preview" && (
+              <>
+                <Button variant="outline" onClick={() => setImportStep("upload")} className="min-h-[44px]">חזרה</Button>
+                <Button
+                  onClick={handleImportConfirm}
+                  disabled={importLoading || !importPreview?.valid}
+                  className="min-h-[44px]"
+                >
+                  {importLoading ? "מייבא..." : `ייבא ${importPreview?.valid || 0} משתמשים`}
+                </Button>
+              </>
+            )}
+            {importStep === "done" && (
+              <Button onClick={() => setShowImportModal(false)} className="min-h-[44px]">סגור</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
