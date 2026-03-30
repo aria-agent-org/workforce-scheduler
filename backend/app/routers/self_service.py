@@ -257,6 +257,30 @@ async def get_my_schedule(
     # Fill crew info — batch load to avoid N+1
     mission_ids = list(set(UUID(item["mission_id"]) for item in items))
     if mission_ids:
+        # Load mission types for slot label resolution
+        mt_by_mission = {}
+        for item in items:
+            mt_by_mission[item["mission_id"]] = item.get("_mt")  # set below
+
+        # Load missions to get mission_type_id
+        missions_result = await db.execute(
+            select(Mission).where(Mission.id.in_(mission_ids))
+        )
+        mission_to_mt = {}
+        mt_ids = set()
+        for mis in missions_result.scalars().all():
+            mission_to_mt[str(mis.id)] = str(mis.mission_type_id)
+            mt_ids.add(mis.mission_type_id)
+
+        # Load mission types
+        mt_map = {}
+        if mt_ids:
+            mt_result = await db.execute(
+                select(MissionType).where(MissionType.id.in_(list(mt_ids)))
+            )
+            for mt_obj in mt_result.scalars().all():
+                mt_map[str(mt_obj.id)] = mt_obj
+
         crew_result = await db.execute(
             select(MissionAssignment, Employee)
             .join(Employee, MissionAssignment.employee_id == Employee.id)
@@ -265,23 +289,18 @@ async def get_my_schedule(
                 MissionAssignment.status != "replaced",
             )
         )
-        # Group by mission_id
         crew_by_mission: dict[str, list] = {}
         for crew_ma, crew_emp in crew_result.all():
             mid = str(crew_ma.mission_id)
             if mid not in crew_by_mission:
                 crew_by_mission[mid] = []
-            # Get the slot label from mission type required_slots
-            slot_label = crew_ma.slot_id
-            # Try to find the mission type for this mission
-            for item in items:
-                if item["mission_id"] == mid:
-                    mt_name = item.get("mission_type_name")
-                    break
+            # Resolve slot label from mission type
+            mt_id = mission_to_mt.get(mid)
+            mt_obj = mt_map.get(mt_id) if mt_id else None
             crew_by_mission[mid].append({
                 "name": crew_emp.full_name,
                 "slot_id": crew_ma.slot_id,
-                "slot_label": _get_slot_label(None, crew_ma.slot_id),
+                "slot_label": _get_slot_label(mt_obj, crew_ma.slot_id),
                 "is_me": str(crew_emp.id) == str(user.employee_id),
             })
 
