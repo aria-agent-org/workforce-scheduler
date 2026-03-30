@@ -7,13 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  LayoutTemplate, Plus, Save, Eye, Trash2, GripVertical, Pencil,
-  Palette, Clock, User, Minus, Copy, Merge, SplitSquareHorizontal,
+  LayoutTemplate, Plus, Save, Eye, Trash2,
+  Clock, User, Minus, SplitSquareHorizontal,
   AlignRight, AlignCenter, AlignLeft, Bold, Square, ChevronDown,
-  ChevronUp, Move, Grid3X3, PanelRightOpen, PanelRightClose,
+  ChevronUp, Grid3X3, PanelRightOpen, PanelRightClose,
   RotateCcw, Download, Upload, Table2,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
@@ -55,6 +52,7 @@ interface BoardSection {
 
 interface AdvancedBoardTemplate {
   id: string;
+  _dbId?: string;
   name: string;
   scheduleWindowId?: string;
   sections: BoardSection[];
@@ -1270,7 +1268,7 @@ export default function BoardTemplateEditor() {
 
       {/* ─── Section Tabs ────────────────────────── */}
       <div className="border-b bg-gray-50 px-4 py-1 flex items-center gap-1 overflow-x-auto">
-        {activeTemplate.sections.map((s, idx) => (
+        {activeTemplate.sections.map((s) => (
           <div
             key={s.id}
             className={cn(
