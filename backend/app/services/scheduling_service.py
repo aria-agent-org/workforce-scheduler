@@ -75,6 +75,13 @@ class AutoScheduler:
 
         # Load all needed data
         employees = await self._load_window_employees(window_id)
+        if not employees:
+            return {
+                "error": "אין חיילים בלוח זה. הוסף חיילים ללוח לפני שיבוץ אוטומטי.",
+                "total_assigned": 0, "unresolved_slots": 0,
+                "total_conflicts_hard": 0, "total_conflicts_soft": 0,
+                "assignments": [],
+            }
         mission_types = await self._load_mission_types()
         rules = await self._load_rules()
         attendance = await self._load_attendance(
