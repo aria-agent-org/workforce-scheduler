@@ -442,6 +442,30 @@ async def list_window_employees(
         .where(ScheduleWindowEmployee.schedule_window_id == window_id)
         .order_by(Employee.full_name)
     )
+    rows = result.all()
+
+    # Load work roles for all employees in this window
+    emp_ids = [e.id for _, e in rows]
+    work_role_map: dict[str, list[dict]] = {}
+    if emp_ids:
+        from app.models.employee import EmployeeWorkRole
+        from app.models.resource import WorkRole
+        wr_result = await db.execute(
+            select(EmployeeWorkRole, WorkRole)
+            .join(WorkRole, EmployeeWorkRole.work_role_id == WorkRole.id)
+            .where(EmployeeWorkRole.employee_id.in_(emp_ids))
+        )
+        for ewr, wr in wr_result.all():
+            eid = str(ewr.employee_id)
+            if eid not in work_role_map:
+                work_role_map[eid] = []
+            work_role_map[eid].append({
+                "id": str(wr.id),
+                "name": wr.name,
+                "color": wr.color,
+                "is_primary": ewr.is_primary,
+            })
+
     return [
         {
             "id": str(swe.id),
@@ -450,8 +474,9 @@ async def list_window_employees(
             "employee_number": e.employee_number,
             "status": e.status,
             "is_active": e.is_active,
+            "work_roles": work_role_map.get(str(e.id), []),
         }
-        for swe, e in result.all()
+        for swe, e in rows
     ]
 
 

@@ -1294,10 +1294,53 @@ export default function SchedulingPage() {
         <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto mobile-fullscreen">
           <DialogHeader><DialogTitle>{t("assignSoldier")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Slot selection */}
+            {/* Slot selection — show available slots from mission type */}
             <div className="space-y-2">
-              <Label>סלוט</Label>
-              <Input value={assignForm.slot_id} onChange={e => setAssignForm({...assignForm, slot_id: e.target.value})} />
+              <Label>בחר משבצת</Label>
+              {(() => {
+                const currentMission = missions.find(m => m.id === assignMissionId);
+                const missionType = currentMission ? missionTypes.find(mt => mt.id === currentMission.mission_type_id) : null;
+                const slots = missionType?.required_slots || [];
+                const existingAssignments = currentMission?.assignments || [];
+                
+                if (slots.length === 0) {
+                  return <Input value={assignForm.slot_id} onChange={e => setAssignForm({...assignForm, slot_id: e.target.value})} placeholder="הזן שם סלוט..." />;
+                }
+                
+                return (
+                  <div className="space-y-1">
+                    {slots.map((s: any) => {
+                      const filled = existingAssignments.filter((a: any) => a.slot_id === s.slot_id && a.status !== "replaced").length;
+                      const total = s.count || 1;
+                      const isFull = filled >= total;
+                      const isSelected = assignForm.slot_id === s.slot_id;
+                      const roleName = workRoles.find((wr: any) => wr.id === s.work_role_id)?.name;
+                      const roleLabel = roleName ? (roleName[lang] || roleName.he || "") : "";
+                      
+                      return (
+                        <button
+                          key={s.slot_id}
+                          onClick={() => setAssignForm({...assignForm, slot_id: s.slot_id, work_role_id: s.work_role_id || ""})}
+                          disabled={isFull}
+                          className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors text-start border ${
+                            isSelected ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500 border-primary-300" 
+                            : isFull ? "bg-muted/50 text-muted-foreground cursor-not-allowed border-transparent" 
+                            : "hover:bg-muted/50 border-transparent"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{s.label?.[lang] || s.label?.he || s.slot_id}</span>
+                            {roleLabel && <Badge className="text-[10px]">{roleLabel}</Badge>}
+                          </div>
+                          <span className={`text-xs ${isFull ? "text-green-600" : "text-muted-foreground"}`}>
+                            {filled}/{total} {isFull ? "✓ מלא" : "פנוי"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
             {/* Search soldiers */}
             <div className="space-y-2">
