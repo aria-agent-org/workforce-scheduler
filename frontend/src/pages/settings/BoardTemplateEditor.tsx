@@ -810,13 +810,15 @@ export default function BoardTemplateEditor() {
       if (!cell || cell.merged) return s;
 
       if (dragItem.type === "missionType") {
-        cell.value = dragItem.data.name;
+        const n = dragItem.data.name;
+        cell.value = typeof n === 'object' ? (n.he || n.en || '') : String(n);
         cell.missionTypeId = dragItem.data.id;
         cell.type = "header";
         cell.fontWeight = "bold";
         if (dragItem.data.color) cell.backgroundColor = dragItem.data.color;
       } else if (dragItem.type === "workRole") {
-        cell.value = dragItem.data.name;
+        const n = dragItem.data.name;
+        cell.value = typeof n === 'object' ? (n.he || n.en || '') : String(n);
         cell.workRoleId = dragItem.data.id;
         cell.type = "role_label";
         cell.fontWeight = "bold";

@@ -142,7 +142,7 @@ export default function MySchedulePage() {
                                 {a.start_time?.slice(0, 5)} - {a.end_time?.slice(0, 5)}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                סלוט: {a.slot_id}
+                                {a.slot_label || a.slot_id}
                               </span>
                             </div>
                           </div>

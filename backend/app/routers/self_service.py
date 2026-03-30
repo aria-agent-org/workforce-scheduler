@@ -16,6 +16,19 @@ from app.models.scheduling import Mission, MissionAssignment, SwapRequest, Missi
 from app.models.notification import NotificationLog, EventTypeDefinition
 from app.models.user import User
 
+
+
+def _get_slot_label(mt, slot_id: str) -> str:
+    """Get the Hebrew label for a slot from mission type required_slots."""
+    if not mt or not mt.required_slots:
+        return slot_id
+    for slot in mt.required_slots:
+        if slot.get("slot_id") == slot_id:
+            label = slot.get("label", {})
+            if isinstance(label, dict):
+                return label.get("he", label.get("en", slot_id))
+            return str(label) if label else slot_id
+    return slot_id
 router = APIRouter()
 
 
@@ -129,7 +142,11 @@ async def get_my_preferences(
 ) -> dict:
     """Get current user's scheduling preferences."""
     if not user.employee_id:
-        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+        return EmployeePreferencesResponse(
+            employee_id=UUID("00000000-0000-0000-0000-000000000000"),
+            partner_preferences=[], mission_type_preferences=[],
+            time_slot_preferences=[], custom_preferences={}, notes=None,
+        ).model_dump()
 
     pref_res = await db.execute(
         select(EmployeePreference).where(EmployeePreference.employee_id == user.employee_id)
@@ -229,10 +246,32 @@ async def get_my_schedule(
             "start_time": str(m.start_time),
             "end_time": str(m.end_time),
             "slot_id": ma.slot_id,
+            "slot_label": _get_slot_label(mt, ma.slot_id) if mt else ma.slot_id,
+            "work_role_name": None,  # filled below
             "status": ma.status,
             "mission_status": m.status,
             "conflicts_detected": ma.conflicts_detected,
+            "crew": [],
         })
+
+    # Fill crew info for each assignment
+    for item in items:
+        crew_result = await db.execute(
+            select(MissionAssignment, Employee)
+            .join(Employee, MissionAssignment.employee_id == Employee.id)
+            .where(
+                MissionAssignment.mission_id == UUID(item["mission_id"]),
+                MissionAssignment.status != "replaced",
+            )
+        )
+        crew = []
+        for crew_ma, crew_emp in crew_result.all():
+            crew.append({
+                "name": crew_emp.full_name,
+                "slot_label": item.get("slot_label", crew_ma.slot_id),
+                "is_me": str(crew_emp.id) == str(user.employee_id),
+            })
+        item["crew"] = crew
 
     return items
 

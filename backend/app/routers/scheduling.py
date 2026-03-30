@@ -1092,6 +1092,20 @@ async def create_assignment(
     if not mission:
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
 
+    # Check: same employee already in this mission?
+    dup_check = await db.execute(
+        select(MissionAssignment).where(
+            MissionAssignment.mission_id == mission_id,
+            MissionAssignment.employee_id == data.employee_id,
+            MissionAssignment.status != "replaced",
+        )
+    )
+    if dup_check.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="החייל כבר משובץ למשימה זו",
+        )
+
     # Check for conflicts (same employee, overlapping time on same date)
     conflicts = []
     conflict_result = await db.execute(
