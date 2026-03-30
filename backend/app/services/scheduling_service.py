@@ -390,8 +390,10 @@ class AutoScheduler:
 
     async def _check_time_overlap(
         self, employee_id: UUID, mission_date: date,
-        start_time: time, end_time: time, exclude_mission_id: UUID
+        start_time, end_time, exclude_mission_id: UUID
     ) -> bool:
+        if not start_time or not end_time:
+            return False  # Can't check overlap without times
         result = await self.db.execute(
             select(MissionAssignment)
             .join(Mission, MissionAssignment.mission_id == Mission.id)
