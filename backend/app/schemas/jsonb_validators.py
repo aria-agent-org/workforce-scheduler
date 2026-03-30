@@ -75,3 +75,15 @@ class RecurrencePattern(BaseModel):
 
 # Rebuild forward refs for recursive ConditionGroup
 ConditionGroup.model_rebuild()
+
+
+class PostMissionRule(BaseModel):
+    """Defines what happens after a mission ends (e.g., create standby after patrol)."""
+    auto_transition_to_mission_type_id: str  # UUID of follow-up mission type
+    auto_assign_same_crew: bool = True  # Copy assignments from parent
+    condition: Literal["always", "if_not_activated"] = "always"
+    # Advanced settings
+    delay_minutes: int = Field(default=0, ge=0)  # Delay before follow-up starts
+    override_duration_hours: float | None = None  # Override follow-up duration
+    notify_crew: bool = True  # Send notification to assigned crew
+    allow_manual_override: bool = True  # Can scheduler change assignments

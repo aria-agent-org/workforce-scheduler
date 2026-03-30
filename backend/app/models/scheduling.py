@@ -8,7 +8,7 @@ from sqlalchemy import (
     UniqueConstraint, LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from app.models.base import Base, TenantBase
 
@@ -125,8 +125,15 @@ class Mission(TenantBase):
     override_justification: Mapped[str | None] = mapped_column(Text, nullable=True)
     resources_assigned: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Link to parent mission (e.g., standby after patrol)
+    parent_mission_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("missions.id"), nullable=True
+    )
+    # Post-mission settings override (inherited from mission_type.post_mission_rule but editable)
+    post_mission_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    assignments = relationship("MissionAssignment", back_populates="mission", lazy="selectin")
+    assignments = relationship("MissionAssignment", back_populates="mission", lazy="selectin", foreign_keys="[MissionAssignment.mission_id]")
+    follow_up_missions = relationship("Mission", backref=backref("parent_mission", remote_side="Mission.id"), lazy="selectin")
 
 
 class MissionAssignment(Base):

@@ -854,12 +854,102 @@ async def generate_missions(
                 created_missions.append({
                     "id": str(mission.id), "name": mission.name,
                     "date": str(mission.date), "status": mission.status,
+                    "parent_mission_id": None,
                 })
+
+                # ═══ POST-MISSION RULE: Auto-create follow-up missions ═══
+                # E.g., patrol → standby: auto-creates standby mission linked to this patrol
+                post_rule = mt.post_mission_rule if mt else None
+                if post_rule and post_rule.get("auto_transition_to_mission_type_id"):
+                    followup_mt_id = post_rule["auto_transition_to_mission_type_id"]
+                    followup_mt_result = await db.execute(
+                        select(MissionType).where(MissionType.id == followup_mt_id)
+                    )
+                    followup_mt = followup_mt_result.scalar_one_or_none()
+
+                    if followup_mt:
+                        # Follow-up starts when parent ends
+                        followup_start = mission.end_time
+                        # Duration from the follow-up mission type, default 8h
+                        followup_duration = followup_mt.duration_hours or 8
+                        followup_end_hour = (followup_start.hour + int(followup_duration)) % 24
+                        followup_end_min = followup_start.minute
+                        # Date: if crosses midnight, next day
+                        followup_date = current
+                        if followup_start.hour + int(followup_duration) >= 24:
+                            followup_date = current + timedelta(days=1)
+
+                        followup_name_he = followup_mt.name.get("he", "") if isinstance(followup_mt.name, dict) else str(followup_mt.name)
+                        parent_name = tmpl.name
+
+                        followup_mission = Mission(
+                            tenant_id=tenant.id,
+                            schedule_window_id=tmpl.schedule_window_id,
+                            mission_type_id=followup_mt_id,
+                            template_id=tmpl.id,
+                            name=f"{followup_name_he} (אחרי {parent_name}) - {current.isoformat()}",
+                            date=followup_date,
+                            start_time=followup_start,
+                            end_time=time(followup_end_hour, followup_end_min),
+                            created_by=user.id,
+                            parent_mission_id=mission.id,
+                            post_mission_config={
+                                "source_rule": post_rule,
+                                "auto_assign_same_crew": post_rule.get("auto_assign_same_crew", True),
+                                "condition": post_rule.get("condition", "always"),
+                            },
+                        )
+                        db.add(followup_mission)
+                        await db.flush()
+                        await db.refresh(followup_mission)
+
+                        # Auto-assign same crew if configured
+                        if post_rule.get("auto_assign_same_crew", True):
+                            # Copy assignments from parent mission to follow-up
+                            parent_assignments = await db.execute(
+                                select(MissionAssignment).where(
+                                    MissionAssignment.mission_id == mission.id,
+                                    MissionAssignment.status != "replaced",
+                                )
+                            )
+                            for pa in parent_assignments.scalars().all():
+                                # Try to match slot — if follow-up has matching role, use it
+                                followup_slots = followup_mt.required_slots or []
+                                target_slot = None
+                                for fs in followup_slots:
+                                    if fs.get("work_role_id") == str(pa.work_role_id):
+                                        target_slot = fs.get("slot_id", "default")
+                                        break
+                                if not target_slot and followup_slots:
+                                    target_slot = followup_slots[0].get("slot_id", "default")
+
+                                if target_slot:
+                                    followup_assignment = MissionAssignment(
+                                        mission_id=followup_mission.id,
+                                        employee_id=pa.employee_id,
+                                        work_role_id=pa.work_role_id,
+                                        slot_id=target_slot,
+                                        status="assigned",
+                                    )
+                                    db.add(followup_assignment)
+
+                        created_missions.append({
+                            "id": str(followup_mission.id),
+                            "name": followup_mission.name,
+                            "date": str(followup_mission.date),
+                            "status": followup_mission.status,
+                            "parent_mission_id": str(mission.id),
+                            "auto_created": True,
+                        })
 
         current += timedelta(days=1)
 
     await db.commit()
-    return {"created": len(created_missions), "missions": created_missions}
+    return {
+        "created": len(created_missions),
+        "missions": created_missions,
+        "follow_ups_created": sum(1 for m in created_missions if m.get("auto_created")),
+    }
 
 
 # ═══════════════════════════════════════════
@@ -2377,3 +2467,190 @@ async def export_schedule_pdf(
             "Content-Disposition": f'attachment; filename="schedule_{data.date.isoformat()}.pdf"',
         },
     )
+
+
+# ═══════════════════════════════════════════
+# Post-Mission Rules — Follow-up Configuration
+# ═══════════════════════════════════════════
+
+@router.get("/missions/{mission_id}/follow-ups")
+async def get_follow_up_missions(
+    mission_id: str, tenant: CurrentTenant, db: AsyncSession = Depends(get_db),
+):
+    """Get all follow-up missions linked to a parent mission."""
+    result = await db.execute(
+        select(Mission).where(
+            Mission.parent_mission_id == mission_id,
+            Mission.tenant_id == tenant.id,
+        ).order_by(Mission.date, Mission.start_time)
+    )
+    follow_ups = result.scalars().all()
+    return [
+        {
+            "id": str(m.id),
+            "name": m.name,
+            "date": str(m.date),
+            "start_time": str(m.start_time),
+            "end_time": str(m.end_time),
+            "status": m.status,
+            "is_activated": m.is_activated,
+            "post_mission_config": m.post_mission_config,
+            "assignments": [
+                {
+                    "id": str(a.id),
+                    "employee_id": str(a.employee_id),
+                    "slot_id": a.slot_id,
+                    "status": a.status,
+                }
+                for a in (m.assignments or [])
+            ],
+        }
+        for m in follow_ups
+    ]
+
+
+@router.get("/missions/{mission_id}/chain")
+async def get_mission_chain(
+    mission_id: str, tenant: CurrentTenant, db: AsyncSession = Depends(get_db),
+):
+    """Get the full mission chain — parent + all follow-ups recursively.
+    Useful to see: סיור → כוננות → (next follow-up if any)."""
+    # Find root
+    current_result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    current = current_result.scalar_one_or_none()
+    if not current:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+
+    # Walk up to root
+    root = current
+    while root.parent_mission_id:
+        parent_result = await db.execute(
+            select(Mission).where(Mission.id == root.parent_mission_id)
+        )
+        parent = parent_result.scalar_one_or_none()
+        if not parent:
+            break
+        root = parent
+
+    # Walk down from root collecting chain
+    chain = []
+
+    async def collect_chain(mission):
+        chain.append({
+            "id": str(mission.id),
+            "name": mission.name,
+            "date": str(mission.date),
+            "start_time": str(mission.start_time),
+            "end_time": str(mission.end_time),
+            "status": mission.status,
+            "is_activated": mission.is_activated,
+            "parent_mission_id": str(mission.parent_mission_id) if mission.parent_mission_id else None,
+            "post_mission_config": mission.post_mission_config,
+            "assignments_count": len(mission.assignments or []),
+        })
+        children_result = await db.execute(
+            select(Mission).where(Mission.parent_mission_id == mission.id)
+        )
+        for child in children_result.scalars().all():
+            await collect_chain(child)
+
+    await collect_chain(root)
+    return {"chain": chain, "root_id": str(root.id), "total": len(chain)}
+
+
+@router.patch("/missions/{mission_id}/post-mission-config")
+async def update_post_mission_config(
+    mission_id: str,
+    data: dict,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update post-mission configuration for a specific mission.
+    Allows overriding the auto-assign crew behavior, condition, etc."""
+    result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    mission = result.scalar_one_or_none()
+    if not mission:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+
+    mission.post_mission_config = {
+        **(mission.post_mission_config or {}),
+        **data,
+    }
+    await db.commit()
+    return {"status": "ok", "post_mission_config": mission.post_mission_config}
+
+
+@router.post("/missions/{mission_id}/reassign-from-parent",
+             dependencies=[Depends(require_permission("missions", "write"))])
+async def reassign_from_parent(
+    mission_id: str,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-copy assignments from parent mission to this follow-up mission.
+    Useful when parent assignments change and you want to sync."""
+    result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    mission = result.scalar_one_or_none()
+    if not mission:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+    if not mission.parent_mission_id:
+        raise HTTPException(status_code=400, detail="משימה זו אינה משימת המשך — אין משימת אב")
+
+    # Get parent assignments
+    parent_assignments_result = await db.execute(
+        select(MissionAssignment).where(
+            MissionAssignment.mission_id == mission.parent_mission_id,
+            MissionAssignment.status != "replaced",
+        )
+    )
+    parent_assignments = parent_assignments_result.scalars().all()
+
+    # Get follow-up mission type for slot matching
+    mt_result = await db.execute(select(MissionType).where(MissionType.id == mission.mission_type_id))
+    followup_mt = mt_result.scalar_one_or_none()
+    followup_slots = (followup_mt.required_slots or []) if followup_mt else []
+
+    # Clear existing assignments on follow-up
+    existing_result = await db.execute(
+        select(MissionAssignment).where(MissionAssignment.mission_id == mission.id)
+    )
+    for existing in existing_result.scalars().all():
+        existing.status = "replaced"
+
+    # Copy from parent
+    copied = 0
+    for pa in parent_assignments:
+        target_slot = None
+        for fs in followup_slots:
+            if fs.get("work_role_id") == str(pa.work_role_id):
+                target_slot = fs.get("slot_id", "default")
+                break
+        if not target_slot and followup_slots:
+            target_slot = followup_slots[0].get("slot_id", "default")
+
+        if target_slot:
+            new_assignment = MissionAssignment(
+                mission_id=mission.id,
+                employee_id=pa.employee_id,
+                work_role_id=pa.work_role_id,
+                slot_id=target_slot,
+                status="assigned",
+            )
+            db.add(new_assignment)
+            copied += 1
+
+    await db.commit()
+    return {
+        "status": "ok",
+        "copied": copied,
+        "from_parent": str(mission.parent_mission_id),
+        "message": f"הועתקו {copied} שיבוצים ממשימת האב",
+    }
