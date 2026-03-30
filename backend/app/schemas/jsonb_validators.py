@@ -43,16 +43,33 @@ class Condition(BaseModel):
 
 class ConditionGroup(BaseModel):
     """A group of conditions combined with AND/OR/NOT."""
-    operator: Literal["AND", "OR", "NOT"]
-    conditions: list[Union["ConditionGroup", Condition]]
+    operator: str  # Accept any case: "AND", "and", "And", "OR", "or", "NOT", "not"
+    conditions: list[Union["ConditionGroup", Condition]] = []
+
+    @model_validator(mode='after')
+    def normalize_operator(self):
+        self.operator = self.operator.upper()
+        if self.operator not in ("AND", "OR", "NOT"):
+            raise ValueError(f"operator must be AND, OR, or NOT — got '{self.operator}'")
+        return self
 
 
 class ActionExpression(BaseModel):
     """What happens when a rule matches."""
     severity: Literal["hard", "soft"] = "soft"
     message_template: dict[str, str] | None = None
+    message: dict[str, str] | None = None  # Alias for message_template (frontend sends this)
+    type: str | None = None  # Frontend sends "type" instead of "severity" sometimes
     block: bool = False
     score_delta: int = 0
+
+    @model_validator(mode='after')
+    def normalize_fields(self):
+        # Accept "message" as alias for "message_template"
+        if self.message and not self.message_template:
+            self.message_template = self.message
+        # Accept "type" for backwards compat
+        return self
 
 
 class TimelineItem(BaseModel):
