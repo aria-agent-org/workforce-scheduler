@@ -26,7 +26,18 @@ interface Props {
 
 export default function PermissionGuard({ page, roles, children }: Props) {
   const user = useAuthStore((s) => s.user);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const toastedRef = useRef(false);
+
+  // If user hasn't loaded yet but is authenticated, wait (don't redirect)
+  if (isAuthenticated && !user && isLoading) {
+    return null; // Show nothing while loading user data
+  }
+  // Even if not "loading" flag, give user a chance to load
+  if (isAuthenticated && !user) {
+    return null;
+  }
 
   const roleName = user?.role_name;
 
