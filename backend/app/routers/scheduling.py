@@ -832,6 +832,24 @@ async def approve_mission(
     m.approved_at = datetime.utcnow()
     await db.commit()
 
+    # Notify all assigned employees
+    try:
+        from app.tasks.notifications import send_notification
+        assignments = await db.execute(
+            select(MissionAssignment).where(
+                MissionAssignment.mission_id == m.id,
+                MissionAssignment.status != "replaced",
+            )
+        )
+        for a in assignments.scalars().all():
+            send_notification.delay(
+                str(tenant.id), str(a.employee_id), "mission_assigned",
+                {"mission.name": m.name, "mission.date": str(m.date),
+                 "mission.start_time": str(m.start_time)}
+            )
+    except Exception:
+        pass
+
     # Broadcast mission.approved via WebSocket
     await ws_manager.broadcast_to_tenant(tenant.slug, "mission.approved", {
         "mission_id": str(m.id),
@@ -855,6 +873,24 @@ async def cancel_mission(
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
     m.status = "cancelled"
     await db.commit()
+
+    # Notify all assigned employees about cancellation
+    try:
+        from app.tasks.notifications import send_notification
+        assignments = await db.execute(
+            select(MissionAssignment).where(
+                MissionAssignment.mission_id == m.id,
+                MissionAssignment.status != "replaced",
+            )
+        )
+        for a in assignments.scalars().all():
+            send_notification.delay(
+                str(tenant.id), str(a.employee_id), "mission_cancelled",
+                {"mission.name": m.name, "mission.date": str(m.date)}
+            )
+    except Exception:
+        pass
+
     return {"id": str(m.id), "status": "cancelled"}
 
 
@@ -1101,6 +1137,18 @@ async def create_assignment(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
+
+    # Send notification to assigned employee
+    try:
+        from app.tasks.notifications import send_notification
+        send_notification.delay(
+            str(tenant.id), str(data.employee_id), "mission_assigned",
+            {"mission.name": mission.name, "mission.date": str(mission.date),
+             "mission.start_time": str(mission.start_time), "employee.name": emp.full_name if emp else ""}
+        )
+    except Exception:
+        pass  # Don't fail assignment if notification fails
+
     return {
         "id": str(assignment.id),
         "mission_id": str(mission_id),
@@ -1503,6 +1551,15 @@ async def approve_swap_request(
     sr.status = "approved"
     sr.approved_by = user.id
     await db.commit()
+
+    # Notify requester that swap was approved
+    try:
+        from app.tasks.notifications import send_notification
+        send_notification.delay(str(tenant.id), str(sr.requester_employee_id), "swap_approved", {})
+        if sr.target_employee_id:
+            send_notification.delay(str(tenant.id), str(sr.target_employee_id), "swap_approved", {})
+    except Exception:
+        pass
 
     # Broadcast swap.status_changed via WebSocket
     await ws_manager.broadcast_to_tenant(tenant.slug, "swap.status_changed", {
