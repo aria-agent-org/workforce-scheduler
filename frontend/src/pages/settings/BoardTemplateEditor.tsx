@@ -378,12 +378,21 @@ export default function BoardTemplateEditor() {
               scheduleWindowId: t.layout.scheduleWindowId || null,
             };
           }
-          // Basic template — wrap in default section
+          // Basic template — create a proper default section with grid
+          const defaultGrid: any[][] = [];
+          const defaultRows = 6;
+          const defaultCols = 6;
+          for (let r = 0; r < defaultRows; r++) {
+            defaultGrid[r] = [];
+            for (let c = 0; c < defaultCols; c++) {
+              defaultGrid[r][c] = createCell(r === 0 ? { type: "header", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" } : { type: "empty" });
+            }
+          }
           return {
             id: t.id,
             _dbId: t.id,
             name: t.name,
-            sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: [], rows: 5, cols: 5 }],
+            sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: defaultGrid, rows: defaultRows, cols: defaultCols }],
             globalStyles: { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
             scheduleWindowId: null,
           };
@@ -972,7 +981,7 @@ export default function BoardTemplateEditor() {
                 direction: "rtl",
               }}
             >
-              {section.grid.flatMap((row, rIdx) =>
+              {(section.grid || []).flatMap((row, rIdx) =>
                 row.map((cell, cIdx) => {
                   if (cell.merged) return null;
                   return (
@@ -1038,7 +1047,7 @@ export default function BoardTemplateEditor() {
                 fontSize: "11px",
               }}
             >
-              {section.grid.flatMap((row, rIdx) =>
+              {(section.grid || []).flatMap((row, rIdx) =>
                 row.map((cell, cIdx) => {
                   if (cell.merged) return null;
                   return (
@@ -1369,7 +1378,7 @@ export default function BoardTemplateEditor() {
                     );
                   })}
 
-                  {section.grid.flatMap((row, rIdx) =>
+                  {(section.grid || []).flatMap((row, rIdx) =>
                     row.map((cell, cIdx) => {
                       if (cell.merged) return null;
                       const isSelected = selectedCells.has(cell.id);
