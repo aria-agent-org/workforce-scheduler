@@ -121,24 +121,6 @@ class UserSSOConnection(Base):
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class AuthMethodConfig(Base):
-    """Per-tenant authentication method configuration."""
-
-    __tablename__ = "auth_methods_config"
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
-    method: Mapped[str] = mapped_column(String(50), nullable=False)
-    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    is_required_as_second_factor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "method", name="uq_auth_method_per_tenant"),
-    )
-
-
 class Invitation(Base):
     """User invitation to join a tenant."""
 

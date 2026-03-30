@@ -54,6 +54,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    # Sentry error tracking (optional)
+    if settings.sentry_dsn:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            traces_sample_rate=0.1,
+            profiles_sample_rate=0.1,
+        )
+
     app = FastAPI(
         title="שבצק — Shavtzak API",
         description="Multi-Tenant Workforce Scheduling System",
@@ -198,6 +207,35 @@ def create_app() -> FastAPI:
     # ═══════════════════════════════════════════
     # WebSocket — Real-Time (Spec Section 13)
     # ═══════════════════════════════════════════
+
+    # Connected clients: tenant_slug → set of WebSocket connections
+    ws_connections: dict[str, set[WebSocket]] = {}
+
+    async def broadcast_event(tenant_slug: str, event: dict) -> None:
+        """Broadcast a JSON event to all WebSocket clients for a tenant."""
+        connections = ws_connections.get(tenant_slug, set())
+        dead: list[WebSocket] = []
+        for ws in connections:
+            try:
+                await ws.send_json(event)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            connections.discard(ws)
+
+    # Store broadcast helper on app state for use in routers
+    app.state.broadcast_event = broadcast_event
+    app.state.ws_connections = ws_connections
+
+    # Supported event types for documentation/validation
+    WS_EVENT_TYPES = [
+        "mission.created", "mission.updated", "mission.cancelled",
+        "assignment.changed", "assignment.created", "assignment.removed",
+        "swap.requested", "swap.approved", "swap.rejected",
+        "schedule_window.status_changed",
+        "user.editing",  # concurrent editing indicator
+    ]
+
     @app.websocket("/ws/{tenant_slug}")
     async def websocket_endpoint(websocket: WebSocket, tenant_slug: str):
         """
@@ -206,6 +244,7 @@ def create_app() -> FastAPI:
         Server responds with events: mission.created, mission.updated, assignment.changed, etc.
         """
         await websocket.accept()
+        ws_connections.setdefault(tenant_slug, set()).add(websocket)
         logger.info(f"WebSocket connected for tenant: {tenant_slug}")
         try:
             while True:
@@ -225,12 +264,22 @@ def create_app() -> FastAPI:
                     })
                 elif msg_type == "ping":
                     await websocket.send_json({"type": "pong"})
+                elif msg_type == "user.editing":
+                    # Broadcast editing indicator to other clients
+                    await broadcast_event(tenant_slug, {
+                        "type": "user.editing",
+                        "entity_type": msg.get("entity_type"),
+                        "entity_id": msg.get("entity_id"),
+                        "user_id": msg.get("user_id"),
+                        "user_name": msg.get("user_name"),
+                    })
                 else:
                     await websocket.send_json({
                         "type": "error",
                         "message": f"Unknown message type: {msg_type}",
                     })
         except WebSocketDisconnect:
+            ws_connections.get(tenant_slug, set()).discard(websocket)
             logger.info(f"WebSocket disconnected for tenant: {tenant_slug}")
 
     return app

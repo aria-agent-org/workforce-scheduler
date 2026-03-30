@@ -13,7 +13,8 @@ from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
 from app.permissions import require_permission
 from app.models.scheduling import (
-    ScheduleWindow, ScheduleWindowEmployee, MissionType, MissionTemplate,
+    ScheduleWindow, ScheduleWindowEmployee, ScheduleWindowLifecycleEvent,
+    MissionType, MissionTemplate,
     Mission, MissionAssignment, SwapRequest, DailyBoardTemplate,
 )
 from app.models.employee import Employee, EmployeeWorkRole
@@ -205,6 +206,10 @@ async def pause_window(window_id: UUID, tenant: CurrentTenant, user: CurrentUser
         raise HTTPException(status_code=400, detail="רק לוחות פעילים ניתנים להשהייה")
     w.status = "paused"
     w.paused_at = datetime.utcnow()
+    db.add(ScheduleWindowLifecycleEvent(
+        tenant_id=tenant.id, schedule_window_id=w.id, event_type="pause",
+        performed_by=user.id, state_snapshot={"previous_status": "active"},
+    ))
     await db.commit()
     return {"id": str(w.id), "status": "paused"}
 
@@ -222,6 +227,11 @@ async def resume_window(window_id: UUID, tenant: CurrentTenant, user: CurrentUse
         raise HTTPException(status_code=400, detail="רק לוחות מושהים ניתנים לחידוש")
     w.status = "active"
     w.paused_at = None
+    db.add(ScheduleWindowLifecycleEvent(
+        tenant_id=tenant.id, schedule_window_id=w.id, event_type="resume",
+        performed_by=user.id, resume_mode="continue_from_expected",
+        state_snapshot={"previous_status": "paused"},
+    ))
     await db.commit()
     return {"id": str(w.id), "status": "active"}
 
@@ -280,6 +290,13 @@ async def reset_window(
     w.status = "active"
     w.paused_at = None
 
+    # Lifecycle event
+    db.add(ScheduleWindowLifecycleEvent(
+        tenant_id=tenant.id, schedule_window_id=w.id, event_type="reset",
+        performed_by=user.id, note=data.note,
+        state_snapshot={"deleted_missions": deleted_count},
+    ))
+
     # Audit log
     db.add(AuditLog(
         tenant_id=tenant.id,
@@ -315,6 +332,10 @@ async def activate_window(window_id: UUID, tenant: CurrentTenant, user: CurrentU
     if w.status != "draft":
         raise HTTPException(status_code=400, detail="רק לוחות בטיוטה ניתנים להפעלה")
     w.status = "active"
+    db.add(ScheduleWindowLifecycleEvent(
+        tenant_id=tenant.id, schedule_window_id=w.id, event_type="activate",
+        performed_by=user.id, state_snapshot={"previous_status": "draft"},
+    ))
     await db.commit()
     return {"id": str(w.id), "status": "active"}
 
@@ -328,7 +349,12 @@ async def archive_window(window_id: UUID, tenant: CurrentTenant, user: CurrentUs
     w = result.scalar_one_or_none()
     if not w:
         raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+    previous_status = w.status
     w.status = "archived"
+    db.add(ScheduleWindowLifecycleEvent(
+        tenant_id=tenant.id, schedule_window_id=w.id, event_type="archive",
+        performed_by=user.id, state_snapshot={"previous_status": previous_status},
+    ))
     await db.commit()
     return {"id": str(w.id), "status": "archived"}
 

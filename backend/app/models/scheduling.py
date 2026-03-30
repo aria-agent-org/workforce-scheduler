@@ -13,6 +13,25 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from app.models.base import Base, TenantBase
 
 
+class ScheduleWindowLifecycleEvent(TenantBase):
+    """Lifecycle event for schedule window state transitions."""
+
+    __tablename__ = "schedule_window_lifecycle_events"
+
+    schedule_window_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("schedule_windows.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # "pause" | "resume" | "reset" | "archive" | "activate"
+    resume_mode: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    performed_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    state_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
 class ScheduleWindow(TenantBase):
     """A scheduling period (e.g., May–July 2026)."""
 

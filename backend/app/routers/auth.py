@@ -1,10 +1,17 @@
 """Authentication endpoints."""
 
+import secrets
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel as PydanticBaseModel, EmailStr
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser
+from app.models.user import MagicLinkToken, User
 from app.schemas.auth import (
     BackupCodesResponse,
     ChangePasswordRequest,
@@ -248,3 +255,197 @@ async def list_sessions(
     """List active sessions for the current user."""
     service = AuthService(db)
     return await service.list_sessions(user.id)
+
+
+# ── Magic Link Authentication ──────────────────────────────────
+
+
+class MagicLinkRequest(PydanticBaseModel):
+    email: EmailStr
+
+
+@router.post("/magic-link/request", status_code=status.HTTP_200_OK)
+async def request_magic_link(
+    data: MagicLinkRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Generate a magic link token and (in production) email it to the user.
+
+    Always returns success to prevent email enumeration.
+    """
+    result = await db.execute(
+        select(User).where(User.email == data.email, User.is_active.is_(True))
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        token_str = secrets.token_urlsafe(48)  # 64-char base64
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        magic_token = MagicLinkToken(
+            user_id=user.id,
+            token=token_str,
+            expires_at=expires_at,
+        )
+        db.add(magic_token)
+        await db.commit()
+        # TODO: send email with link containing token_str
+
+    return {
+        "status": "ok",
+        "message": {
+            "he": "אם האימייל קיים במערכת, נשלח קישור כניסה.",
+            "en": "If the email exists, a login link has been sent.",
+        },
+    }
+
+
+@router.get("/magic-link/{token}")
+async def verify_magic_link(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Validate a magic link token, mark it used, and return JWT tokens."""
+    result = await db.execute(
+        select(MagicLinkToken).where(
+            MagicLinkToken.token == token,
+            MagicLinkToken.used_at.is_(None),
+        )
+    )
+    magic = result.scalar_one_or_none()
+    if not magic or magic.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="קישור הכניסה לא תקף או שפג תוקפו",
+        )
+
+    # Mark as used
+    magic.used_at = datetime.now(timezone.utc)
+
+    # Get user
+    user_result = await db.execute(select(User).where(User.id == magic.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="המשתמש לא פעיל",
+        )
+
+    # Create JWT
+    service = AuthService(db)
+    access_token, expires_in = service.create_access_token(user.id)
+    refresh_token = secrets.token_urlsafe(32)
+
+    # Create session
+    from app.models.user import UserSession
+    import hashlib
+    session = UserSession(
+        user_id=user.id,
+        refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
+        auth_method="magic_link",
+        last_active_at=datetime.now(timezone.utc),
+    )
+    db.add(session)
+
+    # Update last login
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+    }
+
+
+# ── WebAuthn (Stubs) ───────────────────────────────────────────
+
+_NOT_CONFIGURED_RESPONSE = {
+    "status": "not_configured",
+    "message": {
+        "he": "שיטת כניסה זו לא הוגדרה עדיין",
+        "en": "This authentication method is not configured yet",
+    },
+}
+
+
+@router.post("/webauthn/register/begin")
+async def webauthn_register_begin(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Begin WebAuthn registration — returns registration options."""
+    from app.models.tenant import AuthMethodConfig
+    if user.tenant_id:
+        result = await db.execute(
+            select(AuthMethodConfig).where(
+                AuthMethodConfig.tenant_id == user.tenant_id,
+                AuthMethodConfig.method == "webauthn",
+                AuthMethodConfig.is_enabled.is_(True),
+            )
+        )
+        if result.scalar_one_or_none():
+            # TODO: implement actual WebAuthn registration ceremony
+            return {
+                "status": "not_implemented",
+                "message": {
+                    "he": "רישום WebAuthn בפיתוח",
+                    "en": "WebAuthn registration is under development",
+                },
+            }
+    return _NOT_CONFIGURED_RESPONSE
+
+
+@router.post("/webauthn/register/finish")
+async def webauthn_register_finish(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Finish WebAuthn registration — stores credential."""
+    return _NOT_CONFIGURED_RESPONSE
+
+
+@router.post("/webauthn/login/begin")
+async def webauthn_login_begin(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Begin WebAuthn login — returns authentication options."""
+    return _NOT_CONFIGURED_RESPONSE
+
+
+@router.post("/webauthn/login/finish")
+async def webauthn_login_finish(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Finish WebAuthn login — verifies assertion and returns JWT."""
+    return _NOT_CONFIGURED_RESPONSE
+
+
+# ── Google OAuth (Stubs) ───────────────────────────────────────
+
+
+@router.get("/google")
+async def google_oauth_redirect() -> dict:
+    """Redirect to Google OAuth consent URL."""
+    return _NOT_CONFIGURED_RESPONSE
+
+
+@router.get("/google/callback")
+async def google_oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Handle Google OAuth callback — create/link user and return JWT."""
+    return _NOT_CONFIGURED_RESPONSE
+
+
+# ── SAML (Stub) ────────────────────────────────────────────────
+
+
+@router.post("/saml/acs")
+async def saml_assertion_consumer_service(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """SAML Assertion Consumer Service endpoint."""
+    return _NOT_CONFIGURED_RESPONSE
