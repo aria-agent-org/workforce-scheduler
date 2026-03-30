@@ -38,7 +38,6 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     """Reset password with token."""
-    token: str
     new_password: str = Field(min_length=8, max_length=128)
 
 
@@ -60,12 +59,14 @@ class UserResponse(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Login response with tokens and user info."""
-    access_token: str
-    refresh_token: str
+    """Login response — either full tokens or 2FA challenge."""
+    access_token: str | None = None
+    refresh_token: str | None = None
     token_type: str = "bearer"
-    expires_in: int
-    user: UserResponse
+    expires_in: int | None = None
+    user: UserResponse | None = None
+    requires_2fa: bool = False
+    temp_token: str | None = None
 
 
 class Enable2FAResponse(BaseModel):
@@ -78,3 +79,19 @@ class Enable2FAResponse(BaseModel):
 class Verify2FARequest(BaseModel):
     """2FA verification."""
     code: str = Field(min_length=6, max_length=6)
+
+
+class Disable2FARequest(BaseModel):
+    """Disable 2FA — requires password confirmation."""
+    password: str
+
+
+class TwoFactorLoginRequest(BaseModel):
+    """2FA login verification with temp token."""
+    temp_token: str
+    code: str = Field(min_length=6, max_length=8)  # 6 for TOTP, 8 for backup codes
+
+
+class BackupCodesResponse(BaseModel):
+    """Regenerated backup codes."""
+    backup_codes: list[str]

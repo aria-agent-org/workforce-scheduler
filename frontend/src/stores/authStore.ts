@@ -15,13 +15,19 @@ interface User {
   two_factor_enabled: boolean;
 }
 
+interface LoginResult {
+  requires_2fa: boolean;
+  temp_token: string;
+}
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult | undefined>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
+  setUser: (user: User) => void;
   isAdmin: () => boolean;
 }
 
@@ -34,6 +40,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const { data } = await api.post("/auth/login", { email, password });
+
+      // If 2FA is required, return the challenge without setting tokens
+      if (data.requires_2fa) {
+        set({ isLoading: false });
+        return { requires_2fa: true, temp_token: data.temp_token } as LoginResult;
+      }
+
       setTokens(data.access_token, data.refresh_token);
       set({ user: data.user, isAuthenticated: true, isLoading: false });
 
@@ -49,6 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           console.warn("[Auth] Push auto-subscribe error (non-fatal):", e);
         }
       }, 2000); // Delay 2s to let the app settle after login
+      return undefined;
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -63,6 +77,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     clearTokens();
     set({ user: null, isAuthenticated: false });
+  },
+
+  setUser: (user: User) => {
+    set({ user, isAuthenticated: true });
   },
 
   fetchUser: async () => {
