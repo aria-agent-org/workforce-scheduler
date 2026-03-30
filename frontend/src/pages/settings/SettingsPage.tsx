@@ -38,7 +38,14 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const lang = i18n.language as "he" | "en";
 
-  const [activeTab, setActiveTab] = useState<Tab>("general");
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab && ["general","users","registration","work-roles","attendance-statuses","board-template","channels","google-sheets","bot-config","visibility","role-definitions","security"].includes(tab)) {
+      return tab as Tab;
+    }
+    return "general";
+  });
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<any[]>([]);
   const [workRoles, setWorkRoles] = useState<any[]>([]);

@@ -128,7 +128,7 @@ export default function SecuritySettingsPage() {
     }
     setActionLoading(true);
     try {
-      const { data } = await api.post("/auth/2fa/backup-codes/regenerate", { password });
+      const { data } = await api.post("/auth/2fa/backup-codes/regen", { password });
       setBackupCodes(data.backup_codes || []);
       setTwoFAStep("show-backup");
       setPassword("");

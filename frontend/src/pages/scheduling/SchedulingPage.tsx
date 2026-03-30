@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 
 export default function SchedulingPage() {
   const { t, i18n } = useTranslation("scheduling");
+  const navigate = useNavigate();
   const { toast } = useToast();
   const lang = i18n.language as "he" | "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -648,7 +650,7 @@ export default function SchedulingPage() {
         <div className="flex gap-2">
           {activeTab === "board" && selectedWindow && (
             <>
-              <Button variant="outline" size="sm" onClick={() => window.location.href = `/settings?tab=board-template&window=${selectedWindow.id}`}>
+              <Button variant="outline" size="sm" onClick={() => navigate('/settings?tab=board-template')}>
                 <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
               </Button>
               <Button variant="outline" size="sm" onClick={autoAssign}>
@@ -771,7 +773,7 @@ export default function SchedulingPage() {
                         <Play className="h-3.5 w-3.5 me-1" />חדש
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="min-h-[40px] border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => window.location.href = `/settings?tab=board-template&window=${w.id}`} title="עורך לוח">
+                    <Button size="sm" variant="outline" className="min-h-[40px] border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => navigate('/settings?tab=board-template')} title="עורך לוח">
                       <LayoutTemplate className="h-3.5 w-3.5 me-1" />עורך לוח
                     </Button>
                     <Button size="sm" variant="ghost" className="min-h-[40px] text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
