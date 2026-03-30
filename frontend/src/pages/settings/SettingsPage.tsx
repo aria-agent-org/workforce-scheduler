@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import HelpTooltip from "@/components/common/HelpTooltip";
+import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
+import { useAutoSave } from "@/hooks/useAutoSave";
 import BilingualRoleName from "@/components/common/BilingualRoleName";
 import AttendanceStatusesPage from "./AttendanceStatusesPage";
 import GoogleSheetsPage from "./GoogleSheetsPage";
@@ -25,9 +27,10 @@ import UsersSettingsPage from "./UsersSettingsPage";
 import RegistrationCodesPage from "./RegistrationCodesPage";
 import CommunicationChannelsPage from "./CommunicationChannelsPage";
 import RolePermissionsPage from "./RolePermissionsPage";
-import { KeyRound, Radio } from "lucide-react";
+import VisibilitySettingsPage from "./VisibilitySettingsPage";
+import { KeyRound, Radio, Eye } from "lucide-react";
 
-type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels" | "visibility";
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -106,6 +109,7 @@ export default function SettingsPage() {
     { key: "channels", label: "ערוצים", icon: Radio },
     { key: "google-sheets", label: "Google Sheets", icon: Sheet },
     { key: "bot-config", label: "בוט", icon: Bot },
+    { key: "visibility", label: "נראות חייל", icon: Eye },
     { key: "role-definitions", label: "הרשאות", icon: Shield },
   ];
 
@@ -302,6 +306,9 @@ export default function SettingsPage() {
 
       {/* Bot Configuration */}
       {activeTab === "bot-config" && <BotConfigPage />}
+
+      {/* Soldier Visibility Settings */}
+      {activeTab === "visibility" && <VisibilitySettingsPage />}
 
       {/* Role Definitions — Full Permission Matrix */}
       {activeTab === "role-definitions" && <RolePermissionsPage mode="tenant" />}

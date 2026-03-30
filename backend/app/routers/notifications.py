@@ -163,10 +163,29 @@ async def send_notification(
     data: NotificationSend, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Send an in-app notification to specified employees."""
+    """Send a notification to specified employees. For push channel, sends real webpush."""
     from datetime import datetime
+
+    from app.models.user import User
+    from app.routers.push import send_push_to_user
+
     sent = 0
+    now = datetime.utcnow()
     for emp_id in data.employee_ids:
+        push_sent = 0
+        if data.channel == "push" and data.body:
+            # Find linked user and send real push
+            user_result = await db.execute(
+                select(User).where(User.employee_id == emp_id, User.is_active.is_(True))
+            )
+            linked_user = user_result.scalar_one_or_none()
+            if linked_user:
+                push_sent = await send_push_to_user(
+                    db, linked_user.id,
+                    title=data.event_type_code,
+                    body=data.body,
+                )
+
         log = NotificationLog(
             tenant_id=tenant.id,
             employee_id=emp_id,
@@ -175,11 +194,12 @@ async def send_notification(
             template_id=data.template_id,
             body_sent=data.body,
             language_sent="he",
-            status="sent",
-            sent_at=datetime.utcnow(),
+            status="sent" if (data.channel != "push" or push_sent > 0) else "failed",
+            sent_at=now,
         )
         db.add(log)
-        sent += 1
+        if data.channel != "push" or push_sent > 0:
+            sent += 1
     await db.commit()
     return {"sent": sent}
 
@@ -220,8 +240,19 @@ async def broadcast_notification(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Send a broadcast push notification to targeted soldiers."""
+    """Send a broadcast push notification to targeted soldiers.
+
+    Flow: employees → linked users → push_subscriptions → webpush().
+    """
+    import json
+    import logging
     from datetime import datetime
+
+    from app.models.push_subscription import PushSubscription
+    from app.models.user import User
+    from app.routers.push import VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIMS_EMAIL
+
+    logger = logging.getLogger(__name__)
 
     # Determine target employees
     if data.target == "all":
@@ -256,22 +287,101 @@ async def broadcast_notification(
         raise HTTPException(status_code=400, detail="סוג יעד לא תקין")
 
     body_text = f"{data.title}: {data.body}"
-    sent = 0
     now = datetime.utcnow()
+    sent_push = 0
+    failed_push = 0
+    no_subscription = 0
+    stale_subs_to_delete: list = []
 
     for emp in employees:
-        log = NotificationLog(
-            tenant_id=tenant.id,
-            employee_id=emp.id,
-            channel="push",
-            event_type_code="broadcast",
-            body_sent=body_text,
-            language_sent="he",
-            status="sent",
-            sent_at=now,
+        # Step 1: Find the linked user for this employee
+        user_result = await db.execute(
+            select(User).where(User.employee_id == emp.id, User.is_active.is_(True))
         )
-        db.add(log)
-        sent += 1
+        linked_user = user_result.scalar_one_or_none()
+
+        if not linked_user:
+            # No linked user — log as failed (no user account)
+            db.add(NotificationLog(
+                tenant_id=tenant.id, employee_id=emp.id, channel="push",
+                event_type_code="broadcast", body_sent=body_text,
+                language_sent="he", status="failed", sent_at=now,
+                error_message="no_linked_user",
+            ))
+            no_subscription += 1
+            continue
+
+        # Step 2: Find push subscriptions for this user
+        subs_result = await db.execute(
+            select(PushSubscription).where(PushSubscription.user_id == linked_user.id)
+        )
+        subscriptions = subs_result.scalars().all()
+
+        if not subscriptions:
+            db.add(NotificationLog(
+                tenant_id=tenant.id, employee_id=emp.id, channel="push",
+                event_type_code="broadcast", body_sent=body_text,
+                language_sent="he", status="failed", sent_at=now,
+                error_message="no_push_subscription",
+            ))
+            no_subscription += 1
+            continue
+
+        # Step 3: Send webpush to each subscription
+        emp_sent = False
+        if VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY:
+            from pywebpush import webpush, WebPushException
+
+            payload = json.dumps({
+                "title": data.title,
+                "body": data.body,
+                "url": "/dashboard",
+            })
+
+            for sub in subscriptions:
+                try:
+                    webpush(
+                        subscription_info={
+                            "endpoint": sub.endpoint,
+                            "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                        },
+                        data=payload,
+                        vapid_private_key=VAPID_PRIVATE_KEY,
+                        vapid_claims={"sub": f"mailto:{VAPID_CLAIMS_EMAIL}"},
+                    )
+                    emp_sent = True
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.warning(
+                        f"Push failed for employee {emp.full_name} "
+                        f"(user {linked_user.id}): {error_msg[:200]}"
+                    )
+                    # Remove stale subscriptions (410 Gone / 404)
+                    if "410" in error_msg or "404" in error_msg:
+                        stale_subs_to_delete.append(sub)
+        else:
+            logger.warning("VAPID keys not configured — cannot send push")
+
+        # Step 4: Log result
+        if emp_sent:
+            db.add(NotificationLog(
+                tenant_id=tenant.id, employee_id=emp.id, channel="push",
+                event_type_code="broadcast", body_sent=body_text,
+                language_sent="he", status="sent", sent_at=now,
+            ))
+            sent_push += 1
+        else:
+            db.add(NotificationLog(
+                tenant_id=tenant.id, employee_id=emp.id, channel="push",
+                event_type_code="broadcast", body_sent=body_text,
+                language_sent="he", status="failed", sent_at=now,
+                error_message="webpush_failed",
+            ))
+            failed_push += 1
+
+    # Clean up stale subscriptions
+    for stale_sub in stale_subs_to_delete:
+        await db.delete(stale_sub)
 
     # Audit log
     db.add(AuditLog(
@@ -284,10 +394,98 @@ async def broadcast_notification(
             "title": data.title,
             "body": data.body,
             "target": data.target,
-            "sent_count": sent,
+            "sent": sent_push,
+            "failed": failed_push,
+            "no_subscription": no_subscription,
         },
         ip_address=request.client.host if request.client else None,
     ))
 
     await db.commit()
-    return {"sent": sent, "target": data.target}
+    return {
+        "sent": sent_push,
+        "failed": failed_push,
+        "no_subscription": no_subscription,
+        "total_employees": len(employees),
+        "target": data.target,
+    }
+
+
+@router.post("/bulk")
+async def bulk_notification(
+    data: dict,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Send push notifications to a list of employee IDs."""
+    import json
+    import logging
+    from datetime import datetime
+
+    from app.models.push_subscription import PushSubscription
+    from app.models.user import User
+    from app.routers.push import VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIMS_EMAIL
+
+    logger = logging.getLogger(__name__)
+    employee_ids = data.get("employee_ids", [])
+    event_type = data.get("event_type", "general")
+    title = data.get("title", "שבצק — התראה")
+    body = data.get("body", "יש לך התראה חדשה")
+
+    if not employee_ids:
+        raise HTTPException(status_code=400, detail="יש לבחור חיילים")
+
+    result = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == tenant.id,
+            Employee.id.in_(employee_ids),
+            Employee.is_active.is_(True),
+        )
+    )
+    employees = result.scalars().all()
+    now = datetime.utcnow()
+    sent = 0
+
+    for emp in employees:
+        user_result = await db.execute(
+            select(User).where(User.employee_id == emp.id, User.is_active.is_(True))
+        )
+        linked_user = user_result.scalar_one_or_none()
+        if not linked_user:
+            continue
+
+        subs_result = await db.execute(
+            select(PushSubscription).where(PushSubscription.user_id == linked_user.id)
+        )
+        subscriptions = subs_result.scalars().all()
+
+        if VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY and subscriptions:
+            from pywebpush import webpush
+
+            payload = json.dumps({"title": title, "body": body, "url": "/dashboard"})
+            for sub in subscriptions:
+                try:
+                    webpush(
+                        subscription_info={
+                            "endpoint": sub.endpoint,
+                            "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                        },
+                        data=payload,
+                        vapid_private_key=VAPID_PRIVATE_KEY,
+                        vapid_claims={"sub": f"mailto:{VAPID_CLAIMS_EMAIL}"},
+                    )
+                    sent += 1
+                    break  # One successful delivery per employee is enough
+                except Exception as e:
+                    logger.warning(f"Push failed for {emp.full_name}: {str(e)[:100]}")
+
+        db.add(NotificationLog(
+            tenant_id=tenant.id, employee_id=emp.id, channel="push",
+            event_type_code=event_type, body_sent=f"{title}: {body}",
+            language_sent="he", status="sent" if sent else "queued", sent_at=now,
+        ))
+
+    await db.commit()
+    return {"sent": sent, "total": len(employees)}

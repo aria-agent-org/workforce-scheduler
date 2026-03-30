@@ -36,11 +36,31 @@ export default function AdminPage() {
     }
   }, [tabFromUrl]);
 
+  // All available features for plans
+  const ALL_FEATURES = [
+    { key: "max_employees", label: "מקסימום עובדים", type: "number" },
+    { key: "ai_bot", label: "בוט AI", type: "bool" },
+    { key: "custom_branding", label: "מיתוג מותאם", type: "bool" },
+    { key: "excel_export", label: "ייצוא Excel", type: "bool" },
+    { key: "pdf_export", label: "ייצוא PDF", type: "bool" },
+    { key: "audit_log", label: "יומן ביקורת", type: "bool" },
+    { key: "pwa_push", label: "התראות Push", type: "bool" },
+    { key: "telegram_bot", label: "בוט Telegram", type: "bool" },
+    { key: "whatsapp_bot", label: "בוט WhatsApp", type: "bool" },
+    { key: "google_sheets_sync", label: "סנכרון Google Sheets", type: "bool" },
+  ];
+
+  const PLAN_PRESETS: Record<string, Record<string, any>> = {
+    free: { max_employees: 10, ai_bot: false, custom_branding: false, excel_export: false, pdf_export: false, audit_log: false, pwa_push: true, telegram_bot: false, whatsapp_bot: false, google_sheets_sync: false },
+    pro: { max_employees: 100, ai_bot: true, custom_branding: true, excel_export: true, pdf_export: true, audit_log: true, pwa_push: true, telegram_bot: true, whatsapp_bot: false, google_sheets_sync: true },
+    enterprise: { max_employees: 9999, ai_bot: true, custom_branding: true, excel_export: true, pdf_export: true, audit_log: true, pwa_push: true, telegram_bot: true, whatsapp_bot: true, google_sheets_sync: true },
+  };
+
   // Tenants
   const [tenants, setTenants] = useState<any[]>([]);
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [editingTenant, setEditingTenant] = useState<any>(null);
-  const [tenantForm, setTenantForm] = useState({ name: "", slug: "", is_active: true });
+  const [tenantForm, setTenantForm] = useState({ name: "", slug: "", is_active: true, plan_id: "" as string, features: {} as Record<string, any> });
 
   // Plans
   const [plans, setPlans] = useState<any[]>([]);
@@ -58,6 +78,15 @@ export default function AdminPage() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveUserId, setMoveUserId] = useState("");
   const [moveTenantId, setMoveTenantId] = useState("");
+
+  // Role definitions for user creation
+  const [allRoles, setAllRoles] = useState<any[]>([]);
+  const loadRoles = useCallback(async () => {
+    try {
+      const res = await api.get("/admin/role-definitions");
+      setAllRoles(res.data);
+    } catch {}
+  }, []);
 
   const loadTenants = useCallback(async () => {
     setLoading(true);
@@ -97,20 +126,39 @@ export default function AdminPage() {
   }, [usersPage]);
 
   useEffect(() => {
-    if (activeTab === "tenants") loadTenants();
+    if (activeTab === "tenants") { loadTenants(); loadPlans(); }
     else if (activeTab === "plans") loadPlans();
-    else if (activeTab === "users") loadUsers();
+    else if (activeTab === "users") { loadUsers(); loadRoles(); loadTenants(); }
     else setLoading(false);
-  }, [activeTab, loadTenants, loadPlans, loadUsers]);
+  }, [activeTab, loadTenants, loadPlans, loadUsers, loadRoles]);
 
   // Tenant CRUD
   const saveTenant = async () => {
     try {
+      const payload: any = { name: tenantForm.name, slug: tenantForm.slug, is_active: tenantForm.is_active };
+      if (tenantForm.plan_id) payload.plan_id = tenantForm.plan_id;
       if (editingTenant) {
-        await api.patch(`/admin/tenants/${editingTenant.id}`, tenantForm);
+        await api.patch(`/admin/tenants/${editingTenant.id}`, payload);
+        // Save custom features as plan if editing
+        if (Object.keys(tenantForm.features).length > 0) {
+          // Find or create a custom plan for this tenant
+          let planId = tenantForm.plan_id;
+          if (!planId) {
+            // Create a custom plan
+            const planRes = await api.post("/admin/plans", {
+              name: `custom_${tenantForm.slug}`,
+              features: tenantForm.features,
+            });
+            planId = planRes.data.id;
+            await api.patch(`/admin/tenants/${editingTenant.id}`, { plan_id: planId });
+          } else {
+            // Update existing plan features
+            await api.patch(`/admin/plans/${planId}`, { features: tenantForm.features });
+          }
+        }
         toast("success", "טננט עודכן");
       } else {
-        await api.post("/admin/tenants", tenantForm);
+        await api.post("/admin/tenants", payload);
         toast("success", "טננט נוצר");
       }
       setShowTenantModal(false);
@@ -212,7 +260,7 @@ export default function AdminPage() {
       {activeTab === "tenants" && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => { setEditingTenant(null); setTenantForm({ name: "", slug: "", is_active: true }); setShowTenantModal(true); }}>
+            <Button size="sm" onClick={() => { setEditingTenant(null); setTenantForm({ name: "", slug: "", is_active: true, plan_id: "", features: {} }); setShowTenantModal(true); }}>
               <Plus className="me-1 h-4 w-4" />טננט חדש
             </Button>
           </div>
@@ -237,7 +285,13 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-sm text-muted-foreground">{t.created_at?.slice(0, 10)}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => { setEditingTenant(t); setTenantForm({ name: t.name, slug: t.slug, is_active: t.is_active }); setShowTenantModal(true); }}>
+                          <Button variant="ghost" size="icon" onClick={() => {
+                            setEditingTenant(t);
+                            // Load plan features if tenant has a plan
+                            const plan = plans.find((p: any) => p.id === t.plan_id);
+                            setTenantForm({ name: t.name, slug: t.slug, is_active: t.is_active, plan_id: t.plan_id || "", features: plan?.features || {} });
+                            setShowTenantModal(true);
+                          }}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => toggleTenant(t)}>
@@ -377,11 +431,73 @@ export default function AdminPage() {
 
       {/* Tenant Modal */}
       <Dialog open={showTenantModal} onOpenChange={setShowTenantModal}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingTenant ? "עריכת טננט" : "טננט חדש"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label>שם</Label><Input value={tenantForm.name} onChange={e => setTenantForm({...tenantForm, name: e.target.value})} /></div>
             <div className="space-y-2"><Label>Slug</Label><Input value={tenantForm.slug} onChange={e => setTenantForm({...tenantForm, slug: e.target.value})} dir="ltr" disabled={!!editingTenant} /></div>
+
+            {/* Plan Selection */}
+            <div className="space-y-2">
+              <Label>תוכנית</Label>
+              <Select value={tenantForm.plan_id} onChange={e => {
+                const planId = e.target.value;
+                setTenantForm({...tenantForm, plan_id: planId});
+                if (planId) {
+                  const plan = plans.find((p: any) => p.id === planId);
+                  if (plan?.features) setTenantForm(prev => ({...prev, plan_id: planId, features: plan.features}));
+                }
+              }}>
+                <option value="">ללא תוכנית</option>
+                {plans.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </Select>
+            </div>
+
+            {/* Plan Presets */}
+            <div className="space-y-2">
+              <Label>בחר תבנית תוכנית</Label>
+              <div className="flex gap-2">
+                {Object.entries(PLAN_PRESETS).map(([name, features]) => (
+                  <Button key={name} variant="outline" size="sm" onClick={() => setTenantForm({...tenantForm, features})}>
+                    {name === "free" ? "🆓 Free" : name === "pro" ? "⭐ Pro" : "🏢 Enterprise"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Feature Checkboxes */}
+            <div className="space-y-2">
+              <Label>תכונות</Label>
+              <div className="rounded-lg border p-3 space-y-2 max-h-[250px] overflow-y-auto">
+                {ALL_FEATURES.map(f => (
+                  <label key={f.key} className="flex items-center justify-between gap-2 hover:bg-muted/50 rounded px-2 py-1.5">
+                    <div className="flex items-center gap-2">
+                      {f.type === "bool" ? (
+                        <input
+                          type="checkbox"
+                          checked={!!tenantForm.features[f.key]}
+                          onChange={e => setTenantForm({...tenantForm, features: {...tenantForm.features, [f.key]: e.target.checked}})}
+                          className="rounded h-4 w-4 accent-primary-500"
+                        />
+                      ) : (
+                        <Input
+                          type="number"
+                          value={tenantForm.features[f.key] ?? ""}
+                          onChange={e => setTenantForm({...tenantForm, features: {...tenantForm.features, [f.key]: Number(e.target.value)}})}
+                          className="w-20 h-8 text-sm"
+                        />
+                      )}
+                      <span className="text-sm">{f.label}</span>
+                    </div>
+                    <Badge className={tenantForm.features[f.key] ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}>
+                      {f.type === "bool"
+                        ? (tenantForm.features[f.key] ? "✓" : "✗")
+                        : (tenantForm.features[f.key] ?? "—")}
+                    </Badge>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTenantModal(false)}>ביטול</Button>
@@ -415,7 +531,7 @@ export default function AdminPage() {
 
       {/* User Modal */}
       <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
-        <DialogContent>
+        <DialogContent className="max-w-[550px]">
           <DialogHeader><DialogTitle>{editingUser ? "עריכת משתמש" : "משתמש חדש"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label>אימייל</Label><Input value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} dir="ltr" /></div>
@@ -428,6 +544,34 @@ export default function AdminPage() {
                 <option value="">ללא טננט</option>
                 {tenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>)}
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>תפקיד מערכת</Label>
+              <Select value={userForm.role_definition_id} onChange={e => setUserForm({...userForm, role_definition_id: e.target.value})}>
+                <option value="">ללא תפקיד</option>
+                {allRoles.map((r: any) => (
+                  <option key={r.id} value={r.id}>{r.label?.he || r.name}{r.is_system ? " (מערכת)" : ""}</option>
+                ))}
+              </Select>
+              {/* Role description tooltip */}
+              {userForm.role_definition_id && (() => {
+                const role = allRoles.find((r: any) => r.id === userForm.role_definition_id);
+                if (!role) return null;
+                const permKeys = role.permissions ? Object.keys(role.permissions) : [];
+                return (
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-xs space-y-1">
+                    <p className="font-medium text-blue-700 dark:text-blue-300">{role.label?.he || role.name}</p>
+                    {permKeys.length > 0 && (
+                      <p className="text-blue-600 dark:text-blue-400">
+                        הרשאות: {permKeys.join(", ")}
+                      </p>
+                    )}
+                    {role.user_count !== undefined && (
+                      <p className="text-blue-500">{role.user_count} משתמשים עם תפקיד זה</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
           <DialogFooter>

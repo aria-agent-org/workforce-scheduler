@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import HelpTooltip from "@/components/common/HelpTooltip";
+import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
+import { useAutoSave } from "@/hooks/useAutoSave";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -73,6 +75,40 @@ export default function RulesPage() {
   const [testContext, setTestContext] = useState("{}");
   const [testResult, setTestResult] = useState<any>(null);
   const [showTestPanel, setShowTestPanel] = useState(false);
+
+  // Auto-save for rule editing
+  const ruleAutoSaveFn = useCallback(async () => {
+    if (!editingRule || !form.name_he) return;
+    const conditions = form.conditions.map(c => ({
+      field: c.field,
+      operator: c.operator,
+      value: c.value === "true" ? true : c.value === "false" ? false : isNaN(Number(c.value)) ? c.value : Number(c.value),
+    }));
+    const body = {
+      name: { he: form.name_he, en: form.name_en || form.name_he },
+      category: form.category,
+      severity: form.severity,
+      priority: form.priority,
+      condition_expression: { operator: "and", conditions },
+      action_expression: {
+        type: form.action_type,
+        message: { he: form.action_message_he, en: form.action_message_en || form.action_message_he },
+      },
+    };
+    await api.patch(tenantApi(`/rules/${editingRule.id}`), body);
+  }, [editingRule, form]);
+
+  const { triggerAutoSave: triggerRuleAutoSave, saving: ruleSaving, saved: ruleSaved, error: ruleError } = useAutoSave(ruleAutoSaveFn, {
+    delay: 2000,
+    onError: () => {},
+  });
+
+  const ruleFormInitRef = useRef(false);
+  useEffect(() => {
+    if (!editingRule) { ruleFormInitRef.current = false; return; }
+    if (!ruleFormInitRef.current) { ruleFormInitRef.current = true; return; }
+    triggerRuleAutoSave();
+  }, [form, editingRule]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -305,7 +341,10 @@ export default function RulesPage() {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-[750px] max-h-[90vh] overflow-y-auto mobile-fullscreen">
           <DialogHeader>
-            <DialogTitle className="text-xl">{editingRule ? "עריכת חוק" : "יצירת חוק חדש"}</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl">{editingRule ? "עריכת חוק" : "יצירת חוק חדש"}</DialogTitle>
+              {editingRule && <AutoSaveIndicator saving={ruleSaving} saved={ruleSaved} error={ruleError} />}
+            </div>
           </DialogHeader>
           <div className="space-y-5 py-4">
 

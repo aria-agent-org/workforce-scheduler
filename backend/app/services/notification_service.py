@@ -116,11 +116,33 @@ class NotificationService:
         channels = employee.notification_channels or {}
 
         if channel == "push":
-            subscription = channels.get("push_subscription")
-            if subscription:
-                # TODO: Web Push via VAPID
-                logger.info(f"Push notification to {employee.full_name}: {body[:50]}")
-                return True
+            # Send real push via linked user's push subscriptions
+            try:
+                from sqlalchemy import select as sa_select
+                from app.models.user import User
+                from app.routers.push import send_push_to_user
+
+                user_result = await self.db.execute(
+                    sa_select(User).where(
+                        User.employee_id == employee.id,
+                        User.is_active.is_(True),
+                    )
+                )
+                linked_user = user_result.scalar_one_or_none()
+                if linked_user:
+                    sent = await send_push_to_user(
+                        self.db, linked_user.id,
+                        title="שבצק",
+                        body=body,
+                    )
+                    if sent > 0:
+                        return True
+                    logger.warning(f"No push subscriptions for user {linked_user.id}")
+                else:
+                    logger.warning(f"No linked user for employee {employee.full_name}")
+            except Exception as e:
+                logger.error(f"Push send error for {employee.full_name}: {e}")
+            return False
         elif channel == "whatsapp":
             phone = channels.get("phone_whatsapp")
             if phone:

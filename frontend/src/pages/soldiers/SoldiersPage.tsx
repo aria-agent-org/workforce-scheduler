@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface Soldier {
   id: string;
@@ -61,6 +63,38 @@ export default function SoldiersPage() {
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Soldier | null>(null);
+
+  // Auto-save for edit mode
+  const autoSaveFn = useCallback(async () => {
+    if (!editingSoldier) return;
+    await api.patch(tenantApi(`/employees/${editingSoldier.id}`), {
+      full_name: formData.full_name,
+      preferred_language: formData.preferred_language,
+      notes: formData.notes || null,
+      notification_channels: {
+        phone_whatsapp: formData.phone || undefined,
+        email: formData.email || undefined,
+      },
+    });
+    if (formData.work_role_ids.length > 0) {
+      await api.post(tenantApi(`/employees/${editingSoldier.id}/work-roles`),
+        formData.work_role_ids.map((id, i) => ({ work_role_id: id, is_primary: i === 0 }))
+      );
+    }
+  }, [editingSoldier, formData]);
+
+  const { triggerAutoSave: triggerSoldierAutoSave, saving: soldierSaving, saved: soldierSaved, error: soldierError } = useAutoSave(autoSaveFn, {
+    delay: 2000,
+    onError: () => toast("error", "שגיאה בשמירה אוטומטית"),
+  });
+
+  // Trigger auto-save when form changes in edit mode
+  const formInitRef = useRef(false);
+  useEffect(() => {
+    if (!editingSoldier) { formInitRef.current = false; return; }
+    if (!formInitRef.current) { formInitRef.current = true; return; }
+    triggerSoldierAutoSave();
+  }, [formData, editingSoldier]);
 
   // Invitation modal
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -564,7 +598,10 @@ export default function SoldiersPage() {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-[550px]">
           <DialogHeader>
-            <DialogTitle>{editingSoldier ? t("editSoldier") : t("addSoldier")}</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{editingSoldier ? t("editSoldier") : t("addSoldier")}</DialogTitle>
+              {editingSoldier && <AutoSaveIndicator saving={soldierSaving} saved={soldierSaved} error={soldierError} />}
+            </div>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
