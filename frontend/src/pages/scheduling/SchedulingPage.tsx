@@ -15,7 +15,7 @@ import {
 import {
   Calendar, Plus, Wand2, Send, Play, Pause, Archive, Copy,
   ChevronDown, ChevronUp, Users, Clock, Trash2, UserPlus,
-  Pencil, Download, Upload, ArrowLeft, Eye, AlertTriangle, Check,
+  Pencil, Download, Upload, ArrowLeft, Eye, AlertTriangle, Check, LayoutTemplate,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import HelpTooltip from "@/components/common/HelpTooltip";
@@ -503,6 +503,9 @@ export default function SchedulingPage() {
         <div className="flex gap-2">
           {activeTab === "board" && selectedWindow && (
             <>
+              <Button variant="outline" size="sm" onClick={() => window.location.href = `/settings?tab=board-template&window=${selectedWindow.id}`}>
+                <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
+              </Button>
               <Button variant="outline" size="sm" onClick={autoAssign}>
                 <Wand2 className="me-1 h-4 w-4" />{t("autoAssign")}
               </Button>
@@ -623,6 +626,9 @@ export default function SchedulingPage() {
                         <Play className="h-3.5 w-3.5 me-1" />חדש
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" className="min-h-[40px] border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => window.location.href = `/settings?tab=board-template&window=${w.id}`} title="עורך לוח">
+                      <LayoutTemplate className="h-3.5 w-3.5 me-1" />עורך לוח
+                    </Button>
                     <Button size="sm" variant="ghost" className="min-h-[40px] text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
                       <Archive className="h-3.5 w-3.5" />
                     </Button>
