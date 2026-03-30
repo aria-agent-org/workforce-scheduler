@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,8 +19,9 @@ from app.services.channels.email_channel import send_email
 from app.services.channels.sms_channel import send_sms
 from app.services.channels.telegram_channel import send_telegram
 from app.services.channels.whatsapp_channel import send_whatsapp
+from app.websockets.manager import manager as ws_manager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class NotificationService:
@@ -34,6 +36,7 @@ class NotificationService:
         employee_id: UUID,
         event_type_code: str,
         variables: dict | None = None,
+        tenant_slug: str | None = None,
     ) -> list[str]:
         """
         Send a notification to an employee for a given event type.
@@ -140,6 +143,15 @@ class NotificationService:
                 sent_channels.append(channel_name)
 
         await self.db.flush()
+
+        # Broadcast notification.sent event via WebSocket if any channel succeeded
+        if sent_channels and tenant_slug:
+            await ws_manager.broadcast_to_tenant(tenant_slug, "notification.sent", {
+                "employee_id": str(employee_id),
+                "event_type": event_type_code,
+                "channels": sent_channels,
+            })
+
         return sent_channels
 
     async def _check_budget(self, tenant_id: UUID, channel: str) -> bool:
