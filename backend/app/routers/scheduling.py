@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
 from app.permissions import require_permission
+from app.websockets.manager import manager as ws_manager
 from app.models.scheduling import (
     ScheduleWindow, ScheduleWindowEmployee, ScheduleWindowLifecycleEvent,
     MissionType, MissionTemplate,
@@ -830,6 +831,14 @@ async def approve_mission(
     m.approved_by = user.id
     m.approved_at = datetime.utcnow()
     await db.commit()
+
+    # Broadcast mission.approved via WebSocket
+    await ws_manager.broadcast_to_tenant(tenant.slug, "mission.approved", {
+        "mission_id": str(m.id),
+        "name": m.name,
+        "approved_by": str(user.id),
+    })
+
     return {"id": str(m.id), "status": "approved"}
 
 
@@ -1494,6 +1503,14 @@ async def approve_swap_request(
     sr.status = "approved"
     sr.approved_by = user.id
     await db.commit()
+
+    # Broadcast swap.status_changed via WebSocket
+    await ws_manager.broadcast_to_tenant(tenant.slug, "swap.status_changed", {
+        "swap_id": str(sr.id),
+        "status": "approved",
+        "approved_by": str(user.id),
+    })
+
     return {"id": str(sr.id), "status": "approved"}
 
 
@@ -1510,6 +1527,13 @@ async def reject_swap_request(
         raise HTTPException(status_code=404, detail="בקשת החלפה לא נמצאה")
     sr.status = "rejected"
     await db.commit()
+
+    # Broadcast swap.status_changed via WebSocket
+    await ws_manager.broadcast_to_tenant(tenant.slug, "swap.status_changed", {
+        "swap_id": str(sr.id),
+        "status": "rejected",
+    })
+
     return {"id": str(sr.id), "status": "rejected"}
 
 

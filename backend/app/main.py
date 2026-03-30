@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 import json
+import structlog
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.core.exceptions import AppError
+from app.core.logging import setup_logging
 from app.database import engine
 from app.middleware.metrics import PrometheusMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
@@ -27,28 +29,27 @@ from app.routers import work_roles as work_roles_router
 from app.routers import push as push_router
 from app.routers import webhooks as webhooks_router
 from app.routers import board as board_router
+from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
 
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper()),
-    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
-)
-logger = logging.getLogger(__name__)
+# Configure structlog
+setup_logging()
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown."""
-    logger.info("Starting Shavtzak API...")
+    logger.info("starting_api", version="0.2.0")
     # Security: warn about default secret key
     if "INSECURE-DEFAULT" in settings.secret_key or "change" in settings.secret_key.lower():
         logger.warning(
-            "⚠️  SECURITY WARNING: Using default JWT secret key! "
-            "Set SECRET_KEY environment variable to a random 64-char string in production."
+            "insecure_secret_key",
+            hint="Set SECRET_KEY environment variable to a random 64-char string in production.",
         )
     yield
-    logger.info("Shutting down Shavtzak API...")
+    logger.info("shutting_down_api")
     await engine.dispose()
 
 
@@ -208,44 +209,22 @@ def create_app() -> FastAPI:
     # WebSocket — Real-Time (Spec Section 13)
     # ═══════════════════════════════════════════
 
-    # Connected clients: tenant_slug → set of WebSocket connections
-    ws_connections: dict[str, set[WebSocket]] = {}
-
-    async def broadcast_event(tenant_slug: str, event: dict) -> None:
-        """Broadcast a JSON event to all WebSocket clients for a tenant."""
-        connections = ws_connections.get(tenant_slug, set())
-        dead: list[WebSocket] = []
-        for ws in connections:
-            try:
-                await ws.send_json(event)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            connections.discard(ws)
-
-    # Store broadcast helper on app state for use in routers
-    app.state.broadcast_event = broadcast_event
-    app.state.ws_connections = ws_connections
-
-    # Supported event types for documentation/validation
-    WS_EVENT_TYPES = [
-        "mission.created", "mission.updated", "mission.cancelled",
-        "assignment.changed", "assignment.created", "assignment.removed",
-        "swap.requested", "swap.approved", "swap.rejected",
-        "schedule_window.status_changed",
-        "user.editing",  # concurrent editing indicator
-    ]
+    # Store manager on app state for backward-compat access from routers
+    app.state.ws_manager = ws_manager
+    # Legacy alias so existing code using app.state.broadcast_event still works
+    app.state.broadcast_event = lambda tenant_slug, event: ws_manager.broadcast_to_tenant(
+        tenant_slug, event.get("type", "unknown"), {k: v for k, v in event.items() if k != "type"}
+    )
+    app.state.ws_connections = ws_manager.active_connections
 
     @app.websocket("/ws/{tenant_slug}")
     async def websocket_endpoint(websocket: WebSocket, tenant_slug: str):
         """
-        WebSocket stub for real-time events.
+        WebSocket endpoint for real-time events.
         Client sends: {"type": "subscribe", "rooms": ["missions_2026-05-20", "swaps"]}
         Server responds with events: mission.created, mission.updated, assignment.changed, etc.
         """
-        await websocket.accept()
-        ws_connections.setdefault(tenant_slug, set()).add(websocket)
-        logger.info(f"WebSocket connected for tenant: {tenant_slug}")
+        await ws_manager.connect(websocket, tenant_slug)
         try:
             while True:
                 data = await websocket.receive_text()
@@ -266,8 +245,7 @@ def create_app() -> FastAPI:
                     await websocket.send_json({"type": "pong"})
                 elif msg_type == "user.editing":
                     # Broadcast editing indicator to other clients
-                    await broadcast_event(tenant_slug, {
-                        "type": "user.editing",
+                    await ws_manager.broadcast_to_tenant(tenant_slug, "user.editing", {
                         "entity_type": msg.get("entity_type"),
                         "entity_id": msg.get("entity_id"),
                         "user_id": msg.get("user_id"),
@@ -279,8 +257,7 @@ def create_app() -> FastAPI:
                         "message": f"Unknown message type: {msg_type}",
                     })
         except WebSocketDisconnect:
-            ws_connections.get(tenant_slug, set()).discard(websocket)
-            logger.info(f"WebSocket disconnected for tenant: {tenant_slug}")
+            await ws_manager.disconnect(websocket, tenant_slug)
 
     return app
 
