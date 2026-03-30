@@ -45,6 +45,27 @@ class Settings(BaseSettings):
     # Sentry (optional)
     sentry_dsn: str | None = None
 
+    # SMTP (email notifications)
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+
+    # Web Push (VAPID)
+    vapid_private_key: str | None = None
+    vapid_public_key: str | None = None
+    vapid_claims_email: str = "admin@shavtzak.site"
+
+    # WhatsApp Business (Meta Cloud API)
+    whatsapp_api_token: str | None = None
+    whatsapp_phone_number_id: str | None = None
+
+    # Telegram Bot
+    telegram_bot_token: str | None = None
+
+    # Google Sheets
+    google_service_account_json: str | None = None
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     @property

@@ -25,6 +25,9 @@ celery[redis]==5.4.0
 # HTTP
 httpx==0.28.1
 
+# AWS SDK (SNS for SMS)
+boto3==1.35.0
+
 # i18n
 babel==2.16.0
 
@@ -48,3 +51,10 @@ qrcode[pil]==8.0
 # Web Push
 pywebpush==2.0.0
 py-vapid==1.9.2
+
+# Email (async SMTP)
+aiosmtplib==3.0.2
+
+# Google Sheets
+google-api-python-client==2.155.0
+google-auth==2.36.0
