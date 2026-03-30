@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
-from app.models.employee import Employee
+from app.models.employee import Employee, EmployeePreference
+from app.schemas.employee import EmployeePreferencesUpdate, EmployeePreferencesResponse
 from app.models.scheduling import Mission, MissionAssignment, SwapRequest, MissionType
 from app.models.notification import NotificationLog, EventTypeDefinition
 from app.models.user import User
@@ -115,6 +116,68 @@ async def change_my_password(
     user.password_hash = AuthService.hash_password(data.new_password)
     await db.commit()
     return {"message": "סיסמה שונתה בהצלחה"}
+
+
+# ═══════════════════════════════════════════
+# My Preferences
+# ═══════════════════════════════════════════
+
+@router.get("/preferences")
+async def get_my_preferences(
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get current user's scheduling preferences."""
+    if not user.employee_id:
+        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+
+    pref_res = await db.execute(
+        select(EmployeePreference).where(EmployeePreference.employee_id == user.employee_id)
+    )
+    pref = pref_res.scalar_one_or_none()
+
+    if not pref:
+        return EmployeePreferencesResponse(
+            employee_id=user.employee_id,
+            partner_preferences=[],
+            mission_type_preferences=[],
+            time_slot_preferences=[],
+            custom_preferences={},
+            notes=None,
+        ).model_dump()
+
+    return EmployeePreferencesResponse.model_validate(pref).model_dump()
+
+
+@router.put("/preferences")
+async def update_my_preferences(
+    data: EmployeePreferencesUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update current user's scheduling preferences."""
+    if not user.employee_id:
+        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+
+    parsed = data
+
+    pref_res = await db.execute(
+        select(EmployeePreference).where(EmployeePreference.employee_id == user.employee_id)
+    )
+    pref = pref_res.scalar_one_or_none()
+
+    if pref:
+        for key, value in parsed.model_dump(exclude_unset=True).items():
+            setattr(pref, key, value)
+    else:
+        pref = EmployeePreference(employee_id=user.employee_id, **parsed.model_dump())
+        db.add(pref)
+
+    await db.flush()
+    await db.refresh(pref)
+    await db.commit()
+
+    return EmployeePreferencesResponse.model_validate(pref).model_dump()
 
 
 # ═══════════════════════════════════════════

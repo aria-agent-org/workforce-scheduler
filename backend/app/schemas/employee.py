@@ -49,3 +49,46 @@ class EmployeeBulkImportRequest(BaseModel):
     """Bulk import employees."""
     employees: list[EmployeeCreate]
     skip_errors: bool = False
+
+
+# ═══════════════════════════════════════════
+# Employee Preferences
+# ═══════════════════════════════════════════
+
+class PartnerPreference(BaseModel):
+    employee_id: str
+    weight: int = Field(ge=1, le=10, default=5)
+    notes: str | None = None
+
+
+class MissionTypePreference(BaseModel):
+    mission_type_id: str
+    preference: str = Field(pattern="^(prefer|avoid|neutral)$", default="neutral")
+    weight: int = Field(ge=1, le=10, default=5)
+
+
+class TimeSlotPreference(BaseModel):
+    slot_key: str = Field(pattern="^(morning|afternoon|night)$")
+    preference: str = Field(pattern="^(prefer|avoid|neutral)$", default="neutral")
+    weight: int = Field(ge=1, le=10, default=5)
+
+
+class EmployeePreferencesUpdate(BaseModel):
+    """Update employee scheduling preferences."""
+    partner_preferences: list[PartnerPreference] | None = None
+    mission_type_preferences: list[MissionTypePreference] | None = None
+    time_slot_preferences: list[TimeSlotPreference] | None = None
+    custom_preferences: dict | None = None
+    notes: str | None = None
+
+
+class EmployeePreferencesResponse(BaseModel):
+    """Employee preferences response."""
+    employee_id: UUID
+    partner_preferences: list | None = None
+    mission_type_preferences: list | None = None
+    time_slot_preferences: list | None = None
+    custom_preferences: dict | None = None
+    notes: str | None = None
+
+    model_config = {"from_attributes": True}

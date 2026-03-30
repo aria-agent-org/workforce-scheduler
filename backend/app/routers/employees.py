@@ -9,12 +9,13 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
-from app.models.employee import Employee, EmployeeWorkRole
+from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference
 from app.models.resource import WorkRole
 from app.models.audit import AuditLog
 from app.permissions import require_permission
 from app.schemas.employee import (
     EmployeeCreate, EmployeeResponse, EmployeeUpdate, EmployeeBulkImportRequest,
+    EmployeePreferencesResponse, EmployeePreferencesUpdate,
 )
 
 router = APIRouter()
@@ -328,6 +329,97 @@ async def assign_work_roles(
 
     await db.commit()
     return new_roles
+
+
+# ═══════════════════════════════════════════
+# Employee Preferences
+# ═══════════════════════════════════════════
+
+@router.get("/{employee_id}/preferences")
+async def get_employee_preferences(
+    employee_id: UUID,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get employee scheduling preferences."""
+    result = await db.execute(
+        select(Employee).where(Employee.id == employee_id, Employee.tenant_id == tenant.id)
+    )
+    employee = result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="עובד לא נמצא")
+
+    pref_result = await db.execute(
+        select(EmployeePreference).where(EmployeePreference.employee_id == employee_id)
+    )
+    pref = pref_result.scalar_one_or_none()
+
+    if not pref:
+        return EmployeePreferencesResponse(
+            employee_id=employee_id,
+            partner_preferences=[],
+            mission_type_preferences=[],
+            time_slot_preferences=[],
+            custom_preferences={},
+            notes=None,
+        ).model_dump()
+
+    return EmployeePreferencesResponse.model_validate(pref).model_dump()
+
+
+@router.put("/{employee_id}/preferences", dependencies=[Depends(require_permission("employees", "write"))])
+async def update_employee_preferences(
+    employee_id: UUID,
+    data: EmployeePreferencesUpdate,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update employee scheduling preferences."""
+    result = await db.execute(
+        select(Employee).where(Employee.id == employee_id, Employee.tenant_id == tenant.id)
+    )
+    employee = result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="עובד לא נמצא")
+
+    pref_result = await db.execute(
+        select(EmployeePreference).where(EmployeePreference.employee_id == employee_id)
+    )
+    pref = pref_result.scalar_one_or_none()
+
+    if pref:
+        before = {
+            "partner_preferences": pref.partner_preferences,
+            "mission_type_preferences": pref.mission_type_preferences,
+            "time_slot_preferences": pref.time_slot_preferences,
+            "notes": pref.notes,
+        }
+        for key, value in data.model_dump(exclude_unset=True).items():
+            setattr(pref, key, value)
+    else:
+        before = {}
+        pref = EmployeePreference(employee_id=employee_id, **data.model_dump())
+        db.add(pref)
+
+    await db.flush()
+    await db.refresh(pref)
+
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        action="update_preferences",
+        entity_type="employee_preference",
+        entity_id=employee_id,
+        before_state=before,
+        after_state=data.model_dump(),
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+
+    return EmployeePreferencesResponse.model_validate(pref).model_dump()
 
 
 # ═══════════════════════════════════════════

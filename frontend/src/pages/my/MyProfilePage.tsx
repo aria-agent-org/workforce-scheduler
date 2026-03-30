@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { User, KeyRound, Globe, Bell, Save, Shield } from "lucide-react";
+import { User, KeyRound, Globe, Bell, Save, Shield, Heart } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { isPushSupported, getPushPermission, subscribeToPush, isPushSubscribed, sendTestPush } from "@/lib/push";
 import NotificationPreferences from "@/components/NotificationPreferences";
+import EmployeePreferences from "@/components/EmployeePreferences";
 
 export default function MyProfilePage() {
   const { t, i18n } = useTranslation();
@@ -278,6 +279,21 @@ export default function MyProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Scheduling Preferences */}
+      {profile?.employee && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Heart className="h-5 w-5" />
+              העדפות שיבוץ
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EmployeePreferences selfService compact />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notification Preferences */}
       <NotificationPreferences />

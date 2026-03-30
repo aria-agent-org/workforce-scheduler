@@ -12,10 +12,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare } from "lucide-react";
+import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
 import { useAutoSave } from "@/hooks/useAutoSave";
+import EmployeePreferences from "@/components/EmployeePreferences";
 
 interface Soldier {
   id: string;
@@ -95,6 +96,9 @@ export default function SoldiersPage() {
     if (!formInitRef.current) { formInitRef.current = true; return; }
     triggerSoldierAutoSave();
   }, [formData, editingSoldier]);
+
+  // Edit modal tab
+  const [editTab, setEditTab] = useState<"details" | "preferences">("details");
 
   // Invitation modal
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -180,12 +184,14 @@ export default function SoldiersPage() {
 
   const openCreate = () => {
     setEditingSoldier(null);
+    setEditTab("details");
     setFormData({ employee_number: "", full_name: "", preferred_language: "he", notes: "", phone: "", email: "", work_role_ids: [] });
     setShowModal(true);
   };
 
   const openEdit = (s: Soldier) => {
     setEditingSoldier(s);
+    setEditTab("details");
     setFormData({
       employee_number: s.employee_number,
       full_name: s.full_name,
@@ -596,92 +602,132 @@ export default function SoldiersPage() {
 
       {/* Create/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-[550px]">
+        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle>{editingSoldier ? t("editSoldier") : t("addSoldier")}</DialogTitle>
               {editingSoldier && <AutoSaveIndicator saving={soldierSaving} saved={soldierSaved} error={soldierError} />}
             </div>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t("employeeNumber")}</Label>
-                <Input
-                  value={formData.employee_number}
-                  onChange={(e) => setFormData({ ...formData, employee_number: e.target.value })}
-                  disabled={!!editingSoldier}
-                  placeholder="001"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t("fullName")}</Label>
-                <Input
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  placeholder="ישראל ישראלי"
-                />
-              </div>
+
+          {/* Tabs — only show in edit mode */}
+          {editingSoldier && (
+            <div className="flex gap-1 border-b pb-0">
+              <button
+                onClick={() => setEditTab("details")}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  editTab === "details"
+                    ? "border-primary-500 text-primary-600"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                פרטים
+              </button>
+              <button
+                onClick={() => setEditTab("preferences")}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
+                  editTab === "preferences"
+                    ? "border-primary-500 text-primary-600"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Heart className="h-3.5 w-3.5" />
+                העדפות שיבוץ
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>טלפון</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="0501234567"
-                  dir="ltr"
-                />
+          )}
+
+          {/* Details Tab */}
+          {editTab === "details" && (
+            <>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>{t("employeeNumber")}</Label>
+                    <Input
+                      value={formData.employee_number}
+                      onChange={(e) => setFormData({ ...formData, employee_number: e.target.value })}
+                      disabled={!!editingSoldier}
+                      placeholder="001"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("fullName")}</Label>
+                    <Input
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      placeholder="ישראל ישראלי"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>טלפון</Label>
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="0501234567"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>אימייל</Label>
+                    <Input
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="soldier@example.com"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>תפקידים</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {workRoles.map((wr: any) => {
+                      const selected = formData.work_role_ids.includes(wr.id);
+                      return (
+                        <button
+                          key={wr.id}
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              work_role_ids: selected
+                                ? formData.work_role_ids.filter(id => id !== wr.id)
+                                : [...formData.work_role_ids, wr.id],
+                            });
+                          }}
+                          className={`rounded-full px-3 py-1 text-sm border transition-colors ${
+                            selected ? "bg-primary-500 text-white border-primary-500" : "border-gray-300 hover:bg-gray-100"
+                          }`}
+                        >
+                          {wr.name?.[lang] || wr.name?.he || wr.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>הערות</Label>
+                  <Input
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>אימייל</Label>
-                <Input
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="soldier@example.com"
-                  dir="ltr"
-                />
-              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowModal(false)}>{t("common:cancel")}</Button>
+                <Button onClick={handleSave}>{t("common:save")}</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Preferences Tab */}
+          {editTab === "preferences" && editingSoldier && (
+            <div className="py-4">
+              <EmployeePreferences employeeId={editingSoldier.id} compact />
             </div>
-            <div className="space-y-2">
-              <Label>תפקידים</Label>
-              <div className="flex flex-wrap gap-2">
-                {workRoles.map((wr: any) => {
-                  const selected = formData.work_role_ids.includes(wr.id);
-                  return (
-                    <button
-                      key={wr.id}
-                      type="button"
-                      onClick={() => {
-                        setFormData({
-                          ...formData,
-                          work_role_ids: selected
-                            ? formData.work_role_ids.filter(id => id !== wr.id)
-                            : [...formData.work_role_ids, wr.id],
-                        });
-                      }}
-                      className={`rounded-full px-3 py-1 text-sm border transition-colors ${
-                        selected ? "bg-primary-500 text-white border-primary-500" : "border-gray-300 hover:bg-gray-100"
-                      }`}
-                    >
-                      {wr.name?.[lang] || wr.name?.he || wr.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>הערות</Label>
-              <Input
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowModal(false)}>{t("common:cancel")}</Button>
-            <Button onClick={handleSave}>{t("common:save")}</Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 

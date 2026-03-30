@@ -105,6 +105,7 @@ export default function SchedulingPage() {
     extra_dates: [] as string[],
   });
   const [assignForm, setAssignForm] = useState({ employee_id: "", work_role_id: "", slot_id: "default" });
+  const [employeePrefsMap, setEmployeePrefsMap] = useState<Record<string, any>>({});
   const [hardConflict, setHardConflict] = useState<{ message: string; details: string[] } | null>(null);
   const [overrideJustification, setOverrideJustification] = useState("");
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
@@ -713,10 +714,24 @@ export default function SchedulingPage() {
                     {expandedMission === m.id && (
                       <div className="mt-3 border-t pt-3 space-y-2">
                         <div className="flex flex-wrap gap-2 mb-3">
-                          <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => {
+                          <Button size="sm" variant="outline" className="min-h-[40px]" onClick={async () => {
                             setAssignMissionId(m.id);
                             setAssignForm({ employee_id: "", work_role_id: workRoles[0]?.id || "", slot_id: "default" });
                             setShowAssignModal(true);
+                            // Load preferences for all employees in background
+                            try {
+                              const allEmps = windowEmployees.length > 0 ? windowEmployees : employees;
+                              const prefsPromises = allEmps.slice(0, 50).map(async (emp: any) => {
+                                try {
+                                  const res = await api.get(tenantApi(`/employees/${emp.id}/preferences`));
+                                  return { id: emp.id, prefs: res.data };
+                                } catch { return null; }
+                              });
+                              const results = await Promise.all(prefsPromises);
+                              const map: Record<string, any> = {};
+                              results.forEach(r => { if (r) map[r.id] = r.prefs; });
+                              setEmployeePrefsMap(map);
+                            } catch {}
                           }}>
                             <UserPlus className="me-1 h-3.5 w-3.5" />{t("assignSoldier")}
                           </Button>
@@ -1384,30 +1399,70 @@ export default function SchedulingPage() {
                 
                 const renderSoldier = (emp: any, isMatch: boolean) => {
                   const id = emp.id || emp.employee_id;
+                  // Preference indicators
+                  const empPrefs = employeePrefsMap[id];
+                  const assignedIds = (currentMission?.assignments || [])
+                    .filter((a: any) => a.status !== "replaced")
+                    .map((a: any) => a.employee_id);
+                  const hasPreferredPartner = empPrefs?.partner_preferences?.some(
+                    (p: any) => assignedIds.includes(p.employee_id)
+                  );
+                  const missionTypePref = empPrefs?.mission_type_preferences?.find(
+                    (p: any) => p.mission_type_id === currentMission?.mission_type_id
+                  );
+                  // Determine time slot from mission start_time
+                  const startH = currentMission?.start_time ? parseInt(currentMission.start_time.split(":")[0]) : -1;
+                  const slotKey = startH >= 7 && startH < 15 ? "morning" : startH >= 15 && startH < 23 ? "afternoon" : "night";
+                  const timeSlotPref = empPrefs?.time_slot_preferences?.find(
+                    (p: any) => p.slot_key === slotKey
+                  );
+
                   return (
                     <button
                       key={id}
                       onClick={() => setAssignForm({...assignForm, employee_id: id, work_role_id: requiredRoleId || workRoles[0]?.id || ""})}
-                      className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors text-start ${
+                      className={`w-full flex flex-col gap-1 rounded-lg px-3 py-2.5 text-sm transition-colors text-start ${
                         assignForm.employee_id === id ? "bg-primary-100 dark:bg-primary-900/30 ring-2 ring-primary-500" : "hover:bg-muted/50"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{emp.full_name}</span>
-                        <span className="text-xs text-muted-foreground">({emp.employee_number})</span>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{emp.full_name}</span>
+                          <span className="text-xs text-muted-foreground">({emp.employee_number})</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {emp.work_roles?.map((r: any) => (
+                            <Badge key={r.id} className="text-[10px] px-1.5" style={{ backgroundColor: r.color + "20", color: r.color }}>
+                              {r.name?.[lang] || r.name?.he}
+                            </Badge>
+                          ))}
+                          {isMatch ? (
+                            <Badge className="bg-green-100 text-green-700 text-[10px]">✓ תואם</Badge>
+                          ) : requiredRoleId ? (
+                            <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">תפקיד לא תואם</Badge>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        {emp.work_roles?.map((r: any) => (
-                          <Badge key={r.id} className="text-[10px] px-1.5" style={{ backgroundColor: r.color + "20", color: r.color }}>
-                            {r.name?.[lang] || r.name?.he}
-                          </Badge>
-                        ))}
-                        {isMatch ? (
-                          <Badge className="bg-green-100 text-green-700 text-[10px]">✓ תואם</Badge>
-                        ) : requiredRoleId ? (
-                          <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">תפקיד לא תואם</Badge>
-                        ) : null}
-                      </div>
+                      {/* Preference indicators */}
+                      {empPrefs && (hasPreferredPartner || missionTypePref || timeSlotPref) && (
+                        <div className="flex flex-wrap gap-1">
+                          {hasPreferredPartner && (
+                            <Badge className="bg-green-100 text-green-700 text-[10px] border border-green-300">✓ חבר מועדף</Badge>
+                          )}
+                          {missionTypePref?.preference === "prefer" && (
+                            <Badge className="bg-blue-100 text-blue-700 text-[10px] border border-blue-300">👍 מעדיף משימה</Badge>
+                          )}
+                          {missionTypePref?.preference === "avoid" && (
+                            <Badge className="bg-orange-100 text-orange-700 text-[10px] border border-orange-300">⚠️ מעדיף להימנע</Badge>
+                          )}
+                          {timeSlotPref?.preference === "prefer" && (
+                            <Badge className="bg-blue-100 text-blue-700 text-[10px] border border-blue-300">⏰ מעדיף זמן</Badge>
+                          )}
+                          {timeSlotPref?.preference === "avoid" && (
+                            <Badge className="bg-orange-100 text-orange-700 text-[10px] border border-orange-300">⏰ מעדיף זמן אחר</Badge>
+                          )}
+                        </div>
+                      )}
                     </button>
                   );
                 };
