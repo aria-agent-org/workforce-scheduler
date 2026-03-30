@@ -16,6 +16,7 @@ import {
   Calendar, Plus, Wand2, Send, Play, Pause, Archive, Copy,
   ChevronDown, ChevronUp, Users, Clock, Trash2, UserPlus,
   Pencil, Download, Upload, ArrowLeft, Eye, AlertTriangle, Check, LayoutTemplate,
+  MoreVertical, RefreshCw, X, ArrowRightLeft, Search,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import HelpTooltip from "@/components/common/HelpTooltip";
@@ -76,6 +77,22 @@ export default function SchedulingPage() {
   const [autoAssignResults, setAutoAssignResults] = useState<any>(null);
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<any>(null);
   const [showImportWizard, setShowImportWizard] = useState(false);
+
+  // Interactive board context menu
+  const [contextMenu, setContextMenu] = useState<{
+    type: "soldier" | "empty_slot" | "mission";
+    x: number; y: number;
+    missionId: string; assignmentId?: string; slotId?: string;
+    employeeName?: string; employeeId?: string; workRoleId?: string;
+  } | null>(null);
+  const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  const [replaceTarget, setReplaceTarget] = useState<{ missionId: string; assignmentId: string; slotId: string; workRoleId: string; employeeName: string; employeeId: string } | null>(null);
+  const [eligibleSoldiers, setEligibleSoldiers] = useState<any[]>([]);
+  const [eligibleLoading, setEligibleLoading] = useState(false);
+  const [replaceSearch, setReplaceSearch] = useState("");
+  const [showSwapDialog, setShowSwapDialog] = useState(false);
+  const [swapTarget, setSwapTarget] = useState<{ missionId: string; employeeId: string; employeeName: string } | null>(null);
+  const [swapForm, setSwapForm] = useState({ target_employee_id: "", reason: "" });
 
   // Edit tracking
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
@@ -477,6 +494,133 @@ export default function SchedulingPage() {
     } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
   };
 
+  // === INTERACTIVE BOARD ACTIONS ===
+  const closeContextMenu = () => setContextMenu(null);
+
+  const loadEligibleSoldiers = async (missionId: string, slotId: string) => {
+    setEligibleLoading(true);
+    try {
+      const res = await api.get(tenantApi(`/missions/${missionId}/eligible-soldiers`), {
+        params: { slot_id: slotId },
+      });
+      setEligibleSoldiers(res.data.eligible || res.data || []);
+    } catch {
+      // Fallback: show all window employees
+      setEligibleSoldiers((windowEmployees.length > 0 ? windowEmployees : employees).map((e: any) => ({ ...e, score: 0 })));
+    } finally {
+      setEligibleLoading(false);
+    }
+  };
+
+  const removeAssignment = async (missionId: string, assignmentId: string) => {
+    try {
+      await api.delete(tenantApi(`/missions/${missionId}/assignments/${assignmentId}`));
+      toast("success", "חייל הוסר מהמשימה");
+      if (selectedWindow) loadWindowData(selectedWindow.id);
+    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בהסרת שיבוץ"); }
+  };
+
+  const replaceAssignment = async (missionId: string, oldAssignmentId: string, newEmployeeId: string, slotId: string, workRoleId: string) => {
+    try {
+      await api.delete(tenantApi(`/missions/${missionId}/assignments/${oldAssignmentId}`));
+      await api.post(tenantApi(`/missions/${missionId}/assignments`), {
+        employee_id: newEmployeeId,
+        work_role_id: workRoleId,
+        slot_id: slotId,
+      });
+      toast("success", "חייל הוחלף בהצלחה");
+      setShowReplaceDialog(false);
+      setReplaceTarget(null);
+      if (selectedWindow) loadWindowData(selectedWindow.id);
+    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בהחלפת חייל"); }
+  };
+
+  const autoFindReplacement = async (missionId: string, assignmentId: string, slotId: string, workRoleId: string, currentEmployeeName: string) => {
+    try {
+      toast("info", "מחפש מחליף אוטומטי...");
+      const res = await api.get(tenantApi(`/missions/${missionId}/eligible-soldiers`), {
+        params: { slot_id: slotId },
+      });
+      const eligible = res.data.eligible || res.data || [];
+      if (eligible.length === 0) {
+        toast("warning", "לא נמצא מחליף מתאים");
+        return;
+      }
+      const best = eligible[0]; // Already sorted by score
+      const confirmed = window.confirm(`מחליף מומלץ: ${best.full_name || best.employee_name} (ציון: ${best.score || "N/A"})\nלהחליף את ${currentEmployeeName}?`);
+      if (confirmed) {
+        await replaceAssignment(missionId, assignmentId, best.id || best.employee_id, slotId, workRoleId);
+      }
+    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה במציאת מחליף"); }
+  };
+
+  const submitSwapRequest = async () => {
+    if (!swapTarget) return;
+    try {
+      await api.post(tenantApi("/swap-requests"), {
+        mission_id: swapTarget.missionId,
+        requester_employee_id: swapTarget.employeeId,
+        target_employee_id: swapForm.target_employee_id,
+        reason: swapForm.reason,
+      });
+      toast("success", "בקשת החלפה נשלחה");
+      setShowSwapDialog(false);
+      setSwapTarget(null);
+      setSwapForm({ target_employee_id: "", reason: "" });
+    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בשליחת בקשת החלפה"); }
+  };
+
+  const openSoldierContextMenu = (e: React.MouseEvent, missionId: string, assignment: any) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setContextMenu({
+      type: "soldier",
+      x: rect.left,
+      y: rect.bottom + 4,
+      missionId,
+      assignmentId: assignment.id,
+      slotId: assignment.slot_id,
+      employeeName: assignment.employee_name,
+      employeeId: assignment.employee_id,
+      workRoleId: assignment.work_role_id || "",
+    });
+  };
+
+  const openEmptySlotContextMenu = (e: React.MouseEvent, missionId: string, slotId: string, workRoleId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setContextMenu({
+      type: "empty_slot",
+      x: rect.left,
+      y: rect.bottom + 4,
+      missionId,
+      slotId,
+      workRoleId,
+    });
+  };
+
+  const openMissionContextMenu = (e: React.MouseEvent, missionId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setContextMenu({
+      type: "mission",
+      x: rect.left,
+      y: rect.bottom + 4,
+      missionId,
+    });
+  };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = () => closeContextMenu();
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [contextMenu]);
+
   // Filter missions by date for board view
   const boardMissions = missions.filter(m => {
     if (boardView === "day") return m.date === boardDate;
@@ -704,6 +848,9 @@ export default function SchedulingPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity min-h-[36px]" onClick={(e) => openMissionContextMenu(e, m.id)}>
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
                         <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity min-h-[36px]" onClick={(e) => { e.stopPropagation(); openEditMission(m); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -750,9 +897,15 @@ export default function SchedulingPage() {
                         {m.assignments?.length > 0 ? (
                           <div className="space-y-1">
                             {m.assignments.map((a: any) => (
-                              <div key={a.id} className="flex items-center justify-between rounded bg-muted/50 px-3 py-2 text-sm">
-                                <span>{a.employee_name} — {a.slot_id}</span>
+                              <div key={a.id} className="flex items-center justify-between rounded bg-muted/50 px-3 py-2 text-sm group/assign">
+                                <button
+                                  className="font-medium text-primary-600 hover:underline cursor-pointer"
+                                  onClick={(e) => openSoldierContextMenu(e, m.id, a)}
+                                >
+                                  {a.employee_name}
+                                </button>
                                 <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">{a.slot_id}</span>
                                   {a.conflicts_detected?.length > 0 && (
                                     <Badge className="bg-yellow-100 text-yellow-700">
                                       <AlertTriangle className="inline h-3 w-3 me-1" />{a.conflicts_detected.length} אזהרות
@@ -762,9 +915,59 @@ export default function SchedulingPage() {
                                 </div>
                               </div>
                             ))}
+                            {/* Show empty slots */}
+                            {(() => {
+                              const mType = missionTypes.find(mt2 => mt2.id === m.mission_type_id);
+                              const slots = mType?.required_slots || [];
+                              const emptySlots: Array<{ slotId: string; workRoleId: string; label: string; remaining: number }> = [];
+                              slots.forEach((s: any) => {
+                                const filled = m.assignments.filter((a2: any) => a2.slot_id === s.slot_id && a2.status !== "replaced").length;
+                                const remaining = (s.count || 1) - filled;
+                                if (remaining > 0) {
+                                  const roleName = workRoles.find((wr: any) => wr.id === s.work_role_id)?.name;
+                                  emptySlots.push({
+                                    slotId: s.slot_id,
+                                    workRoleId: s.work_role_id || "",
+                                    label: s.label?.[lang] || s.label?.he || s.slot_id,
+                                    remaining,
+                                  });
+                                }
+                              });
+                              return emptySlots.map((es) => (
+                                <button
+                                  key={`empty-${es.slotId}`}
+                                  className="w-full flex items-center justify-between rounded border-2 border-dashed border-muted-foreground/20 px-3 py-2 text-sm text-muted-foreground hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors cursor-pointer"
+                                  onClick={(e) => openEmptySlotContextMenu(e, m.id, es.slotId, es.workRoleId)}
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    {es.label} — {es.remaining} פנויים
+                                  </span>
+                                  <span className="text-xs">לחץ לשיבוץ</span>
+                                </button>
+                              ));
+                            })()}
                           </div>
                         ) : (
-                          <p className="text-sm text-muted-foreground">{t("noAssignments")}</p>
+                          <div className="space-y-1">
+                            <p className="text-sm text-muted-foreground">{t("noAssignments")}</p>
+                            {(() => {
+                              const mType = missionTypes.find(mt2 => mt2.id === m.mission_type_id);
+                              return (mType?.required_slots || []).map((s: any) => (
+                                <button
+                                  key={`empty-new-${s.slot_id}`}
+                                  className="w-full flex items-center justify-between rounded border-2 border-dashed border-muted-foreground/20 px-3 py-2 text-sm text-muted-foreground hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors cursor-pointer"
+                                  onClick={(e) => openEmptySlotContextMenu(e, m.id, s.slot_id, s.work_role_id || "")}
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    {s.label?.[lang] || s.label?.he || s.slot_id} — {s.count || 1} פנויים
+                                  </span>
+                                  <span className="text-xs">לחץ לשיבוץ</span>
+                                </button>
+                              ));
+                            })()}
+                          </div>
                         )}
                       </div>
                     )}
@@ -1164,6 +1367,93 @@ export default function SchedulingPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Post-Mission Rule */}
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base font-semibold">🔄 משימת המשך</span>
+                <span className="text-xs text-muted-foreground">(אופציונלי)</span>
+              </div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={!!typeForm.post_mission_rule}
+                  onChange={e => {
+                    if (e.target.checked) {
+                      setTypeForm({
+                        ...typeForm,
+                        post_mission_rule: {
+                          auto_transition_to_mission_type_id: missionTypes[0]?.id || "",
+                          auto_assign_same_crew: true,
+                          condition: "always",
+                        },
+                      });
+                    } else {
+                      setTypeForm({ ...typeForm, post_mission_rule: null });
+                    }
+                  }}
+                  className="rounded accent-primary-500"
+                />
+                <div>
+                  <span className="font-medium">הפעל משימת המשך אוטומטית</span>
+                  <p className="text-xs text-muted-foreground">בסיום משימה מסוג זה — תיווצר משימת המשך אוטומטית</p>
+                </div>
+              </label>
+              {typeForm.post_mission_rule && (
+                <div className="space-y-3 ms-4 animate-in slide-in-from-top-1 border-s-2 border-primary-200 ps-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">סוג משימת המשך</Label>
+                    <Select
+                      value={typeForm.post_mission_rule.auto_transition_to_mission_type_id || ""}
+                      onChange={e => setTypeForm({
+                        ...typeForm,
+                        post_mission_rule: { ...typeForm.post_mission_rule, auto_transition_to_mission_type_id: e.target.value },
+                      })}
+                    >
+                      <option value="">בחר סוג משימה...</option>
+                      {missionTypes.filter(mt => mt.id !== editingTypeId).map(mt => (
+                        <option key={mt.id} value={mt.id}>
+                          {mt.icon || "📋"} {mt.name?.[lang] || mt.name?.he}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={typeForm.post_mission_rule.auto_assign_same_crew ?? true}
+                      onChange={e => setTypeForm({
+                        ...typeForm,
+                        post_mission_rule: { ...typeForm.post_mission_rule, auto_assign_same_crew: e.target.checked },
+                      })}
+                      className="rounded accent-primary-500"
+                    />
+                    <div>
+                      <span className="font-medium">👥 העתק את אותו צוות</span>
+                      <p className="text-xs text-muted-foreground">אותם חיילים ישובצו אוטומטית למשימת ההמשך</p>
+                    </div>
+                  </label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">תנאי</Label>
+                    <Select
+                      value={typeForm.post_mission_rule.condition || "always"}
+                      onChange={e => setTypeForm({
+                        ...typeForm,
+                        post_mission_rule: { ...typeForm.post_mission_rule, condition: e.target.value },
+                      })}
+                    >
+                      <option value="always">תמיד</option>
+                      <option value="if_not_activated">רק אם לא הוקפצה</option>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {typeForm.post_mission_rule.condition === "if_not_activated"
+                        ? "משימת ההמשך תיווצר רק אם המשימה הנוכחית לא הופעלה (רלוונטי לכוננות)"
+                        : "משימת ההמשך תיווצר תמיד בסיום המשימה"}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1697,6 +1987,287 @@ export default function SchedulingPage() {
             <Button onClick={executeWindowImport} disabled={importPreviewData.length === 0}>
               ייבא {importPreviewData.length} חיילים
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* === INTERACTIVE BOARD: Context Menu === */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[200px] rounded-xl border bg-background shadow-xl animate-in fade-in zoom-in-95 py-1"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 220),
+            top: Math.min(contextMenu.y, window.innerHeight - 300),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Soldier context menu */}
+          {contextMenu.type === "soldier" && (
+            <>
+              <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                {contextMenu.employeeName}
+              </div>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start"
+                onClick={() => {
+                  setReplaceTarget({
+                    missionId: contextMenu.missionId,
+                    assignmentId: contextMenu.assignmentId!,
+                    slotId: contextMenu.slotId!,
+                    workRoleId: contextMenu.workRoleId!,
+                    employeeName: contextMenu.employeeName!,
+                    employeeId: contextMenu.employeeId!,
+                  });
+                  loadEligibleSoldiers(contextMenu.missionId, contextMenu.slotId!);
+                  setShowReplaceDialog(true);
+                  closeContextMenu();
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />החלף חייל
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start text-red-600"
+                onClick={() => {
+                  if (window.confirm(`להסיר את ${contextMenu.employeeName} מהמשימה?`)) {
+                    removeAssignment(contextMenu.missionId, contextMenu.assignmentId!);
+                  }
+                  closeContextMenu();
+                }}
+              >
+                <Trash2 className="h-4 w-4" />הסר מהמשימה
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start"
+                onClick={() => {
+                  autoFindReplacement(
+                    contextMenu.missionId,
+                    contextMenu.assignmentId!,
+                    contextMenu.slotId!,
+                    contextMenu.workRoleId!,
+                    contextMenu.employeeName!,
+                  );
+                  closeContextMenu();
+                }}
+              >
+                <Wand2 className="h-4 w-4" />מצא מחליף אוטומטי
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start"
+                onClick={() => {
+                  setSwapTarget({
+                    missionId: contextMenu.missionId,
+                    employeeId: contextMenu.employeeId!,
+                    employeeName: contextMenu.employeeName!,
+                  });
+                  setSwapForm({ target_employee_id: "", reason: "" });
+                  setShowSwapDialog(true);
+                  closeContextMenu();
+                }}
+              >
+                <ArrowRightLeft className="h-4 w-4" />בקש החלפה
+              </button>
+            </>
+          )}
+
+          {/* Empty slot context menu */}
+          {contextMenu.type === "empty_slot" && (
+            <>
+              <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                משבצת פנויה
+              </div>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start"
+                onClick={() => {
+                  setAssignMissionId(contextMenu.missionId);
+                  setAssignForm({
+                    employee_id: "",
+                    work_role_id: contextMenu.workRoleId || workRoles[0]?.id || "",
+                    slot_id: contextMenu.slotId || "default",
+                  });
+                  setShowAssignModal(true);
+                  closeContextMenu();
+                }}
+              >
+                <UserPlus className="h-4 w-4" />שבץ חייל
+              </button>
+            </>
+          )}
+
+          {/* Mission context menu */}
+          {contextMenu.type === "mission" && (
+            <>
+              {(() => {
+                const ctxMission = missions.find(m2 => m2.id === contextMenu.missionId);
+                return (
+                  <>
+                    <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                      {ctxMission?.name || "משימה"}
+                    </div>
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start"
+                      onClick={() => {
+                        setExpandedMission(contextMenu.missionId);
+                        closeContextMenu();
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />פרטי משימה
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start"
+                      onClick={() => {
+                        setAssignMissionId(contextMenu.missionId);
+                        setAssignForm({ employee_id: "", work_role_id: workRoles[0]?.id || "", slot_id: "default" });
+                        setShowAssignModal(true);
+                        closeContextMenu();
+                      }}
+                    >
+                      <Users className="h-4 w-4" />שבץ חיילים
+                    </button>
+                    {(ctxMission?.status === "draft" || ctxMission?.status === "proposed") && (
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start text-green-600"
+                        onClick={() => {
+                          missionAction(contextMenu.missionId, "approve");
+                          closeContextMenu();
+                        }}
+                      >
+                        <Check className="h-4 w-4" />אשר משימה
+                      </button>
+                    )}
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-start text-red-600"
+                      onClick={() => {
+                        missionAction(contextMenu.missionId, "cancel");
+                        closeContextMenu();
+                      }}
+                    >
+                      <X className="h-4 w-4" />בטל משימה
+                    </button>
+                  </>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* === Replace Soldier Dialog === */}
+      <Dialog open={showReplaceDialog} onOpenChange={(open) => { setShowReplaceDialog(open); if (!open) setReplaceTarget(null); }}>
+        <DialogContent className="max-w-[550px] max-h-[85vh] overflow-y-auto mobile-fullscreen">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              החלף חייל — {replaceTarget?.employeeName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">מחליף את:</span>{" "}
+              <span className="font-medium">{replaceTarget?.employeeName}</span>{" "}
+              <span className="text-muted-foreground">במשבצת</span>{" "}
+              <Badge className="text-xs">{replaceTarget?.slotId}</Badge>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="חיפוש חייל..."
+                  value={replaceSearch}
+                  onChange={e => setReplaceSearch(e.target.value)}
+                  className="min-h-[44px]"
+                />
+              </div>
+            </div>
+            <div className="max-h-[350px] overflow-y-auto space-y-1 border rounded-lg p-2">
+              {eligibleLoading ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">טוען חיילים מתאימים...</div>
+              ) : (
+                (() => {
+                  const filtered = eligibleSoldiers.filter((s: any) => {
+                    if (!replaceSearch) return true;
+                    const q = replaceSearch.toLowerCase();
+                    return (s.full_name || s.employee_name || "").toLowerCase().includes(q) ||
+                           (s.employee_number || "").toLowerCase().includes(q);
+                  });
+                  if (filtered.length === 0) return <div className="text-center py-8 text-sm text-muted-foreground">לא נמצאו חיילים מתאימים</div>;
+                  return filtered.map((s: any) => {
+                    const sid = s.id || s.employee_id;
+                    if (sid === replaceTarget?.employeeId) return null;
+                    return (
+                      <button
+                        key={sid}
+                        className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-muted/50 transition-colors text-start"
+                        onClick={() => {
+                          if (replaceTarget) {
+                            replaceAssignment(replaceTarget.missionId, replaceTarget.assignmentId, sid, replaceTarget.slotId, replaceTarget.workRoleId);
+                          }
+                        }}
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium">{s.full_name || s.employee_name}</span>
+                          <div className="flex flex-wrap gap-1">
+                            {s.score != null && <Badge className="text-[10px] bg-blue-100 text-blue-700">ציון: {s.score}</Badge>}
+                            {s.rest_hours != null && <Badge className="text-[10px] bg-gray-100 text-gray-600">מנוחה: {s.rest_hours}ש</Badge>}
+                            {s.has_partner_preference && <Badge className="text-[10px] bg-green-100 text-green-700">✓ חבר מועדף</Badge>}
+                            {s.warnings?.length > 0 && <Badge className="text-[10px] bg-yellow-100 text-yellow-700">⚠️ {s.warnings.length} אזהרות</Badge>}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" className="min-h-[36px] shrink-0">
+                          בחר
+                        </Button>
+                      </button>
+                    );
+                  });
+                })()
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowReplaceDialog(false); setReplaceTarget(null); }}>ביטול</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* === Swap Request Dialog === */}
+      <Dialog open={showSwapDialog} onOpenChange={(open) => { setShowSwapDialog(open); if (!open) setSwapTarget(null); }}>
+        <DialogContent className="max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              בקשת החלפה — {swapTarget?.employeeName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">חייל מבוקש להחלפה</Label>
+              <Select
+                value={swapForm.target_employee_id}
+                onChange={e => setSwapForm({ ...swapForm, target_employee_id: e.target.value })}
+                className="min-h-[44px]"
+              >
+                <option value="">בחר חייל...</option>
+                {(windowEmployees.length > 0 ? windowEmployees : employees)
+                  .filter((e: any) => (e.id || e.employee_id) !== swapTarget?.employeeId)
+                  .map((emp: any) => (
+                    <option key={emp.id || emp.employee_id} value={emp.id || emp.employee_id}>
+                      {emp.full_name} ({emp.employee_number})
+                    </option>
+                  ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">סיבה (אופציונלי)</Label>
+              <textarea
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[60px] resize-y"
+                value={swapForm.reason}
+                onChange={e => setSwapForm({ ...swapForm, reason: e.target.value })}
+                placeholder="סיבת בקשת ההחלפה..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowSwapDialog(false); setSwapTarget(null); }}>ביטול</Button>
+            <Button onClick={submitSwapRequest} disabled={!swapForm.target_employee_id}>שלח בקשה</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
