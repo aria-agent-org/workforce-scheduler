@@ -360,12 +360,57 @@ export default function BoardTemplateEditor() {
       setScheduleWindows(Array.isArray(swRes.data) ? swRes.data : []);
     } catch { /* silent */ }
 
-    // Load saved templates
+    // Load saved templates from DB
     try {
       const res = await api.get(tenantApi("/daily-board-templates"));
       const loaded = Array.isArray(res.data) ? res.data : [];
       if (loaded.length > 0) {
-        setTemplates(loaded);
+        // Convert DB format to advanced template format
+        const converted = loaded.map((t: any) => {
+          if (t.layout?.sections) {
+            // Already in advanced format
+            return {
+              id: t.layout.id || t.id,
+              _dbId: t.id,
+              name: t.name,
+              sections: t.layout.sections || [],
+              globalStyles: t.layout.globalStyles || { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
+              scheduleWindowId: t.layout.scheduleWindowId || null,
+            };
+          }
+          // Basic template — wrap in default section
+          return {
+            id: t.id,
+            _dbId: t.id,
+            name: t.name,
+            sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: [], rows: 5, cols: 5 }],
+            globalStyles: { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
+            scheduleWindowId: null,
+          };
+        });
+        setTemplates(converted);
+        if (converted.length > 0 && !activeTemplate) {
+          setActiveTemplate(converted[0]);
+        }
+      }
+    } catch { /* silent */ }
+    
+    // Also try loading from settings (backup/legacy)
+    try {
+      const settingsRes = await api.get(tenantApi("/settings"));
+      const settings = settingsRes.data || [];
+      for (const s of settings) {
+        if (s.key?.startsWith("board_grid_template") && s.value) {
+          try {
+            const raw = typeof s.value === "string" ? JSON.parse(s.value)
+              : s.value._v ? (typeof s.value._v === "string" ? JSON.parse(s.value._v) : s.value._v)
+              : s.value;
+            if (raw.sections && templates.length === 0) {
+              setTemplates([raw]);
+              if (!activeTemplate) setActiveTemplate(raw);
+            }
+          } catch { /* parse error */ }
+        }
       }
     } catch { /* silent */ }
   };
@@ -405,23 +450,44 @@ export default function BoardTemplateEditor() {
     if (!activeTemplate) return;
     setSaving(true);
     try {
-      const key = activeTemplate.scheduleWindowId
-        ? `board_grid_template_${activeTemplate.scheduleWindowId}`
-        : `board_grid_template_default`;
-      await api.post(tenantApi("/settings"), { key, value: JSON.stringify(activeTemplate) });
-      // Also update local list
-      setTemplates((prev) => {
-        const idx = prev.findIndex((t) => t.id === activeTemplate.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = cloneTemplate(activeTemplate);
-          return next;
-        }
-        return [...prev, cloneTemplate(activeTemplate)];
-      });
+      const payload = {
+        name: activeTemplate.name,
+        layout: {
+          sections: activeTemplate.sections,
+          globalStyles: activeTemplate.globalStyles,
+          scheduleWindowId: activeTemplate.scheduleWindowId,
+        },
+        columns: { version: "advanced_v2" },
+      };
+
+      // Check if template already exists in DB (has a UUID id)
+      const isExisting = templates.some((t) => t.id === activeTemplate.id && t._dbId);
+      
+      if (isExisting) {
+        // Update existing
+        const dbId = templates.find((t) => t.id === activeTemplate.id)?._dbId;
+        await api.patch(tenantApi(`/daily-board-templates/${dbId}`), payload);
+      } else {
+        // Create new
+        const res = await api.post(tenantApi("/daily-board-templates"), payload);
+        // Store DB id for future updates
+        setTemplates((prev) => prev.map((t) =>
+          t.id === activeTemplate.id ? { ...t, _dbId: res.data.id } : t
+        ));
+      }
+
+      // Also save to settings as backup
+      try {
+        const key = activeTemplate.scheduleWindowId
+          ? `board_grid_template_${activeTemplate.scheduleWindowId}`
+          : `board_grid_template_default`;
+        await api.post(tenantApi("/settings"), { key, value: JSON.stringify(activeTemplate) });
+      } catch { /* settings backup is optional */ }
+
       toast("success", "התבנית נשמרה בהצלחה");
-    } catch {
-      toast("error", "שגיאה בשמירת התבנית");
+    } catch (err: any) {
+      console.error("Save template error:", err);
+      toast("error", err.response?.data?.detail || "שגיאה בשמירת התבנית");
     } finally {
       setSaving(false);
     }
