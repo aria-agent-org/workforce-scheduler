@@ -5,7 +5,7 @@ from datetime import date, time, datetime
 
 from sqlalchemy import (
     Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time,
-    UniqueConstraint,
+    UniqueConstraint, LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,6 +31,7 @@ class ScheduleWindow(TenantBase):
     )
     settings_override: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     employees = relationship("ScheduleWindowEmployee", back_populates="schedule_window", lazy="selectin")
 

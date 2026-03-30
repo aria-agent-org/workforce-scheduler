@@ -38,4 +38,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.notifications.cleanup_expired_tokens",
         "schedule": crontab(hour=3, minute=0),
     },
+    "cleanup-expired-data-retention": {
+        "task": "app.tasks.cleanup.cleanup_expired_data",
+        "schedule": crontab(hour=2, minute=30),
+    },
 }

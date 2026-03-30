@@ -23,6 +23,7 @@ class ScheduleWindowUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     settings_override: Optional[dict] = None
+    version: Optional[int] = None  # Required for concurrent editing protection
 
 class ScheduleWindowResponse(BaseModel):
     id: UUID
@@ -146,6 +147,7 @@ class MissionUpdate(BaseModel):
     start_time: Optional[dt.time] = None
     end_time: Optional[dt.time] = None
     status: Optional[str] = None
+    version: Optional[int] = None  # Required for concurrent editing protection
 
 class MissionResponse(BaseModel):
     id: UUID
