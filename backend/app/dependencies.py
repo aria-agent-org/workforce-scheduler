@@ -82,8 +82,18 @@ async def get_tenant(
         )
 
     # SECURITY: Verify user belongs to this tenant
-    # Super admins (no tenant_id) can access any tenant
-    if user.tenant_id is not None and user.tenant_id != tenant.id:
+    # Super admins can access any tenant
+    is_super_admin = False
+    if user.role_definition_id:
+        from app.models.resource import RoleDefinition
+        role_result = await db.execute(
+            select(RoleDefinition.name).where(RoleDefinition.id == user.role_definition_id)
+        )
+        role_name = role_result.scalar_one_or_none()
+        is_super_admin = role_name == "super_admin"
+
+    # Allow: super_admin, no tenant_id (global admin), or matching tenant
+    if not is_super_admin and user.tenant_id is not None and user.tenant_id != tenant.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="אין גישה לטננט זה",
