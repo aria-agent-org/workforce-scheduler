@@ -28,9 +28,10 @@ import RegistrationCodesPage from "./RegistrationCodesPage";
 import CommunicationChannelsPage from "./CommunicationChannelsPage";
 import RolePermissionsPage from "./RolePermissionsPage";
 import VisibilitySettingsPage from "./VisibilitySettingsPage";
-import { KeyRound, Radio, Eye } from "lucide-react";
+import SecuritySettingsPage from "./SecuritySettingsPage";
+import { KeyRound, Radio, Eye, Lock } from "lucide-react";
 
-type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels" | "visibility";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels" | "visibility" | "security";
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -125,6 +126,7 @@ export default function SettingsPage() {
     { key: "bot-config", label: "בוט", icon: Bot },
     { key: "visibility", label: "נראות חייל", icon: Eye },
     { key: "role-definitions", label: "הרשאות", icon: Shield },
+    { key: "security", label: "אבטחה", icon: Lock },
   ];
 
   return (
@@ -326,6 +328,9 @@ export default function SettingsPage() {
 
       {/* Role Definitions — Full Permission Matrix */}
       {activeTab === "role-definitions" && <RolePermissionsPage mode="tenant" />}
+
+      {/* Security — 2FA & Sessions */}
+      {activeTab === "security" && <SecuritySettingsPage />}
 
       {/* Work Role Modal */}
       <Dialog open={showWRModal} onOpenChange={setShowWRModal}>
