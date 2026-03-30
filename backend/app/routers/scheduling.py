@@ -3,7 +3,8 @@
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response as FastAPIResponse
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -163,9 +164,20 @@ async def update_schedule_window(
     w = result.scalar_one_or_none()
     if not w:
         raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+
+    # Concurrent editing protection — require version match
+    update_data = data.model_dump(exclude_unset=True)
+    client_version = update_data.pop("version", None)
+    if client_version is not None and client_version != w.version:
+        raise HTTPException(
+            status_code=409,
+            detail="מישהו אחר ערך את לוח העבודה. רענן ונסה שוב",
+        )
+
     before = {"name": w.name, "status": w.status}
-    for key, value in data.model_dump(exclude_unset=True).items():
+    for key, value in update_data.items():
         setattr(w, key, value)
+    w.version = (w.version or 1) + 1
     await db.flush()
     await db.refresh(w)
     db.add(AuditLog(
@@ -176,7 +188,8 @@ async def update_schedule_window(
     ))
     await db.commit()
     return {"id": str(w.id), "name": w.name, "status": w.status,
-            "start_date": str(w.start_date), "end_date": str(w.end_date)}
+            "start_date": str(w.start_date), "end_date": str(w.end_date),
+            "version": w.version}
 
 
 @router.post("/schedule-windows/{window_id}/pause")
@@ -732,7 +745,17 @@ async def update_mission(
     m = result.scalar_one_or_none()
     if not m:
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
-    for key, value in data.model_dump(exclude_unset=True).items():
+
+    # Concurrent editing protection — require version match
+    update_data = data.model_dump(exclude_unset=True)
+    client_version = update_data.pop("version", None)
+    if client_version is not None and client_version != m.version:
+        raise HTTPException(
+            status_code=409,
+            detail="מישהו אחר ערך את המשימה. רענן ונסה שוב",
+        )
+
+    for key, value in update_data.items():
         setattr(m, key, value)
     m.version += 1
     await db.flush()
@@ -1857,3 +1880,500 @@ async def export_daily_board_template(
         "is_default": t.is_default,
         "format": "json",
     }
+
+
+# ═══════════════════════════════════════════
+# Swap Request Validation (Spec 3.18)
+# ═══════════════════════════════════════════
+
+@router.post("/swap-requests/{sr_id}/validate")
+async def validate_swap_request(
+    sr_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Validate a swap request: check conflicts for both requester (freed) and target (assigned)."""
+    result = await db.execute(
+        select(SwapRequest).where(SwapRequest.id == sr_id, SwapRequest.tenant_id == tenant.id)
+    )
+    sr = result.scalar_one_or_none()
+    if not sr:
+        raise HTTPException(status_code=404, detail="בקשת החלפה לא נמצאה")
+
+    requester_conflicts: list[dict] = []
+    target_conflicts: list[dict] = []
+    future_impact: list[str] = []
+
+    # Get the requester's assignment and its mission
+    req_assign_result = await db.execute(
+        select(MissionAssignment).where(MissionAssignment.id == sr.requester_assignment_id)
+    )
+    req_assignment = req_assign_result.scalar_one_or_none()
+    if not req_assignment:
+        raise HTTPException(status_code=404, detail="שיבוץ המבקש לא נמצא")
+
+    req_mission_result = await db.execute(
+        select(Mission).where(Mission.id == req_assignment.mission_id)
+    )
+    req_mission = req_mission_result.scalar_one_or_none()
+    if not req_mission:
+        raise HTTPException(status_code=404, detail="משימת המבקש לא נמצאה")
+
+    # If there's a target employee, check if assigning them to the requester's mission causes conflicts
+    if sr.target_employee_id:
+        # Check target employee time conflicts on the requester's mission date
+        target_conflict_result = await db.execute(
+            select(MissionAssignment, Mission)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == sr.target_employee_id,
+                Mission.date == req_mission.date,
+                Mission.id != req_mission.id,
+                MissionAssignment.status != "replaced",
+            )
+        )
+        for ma, existing_m in target_conflict_result.all():
+            if existing_m.start_time < req_mission.end_time and existing_m.end_time > req_mission.start_time:
+                target_conflicts.append({
+                    "type": "time_overlap",
+                    "mission_id": str(existing_m.id),
+                    "mission_name": existing_m.name,
+                    "time": f"{existing_m.start_time}-{existing_m.end_time}",
+                })
+
+        # Check rest hours for target
+        yesterday = req_mission.date - timedelta(days=1)
+        target_recent = await db.execute(
+            select(Mission)
+            .join(MissionAssignment, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == sr.target_employee_id,
+                Mission.date.in_([yesterday, req_mission.date]),
+                Mission.id != req_mission.id,
+                MissionAssignment.status != "replaced",
+            )
+            .order_by(Mission.date.desc(), Mission.end_time.desc())
+        )
+        recent = target_recent.scalars().all()
+        if recent:
+            last = recent[0]
+            last_end = datetime.combine(last.date, last.end_time)
+            this_start = datetime.combine(req_mission.date, req_mission.start_time)
+            hours_rest = (this_start - last_end).total_seconds() / 3600
+            if hours_rest < 16:
+                target_conflicts.append({
+                    "type": "insufficient_rest",
+                    "hours_rest": round(hours_rest, 1),
+                    "minimum_required": 16,
+                })
+
+    # For swap type, check if requester being freed creates coverage gaps
+    if sr.swap_type == "swap" and sr.target_assignment_id:
+        # Get target's assignment and mission
+        tgt_assign_result = await db.execute(
+            select(MissionAssignment).where(MissionAssignment.id == sr.target_assignment_id)
+        )
+        tgt_assignment = tgt_assign_result.scalar_one_or_none()
+        if tgt_assignment:
+            tgt_mission_result = await db.execute(
+                select(Mission).where(Mission.id == tgt_assignment.mission_id)
+            )
+            tgt_mission = tgt_mission_result.scalar_one_or_none()
+            if tgt_mission:
+                # Check requester conflicts on target's mission
+                req_conflict_result = await db.execute(
+                    select(MissionAssignment, Mission)
+                    .join(Mission, MissionAssignment.mission_id == Mission.id)
+                    .where(
+                        MissionAssignment.employee_id == sr.requester_employee_id,
+                        Mission.date == tgt_mission.date,
+                        Mission.id != tgt_mission.id,
+                        MissionAssignment.status != "replaced",
+                    )
+                )
+                for ma, existing_m in req_conflict_result.all():
+                    if existing_m.start_time < tgt_mission.end_time and existing_m.end_time > tgt_mission.start_time:
+                        requester_conflicts.append({
+                            "type": "time_overlap",
+                            "mission_id": str(existing_m.id),
+                            "mission_name": existing_m.name,
+                            "time": f"{existing_m.start_time}-{existing_m.end_time}",
+                        })
+
+    # Check future impact — count upcoming missions for both employees in next 7 days
+    next_week = req_mission.date + timedelta(days=7)
+    if sr.target_employee_id:
+        target_upcoming = (await db.execute(
+            select(func.count())
+            .select_from(MissionAssignment)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == sr.target_employee_id,
+                Mission.date >= req_mission.date,
+                Mission.date <= next_week,
+                MissionAssignment.status != "replaced",
+            )
+        )).scalar() or 0
+        if target_upcoming >= 5:
+            future_impact.append(f"לעובד המחליף {target_upcoming} משימות ב-7 ימים הקרובים")
+
+    requester_upcoming = (await db.execute(
+        select(func.count())
+        .select_from(MissionAssignment)
+        .join(Mission, MissionAssignment.mission_id == Mission.id)
+        .where(
+            MissionAssignment.employee_id == sr.requester_employee_id,
+            Mission.date >= req_mission.date,
+            Mission.date <= next_week,
+            MissionAssignment.status != "replaced",
+        )
+    )).scalar() or 0
+    if requester_upcoming <= 1:
+        future_impact.append("למבקש כמעט אין משימות השבוע — החלפה עלולה להגדיל פערי עומס")
+
+    is_fully_valid = len(requester_conflicts) == 0 and len(target_conflicts) == 0
+
+    validation_result = {
+        "requester_conflicts": requester_conflicts,
+        "target_conflicts": target_conflicts,
+        "future_impact": future_impact,
+        "is_fully_valid": is_fully_valid,
+    }
+
+    # Persist validation result on the swap request
+    sr.validation_result = validation_result
+    await db.commit()
+
+    return validation_result
+
+
+# ═══════════════════════════════════════════
+# Employee Import Preview & Import (Spec 3.13)
+# ═══════════════════════════════════════════
+
+@router.post("/schedule-windows/{window_id}/import-employees/preview", dependencies=[Depends(require_permission("missions", "write"))])
+async def import_employees_preview(
+    window_id: UUID,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+) -> dict:
+    """Parse CSV/Excel file and return preview with per-row validation errors."""
+    import csv
+    import io
+
+    # Validate window exists
+    w_result = await db.execute(
+        select(ScheduleWindow).where(ScheduleWindow.id == window_id, ScheduleWindow.tenant_id == tenant.id)
+    )
+    if not w_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+
+    content = await file.read()
+    filename = file.filename or ""
+
+    rows: list[dict] = []
+
+    if filename.endswith((".xlsx", ".xls")):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
+            ws = wb.active
+            headers = [str(cell.value or "").strip() for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                rows.append({headers[i]: (str(v).strip() if v else "") for i, v in enumerate(row) if i < len(headers)})
+        except ImportError:
+            raise HTTPException(status_code=400, detail="ייבוא Excel לא נתמך. השתמש בקובץ CSV")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"שגיאה בקריאת קובץ Excel: {str(e)}")
+    else:
+        # Treat as CSV
+        try:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            for row in reader:
+                rows.append({k.strip(): v.strip() for k, v in row.items() if k})
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"שגיאה בקריאת קובץ CSV: {str(e)}")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="הקובץ ריק או לא תקין")
+
+    # Pre-load existing employees for matching
+    emp_result = await db.execute(
+        select(Employee).where(Employee.tenant_id == tenant.id)
+    )
+    existing_employees = emp_result.scalars().all()
+    emp_by_number = {e.employee_number: e for e in existing_employees if e.employee_number}
+    emp_by_name = {e.full_name: e for e in existing_employees}
+
+    # Already in window
+    existing_in_window = await db.execute(
+        select(ScheduleWindowEmployee.employee_id).where(
+            ScheduleWindowEmployee.schedule_window_id == window_id
+        )
+    )
+    window_emp_ids = {row[0] for row in existing_in_window.all()}
+
+    preview_rows = []
+    valid_count = 0
+    error_count = 0
+
+    for idx, row in enumerate(rows, start=1):
+        errors: list[str] = []
+        employee_id = None
+        employee_name = None
+        status_str = "new"
+
+        # Try to match by employee_number or full_name
+        emp_number = row.get("employee_number") or row.get("מספר_עובד") or row.get("מספר עובד") or ""
+        full_name = row.get("full_name") or row.get("שם_מלא") or row.get("שם מלא") or ""
+
+        matched_emp = None
+        if emp_number and emp_number in emp_by_number:
+            matched_emp = emp_by_number[emp_number]
+        elif full_name and full_name in emp_by_name:
+            matched_emp = emp_by_name[full_name]
+
+        if matched_emp:
+            employee_id = str(matched_emp.id)
+            employee_name = matched_emp.full_name
+            if matched_emp.id in window_emp_ids:
+                status_str = "already_exists"
+                errors.append("העובד כבר משויך ללוח העבודה")
+            elif not matched_emp.is_active:
+                errors.append("העובד לא פעיל")
+        else:
+            if not emp_number and not full_name:
+                errors.append("חסר מספר עובד או שם מלא")
+            else:
+                errors.append("עובד לא נמצא במערכת")
+
+        if errors:
+            error_count += 1
+        else:
+            valid_count += 1
+
+        preview_rows.append({
+            "row_number": idx,
+            "employee_number": emp_number,
+            "full_name": full_name or (employee_name or ""),
+            "employee_id": employee_id,
+            "status": status_str,
+            "errors": errors,
+        })
+
+    return {
+        "total_rows": len(rows),
+        "valid_count": valid_count,
+        "error_count": error_count,
+        "rows": preview_rows,
+    }
+
+
+@router.post("/schedule-windows/{window_id}/import-employees", dependencies=[Depends(require_permission("missions", "write"))])
+async def import_employees(
+    window_id: UUID,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+) -> dict:
+    """Actually import employees from CSV/Excel into a schedule window (after preview)."""
+    import csv
+    import io
+
+    # Validate window exists
+    w_result = await db.execute(
+        select(ScheduleWindow).where(ScheduleWindow.id == window_id, ScheduleWindow.tenant_id == tenant.id)
+    )
+    window = w_result.scalar_one_or_none()
+    if not window:
+        raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+
+    content = await file.read()
+    filename = file.filename or ""
+    rows: list[dict] = []
+
+    if filename.endswith((".xlsx", ".xls")):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
+            ws = wb.active
+            headers = [str(cell.value or "").strip() for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                rows.append({headers[i]: (str(v).strip() if v else "") for i, v in enumerate(row) if i < len(headers)})
+        except ImportError:
+            raise HTTPException(status_code=400, detail="ייבוא Excel לא נתמך. השתמש בקובץ CSV")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"שגיאה בקריאת קובץ Excel: {str(e)}")
+    else:
+        try:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            for row in reader:
+                rows.append({k.strip(): v.strip() for k, v in row.items() if k})
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"שגיאה בקריאת קובץ CSV: {str(e)}")
+
+    # Pre-load employees
+    emp_result = await db.execute(
+        select(Employee).where(Employee.tenant_id == tenant.id, Employee.is_active.is_(True))
+    )
+    existing_employees = emp_result.scalars().all()
+    emp_by_number = {e.employee_number: e for e in existing_employees if e.employee_number}
+    emp_by_name = {e.full_name: e for e in existing_employees}
+
+    existing_in_window = await db.execute(
+        select(ScheduleWindowEmployee.employee_id).where(
+            ScheduleWindowEmployee.schedule_window_id == window_id
+        )
+    )
+    window_emp_ids = {row[0] for row in existing_in_window.all()}
+
+    added = 0
+    skipped = 0
+    errors_list: list[dict] = []
+
+    for idx, row in enumerate(rows, start=1):
+        emp_number = row.get("employee_number") or row.get("מספר_עובד") or row.get("מספר עובד") or ""
+        full_name = row.get("full_name") or row.get("שם_מלא") or row.get("שם מלא") or ""
+
+        matched_emp = None
+        if emp_number and emp_number in emp_by_number:
+            matched_emp = emp_by_number[emp_number]
+        elif full_name and full_name in emp_by_name:
+            matched_emp = emp_by_name[full_name]
+
+        if not matched_emp:
+            errors_list.append({"row": idx, "error": "עובד לא נמצא"})
+            skipped += 1
+            continue
+
+        if matched_emp.id in window_emp_ids:
+            skipped += 1
+            continue
+
+        db.add(ScheduleWindowEmployee(
+            schedule_window_id=window_id,
+            employee_id=matched_emp.id,
+        ))
+        window_emp_ids.add(matched_emp.id)
+        added += 1
+
+    if added > 0:
+        db.add(AuditLog(
+            tenant_id=tenant.id, user_id=user.id, action="import_employees",
+            entity_type="schedule_window", entity_id=window_id,
+            after_state={"added": added, "skipped": skipped},
+            ip_address=request.client.host if request.client else None,
+        ))
+        await db.commit()
+
+    return {
+        "added": added,
+        "skipped": skipped,
+        "errors": errors_list,
+        "total_rows": len(rows),
+    }
+
+
+# ═══════════════════════════════════════════
+# PDF Schedule Export (Spec Section 21)
+# ═══════════════════════════════════════════
+
+class PDFExportRequest(PydanticBaseModel):
+    date: date
+    template_id: UUID | None = None
+
+
+@router.post("/schedule-windows/{window_id}/export-pdf", dependencies=[Depends(require_permission("missions", "read"))])
+async def export_schedule_pdf(
+    window_id: UUID,
+    data: PDFExportRequest,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> FastAPIResponse:
+    """Export schedule for a date as PDF with WeasyPrint."""
+    from app.services.pdf_export import generate_schedule_pdf
+    from app.models.tenant import Tenant
+
+    # Validate window
+    w_result = await db.execute(
+        select(ScheduleWindow).where(ScheduleWindow.id == window_id, ScheduleWindow.tenant_id == tenant.id)
+    )
+    if not w_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+
+    # Get tenant name
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
+    tenant_obj = tenant_result.scalar_one_or_none()
+    tenant_name = tenant_obj.name if tenant_obj else "—"
+
+    # Get template if specified
+    template_data = None
+    if data.template_id:
+        tmpl_result = await db.execute(
+            select(DailyBoardTemplate).where(
+                DailyBoardTemplate.id == data.template_id,
+                DailyBoardTemplate.tenant_id == tenant.id,
+            )
+        )
+        tmpl = tmpl_result.scalar_one_or_none()
+        if tmpl:
+            template_data = {"name": tmpl.name, "layout": tmpl.layout, "columns": tmpl.columns}
+
+    # Fetch missions for date in this window
+    missions_result = await db.execute(
+        select(Mission).where(
+            Mission.schedule_window_id == window_id,
+            Mission.date == data.date,
+            Mission.status.not_in(["cancelled"]),
+        ).order_by(Mission.start_time)
+    )
+    missions = missions_result.scalars().all()
+
+    # Build mission data with assignments and type names
+    mission_dicts = []
+    for m in missions:
+        mt_result = await db.execute(select(MissionType).where(MissionType.id == m.mission_type_id))
+        mt = mt_result.scalar_one_or_none()
+
+        assign_result = await db.execute(
+            select(MissionAssignment, Employee)
+            .join(Employee, MissionAssignment.employee_id == Employee.id)
+            .where(
+                MissionAssignment.mission_id == m.id,
+                MissionAssignment.status != "replaced",
+            )
+        )
+        assignments = [
+            {"employee_name": emp.full_name, "slot_id": ma.slot_id}
+            for ma, emp in assign_result.all()
+        ]
+
+        mission_dicts.append({
+            "name": m.name,
+            "mission_type_name": mt.name if mt else "—",
+            "start_time": str(m.start_time),
+            "end_time": str(m.end_time),
+            "status": m.status,
+            "assignments": assignments,
+        })
+
+    pdf_bytes = generate_schedule_pdf(
+        missions=mission_dicts,
+        template=template_data,
+        tenant_name=tenant_name,
+        target_date=data.date,
+    )
+
+    return FastAPIResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="schedule_{data.date.isoformat()}.pdf"',
+        },
+    )
