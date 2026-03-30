@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye, Zap, X } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
-import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError } from "@/lib/push";
+import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError, isIOS, isStandalone, getPushStatus, type PushStatus } from "@/lib/push";
 
 type Tab = "templates" | "logs" | "channels";
 
@@ -41,10 +41,12 @@ export default function NotificationsPage() {
   const [pushPermission, setPushPermission] = useState<string>("default");
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus>("prompt");
 
   useEffect(() => {
     setPushPermission(getPushPermission());
     isPushSubscribed().then(setPushSubscribed);
+    getPushStatus().then(setPushStatus);
   }, []);
 
   const handleEnablePush = async () => {

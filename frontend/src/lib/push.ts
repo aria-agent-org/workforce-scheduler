@@ -9,6 +9,43 @@ import api, { tenantApi } from "./api";
 let _lastPushError: string | null = null;
 export function getLastPushError(): string | null { return _lastPushError; }
 
+/** iOS detection — push only works on iOS 16.4+ when installed to Home Screen */
+export function isIOS(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+/** Check if running as standalone PWA (installed to Home Screen) */
+export function isStandalone(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || (window.navigator as any).standalone === true;
+}
+
+/** 
+ * Push status for clear UI display. 
+ * Returns one of: 'active' | 'ios-not-installed' | 'prompt' | 'denied' | 'unsupported'
+ */
+export type PushStatus = 'active' | 'ios-not-installed' | 'prompt' | 'denied' | 'unsupported';
+
+export async function getPushStatus(): Promise<PushStatus> {
+  // Browser doesn't support push at all
+  if (!isPushSupported()) return 'unsupported';
+  
+  // iOS but not installed to Home Screen
+  if (isIOS() && !isStandalone()) return 'ios-not-installed';
+  
+  // Permission denied
+  if (Notification.permission === 'denied') return 'denied';
+  
+  // Already subscribed and active
+  if (Notification.permission === 'granted') {
+    const subscribed = await isPushSubscribed();
+    if (subscribed) return 'active';
+  }
+  
+  // Permission not yet asked or granted but not subscribed
+  return 'prompt';
+}
+
 /**
  * Convert a URL-safe base64 string to a Uint8Array (needed for PushManager.subscribe).
  */
@@ -277,6 +314,12 @@ export async function sendTestPush(): Promise<{ sent: number; failed: number }> 
  */
 export async function autoSubscribeAfterLogin(): Promise<string | null> {
   if (!isPushSupported()) return null;
+
+  // On iOS, NEVER auto-subscribe — must be user gesture from button click
+  if (isIOS()) {
+    console.log("[Push] Auto-subscribe skipped on iOS — requires user gesture");
+    return null;
+  }
 
   const perm = Notification.permission;
 

@@ -63,9 +63,9 @@ class MissionTypeCreate(BaseModel):
     duration_hours: Optional[float] = None
     is_standby: bool = False
     required_slots: Optional[list] = None
-    pre_mission_events: Optional[dict] = None
+    pre_mission_events: Optional[list | dict] = None
     post_mission_rule: Optional[dict] = None
-    timeline_items: Optional[dict] = None
+    timeline_items: Optional[list | dict] = None
 
 class MissionTypeUpdate(BaseModel):
     name: Optional[dict] = None
@@ -75,9 +75,9 @@ class MissionTypeUpdate(BaseModel):
     duration_hours: Optional[float] = None
     is_standby: Optional[bool] = None
     required_slots: Optional[list] = None
-    pre_mission_events: Optional[dict] = None
+    pre_mission_events: Optional[list | dict] = None
     post_mission_rule: Optional[dict] = None
-    timeline_items: Optional[dict] = None
+    timeline_items: Optional[list | dict] = None
     is_active: Optional[bool] = None
 
 class MissionTypeResponse(BaseModel):
@@ -90,9 +90,9 @@ class MissionTypeResponse(BaseModel):
     duration_hours: Optional[float] = None
     is_standby: bool
     required_slots: Optional[list] = None
-    pre_mission_events: Optional[dict] = None
+    pre_mission_events: Optional[list | dict] = None
     post_mission_rule: Optional[dict] = None
-    timeline_items: Optional[dict] = None
+    timeline_items: Optional[list | dict] = None
     is_active: bool
     created_at: dt.datetime
     updated_at: dt.datetime
