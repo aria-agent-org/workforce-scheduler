@@ -18,6 +18,7 @@ export function setTokens(access: string, refresh: string): void {
 export function clearTokens(): void {
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
+  localStorage.removeItem("tenant_slug");
 }
 
 export function isAuthenticated(): boolean {
