@@ -13,7 +13,7 @@ from app.dependencies import CurrentUser, CurrentTenant
 from app.permissions import require_permission
 from app.models.scheduling import (
     ScheduleWindow, ScheduleWindowEmployee, MissionType, MissionTemplate,
-    Mission, MissionAssignment, SwapRequest,
+    Mission, MissionAssignment, SwapRequest, DailyBoardTemplate,
 )
 from app.models.employee import Employee, EmployeeWorkRole
 from app.models.audit import AuditLog
@@ -1305,3 +1305,513 @@ async def reject_swap_request(
     sr.status = "rejected"
     await db.commit()
     return {"id": str(sr.id), "status": "rejected"}
+
+
+# ═══════════════════════════════════════════
+# Schedule Window Export/Import Templates
+# ═══════════════════════════════════════════
+
+@router.post("/schedule-windows/{window_id}/export-template", dependencies=[Depends(require_permission("missions", "read"))])
+async def export_window_template(
+    window_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Export window configuration as JSON template (no PII)."""
+    result = await db.execute(
+        select(ScheduleWindow).where(ScheduleWindow.id == window_id, ScheduleWindow.tenant_id == tenant.id)
+    )
+    w = result.scalar_one_or_none()
+    if not w:
+        raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
+
+    # Get mission templates for this window
+    tmpl_result = await db.execute(
+        select(MissionTemplate).where(
+            MissionTemplate.schedule_window_id == window_id,
+            MissionTemplate.tenant_id == tenant.id,
+        )
+    )
+    templates = [
+        {
+            "name": t.name,
+            "mission_type_id": str(t.mission_type_id),
+            "recurrence": t.recurrence,
+            "time_slots": t.time_slots,
+            "is_active": t.is_active,
+        }
+        for t in tmpl_result.scalars().all()
+    ]
+
+    # Get mission types used
+    mt_ids = list({t["mission_type_id"] for t in templates})
+    roles = []
+    statuses = []
+    if mt_ids:
+        mt_result = await db.execute(
+            select(MissionType).where(MissionType.id.in_([UUID(mid) for mid in mt_ids]))
+        )
+        for mt in mt_result.scalars().all():
+            roles.append({
+                "id": str(mt.id),
+                "name": mt.name,
+                "required_slots": mt.required_slots,
+                "color": mt.color,
+                "icon": mt.icon,
+            })
+
+    # Get rules/settings
+    return {
+        "export_version": "1.0",
+        "name": w.name,
+        "start_date": str(w.start_date),
+        "end_date": str(w.end_date),
+        "settings_override": w.settings_override,
+        "notes": w.notes,
+        "templates": templates,
+        "mission_types": roles,
+        "statuses": ["draft", "active", "paused", "archived"],
+    }
+
+
+class ImportTemplateRequest(PydanticBaseModel):
+    template: dict
+    name: str | None = None
+
+
+@router.post("/schedule-windows/import-template", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("missions", "write"))])
+async def import_window_template(
+    data: ImportTemplateRequest,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Import JSON template → create draft schedule window."""
+    tmpl = data.template
+    name = data.name or tmpl.get("name", "לוח מיובא")
+    start_date_str = tmpl.get("start_date")
+    end_date_str = tmpl.get("end_date")
+
+    if not start_date_str or not end_date_str:
+        raise HTTPException(status_code=400, detail="תבנית חייבת לכלול תאריכי התחלה וסיום")
+
+    window = ScheduleWindow(
+        tenant_id=tenant.id,
+        name=name,
+        start_date=date.fromisoformat(start_date_str),
+        end_date=date.fromisoformat(end_date_str),
+        settings_override=tmpl.get("settings_override"),
+        notes=tmpl.get("notes"),
+        status="draft",
+    )
+    db.add(window)
+    await db.flush()
+    await db.refresh(window)
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="import_template",
+        entity_type="schedule_window", entity_id=window.id,
+        after_state={"name": window.name, "source": "template_import"},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+
+    return {
+        "id": str(window.id),
+        "name": window.name,
+        "status": window.status,
+        "start_date": str(window.start_date),
+        "end_date": str(window.end_date),
+    }
+
+
+# ═══════════════════════════════════════════
+# Mission Activation & Override
+# ═══════════════════════════════════════════
+
+@router.post("/missions/{mission_id}/mark-activated", dependencies=[Depends(require_permission("missions", "write"))])
+async def mark_mission_activated(
+    mission_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mark a standby mission as activated (set is_activated=True)."""
+    result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    m = result.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+    if m.is_activated:
+        raise HTTPException(status_code=400, detail="משימה כבר מסומנת כמופעלת")
+
+    m.is_activated = True
+    m.version += 1
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="mark_activated",
+        entity_type="mission", entity_id=m.id,
+        after_state={"is_activated": True, "name": m.name},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return {"id": str(m.id), "name": m.name, "is_activated": True, "version": m.version}
+
+
+class OverrideRequest(PydanticBaseModel):
+    justification: str
+
+
+@router.post("/missions/{mission_id}/assignments/{assignment_id}/override", dependencies=[Depends(require_permission("missions", "write"))])
+async def override_assignment_conflict(
+    mission_id: UUID, assignment_id: UUID,
+    data: OverrideRequest,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Override a conflict on an assignment with justification text."""
+    result = await db.execute(
+        select(MissionAssignment).where(
+            MissionAssignment.id == assignment_id,
+            MissionAssignment.mission_id == mission_id,
+        )
+    )
+    ma = result.scalar_one_or_none()
+    if not ma:
+        raise HTTPException(status_code=404, detail="שיבוץ לא נמצא")
+
+    if not data.justification.strip():
+        raise HTTPException(status_code=400, detail="נדרשת הצדקה לדריסת קונפליקט")
+
+    ma.override_approved_by = user.id
+    ma.conflicts_detected = {
+        **(ma.conflicts_detected or {}),
+        "override_justification": data.justification,
+        "override_by": str(user.id),
+    }
+
+    # Also update mission override_justification
+    m_result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    mission = m_result.scalar_one_or_none()
+    if mission:
+        mission.override_justification = data.justification
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="override_conflict",
+        entity_type="mission_assignment", entity_id=assignment_id,
+        after_state={"justification": data.justification, "mission_id": str(mission_id)},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return {
+        "id": str(ma.id),
+        "mission_id": str(mission_id),
+        "override_approved_by": str(user.id),
+        "justification": data.justification,
+    }
+
+
+# ═══════════════════════════════════════════
+# Daily Board Templates
+# ═══════════════════════════════════════════
+
+@router.get("/daily-board-templates")
+async def list_daily_board_templates(
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.tenant_id == tenant.id,
+            DailyBoardTemplate.is_active.is_(True),
+        ).order_by(DailyBoardTemplate.created_at)
+    )
+    return [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "description": t.description,
+            "layout": t.layout,
+            "columns": t.columns,
+            "filters": t.filters,
+            "is_default": t.is_default,
+            "created_at": str(t.created_at),
+            "updated_at": str(t.updated_at),
+        }
+        for t in result.scalars().all()
+    ]
+
+
+class DailyBoardTemplateCreate(PydanticBaseModel):
+    name: str
+    description: str | None = None
+    layout: dict | None = None
+    columns: dict | None = None
+    filters: dict | None = None
+
+
+class DailyBoardTemplateUpdate(PydanticBaseModel):
+    name: str | None = None
+    description: str | None = None
+    layout: dict | None = None
+    columns: dict | None = None
+    filters: dict | None = None
+
+
+@router.post("/daily-board-templates", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_permission("settings", "write"))])
+async def create_daily_board_template(
+    data: DailyBoardTemplateCreate,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    tmpl = DailyBoardTemplate(
+        tenant_id=tenant.id,
+        name=data.name,
+        description=data.description,
+        layout=data.layout,
+        columns=data.columns,
+        filters=data.filters,
+    )
+    db.add(tmpl)
+    await db.flush()
+    await db.refresh(tmpl)
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="create",
+        entity_type="daily_board_template", entity_id=tmpl.id,
+        after_state={"name": tmpl.name},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return {
+        "id": str(tmpl.id),
+        "name": tmpl.name,
+        "description": tmpl.description,
+        "is_default": tmpl.is_default,
+        "created_at": str(tmpl.created_at),
+    }
+
+
+@router.get("/daily-board-templates/{template_id}")
+async def get_daily_board_template(
+    template_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+    return {
+        "id": str(t.id),
+        "name": t.name,
+        "description": t.description,
+        "layout": t.layout,
+        "columns": t.columns,
+        "filters": t.filters,
+        "is_default": t.is_default,
+        "created_at": str(t.created_at),
+        "updated_at": str(t.updated_at),
+    }
+
+
+@router.patch("/daily-board-templates/{template_id}", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_daily_board_template(
+    template_id: UUID, data: DailyBoardTemplateUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(t, key, value)
+    await db.flush()
+    await db.refresh(t)
+    await db.commit()
+    return {
+        "id": str(t.id),
+        "name": t.name,
+        "description": t.description,
+        "layout": t.layout,
+        "columns": t.columns,
+        "filters": t.filters,
+        "is_default": t.is_default,
+        "updated_at": str(t.updated_at),
+    }
+
+
+@router.delete("/daily-board-templates/{template_id}", status_code=204, dependencies=[Depends(require_permission("settings", "write"))])
+async def delete_daily_board_template(
+    template_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+    t.is_active = False
+    await db.commit()
+
+
+@router.post("/daily-board-templates/{template_id}/set-default", dependencies=[Depends(require_permission("settings", "write"))])
+async def set_default_daily_board_template(
+    template_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Set a daily board template as the default (unset others)."""
+    # Unset all defaults for this tenant
+    all_result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.tenant_id == tenant.id,
+            DailyBoardTemplate.is_default.is_(True),
+        )
+    )
+    for t in all_result.scalars().all():
+        t.is_default = False
+
+    # Set the new default
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+    t.is_default = True
+    await db.commit()
+    return {"id": str(t.id), "name": t.name, "is_default": True}
+
+
+class BoardPreviewRequest(PydanticBaseModel):
+    date: date
+
+
+@router.post("/daily-board-templates/{template_id}/preview")
+async def preview_daily_board_template(
+    template_id: UUID, data: BoardPreviewRequest,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Render a preview of the daily board for a given date."""
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+
+    # Fetch missions for the date
+    missions_result = await db.execute(
+        select(Mission).where(
+            Mission.tenant_id == tenant.id,
+            Mission.date == data.date,
+            Mission.status.not_in(["cancelled"]),
+        ).order_by(Mission.start_time)
+    )
+    missions = missions_result.scalars().all()
+
+    mission_items = []
+    for m in missions:
+        # Get assignments
+        assign_result = await db.execute(
+            select(MissionAssignment, Employee)
+            .join(Employee, MissionAssignment.employee_id == Employee.id)
+            .where(
+                MissionAssignment.mission_id == m.id,
+                MissionAssignment.status != "replaced",
+            )
+        )
+        assignments = [
+            {
+                "employee_name": emp.full_name,
+                "slot_id": ma.slot_id,
+                "status": ma.status,
+            }
+            for ma, emp in assign_result.all()
+        ]
+
+        mt_result = await db.execute(select(MissionType).where(MissionType.id == m.mission_type_id))
+        mt = mt_result.scalar_one_or_none()
+
+        mission_items.append({
+            "id": str(m.id),
+            "name": m.name,
+            "mission_type_name": mt.name if mt else None,
+            "mission_type_color": mt.color if mt else None,
+            "start_time": str(m.start_time),
+            "end_time": str(m.end_time),
+            "status": m.status,
+            "is_activated": m.is_activated,
+            "assignments": assignments,
+        })
+
+    return {
+        "template_id": str(t.id),
+        "template_name": t.name,
+        "date": str(data.date),
+        "layout": t.layout,
+        "columns": t.columns,
+        "missions": mission_items,
+    }
+
+
+@router.post("/daily-board-templates/{template_id}/export")
+async def export_daily_board_template(
+    template_id: UUID,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    target_date: date | None = None,
+    format: str = "json",
+) -> dict:
+    """Export daily board template as PDF/Excel placeholder."""
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    t = result.scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+
+    if format not in ("json", "pdf", "excel"):
+        raise HTTPException(status_code=400, detail="פורמט לא נתמך. אפשרויות: json, pdf, excel")
+
+    if format in ("pdf", "excel"):
+        # Placeholder — actual generation would use a library
+        return {
+            "message": f"ייצוא בפורמט {format} בפיתוח",
+            "template_id": str(t.id),
+            "template_name": t.name,
+            "format": format,
+        }
+
+    return {
+        "template_id": str(t.id),
+        "name": t.name,
+        "description": t.description,
+        "layout": t.layout,
+        "columns": t.columns,
+        "filters": t.filters,
+        "is_default": t.is_default,
+        "format": "json",
+    }

@@ -157,6 +157,20 @@ class MissionAssignment(Base):
     mission = relationship("Mission", back_populates="assignments")
 
 
+class DailyBoardTemplate(TenantBase):
+    """Template for daily board view layout and configuration."""
+
+    __tablename__ = "daily_board_templates"
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    layout: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    columns: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    filters: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class SwapRequest(TenantBase):
     """Swap/give-away request between employees."""
 

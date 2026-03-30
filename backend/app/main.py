@@ -22,6 +22,7 @@ from app.routers import registration as registration_router
 from app.routers import work_roles as work_roles_router
 from app.routers import push as push_router
 from app.routers import webhooks as webhooks_router
+from app.routers import board as board_router
 
 settings = get_settings()
 
@@ -151,6 +152,13 @@ def create_app() -> FastAPI:
         prefix="/auth",
         tags=["auth-registration"],
         include_in_schema=False,
+    )
+
+    # Daily Board (employee-facing)
+    app.include_router(
+        board_router.router,
+        prefix="/api/v1/{tenant_slug}/board",
+        tags=["board"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)

@@ -307,13 +307,38 @@ class NotificationPrefsUpdate(BaseModel):
     channels: dict  # e.g., {"push": true, "email": false, "whatsapp": true}
 
 
-@router.patch("/notification-settings")
-async def update_notification_settings(
+@router.get("/notification-settings")
+async def get_notification_settings(
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get current user's notification channel settings."""
+    if not user.employee_id:
+        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+
+    emp_res = await db.execute(
+        select(Employee).where(Employee.id == user.employee_id)
+    )
+    emp = emp_res.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="עובד לא נמצא")
+
+    channels = emp.notification_channels or {}
+    return {
+        "employee_id": str(emp.id),
+        "channels": channels,
+        "active_channels": channels.get("active_channels", []),
+        "primary_channel": channels.get("primary_channel", "push"),
+    }
+
+
+@router.put("/notification-settings")
+async def update_notification_settings_put(
     data: NotificationPrefsUpdate,
     tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Update notification channel preferences."""
+    """Update notification channel preferences (PUT)."""
     if not user.employee_id:
         raise HTTPException(status_code=400, detail="לא מקושר לעובד")
 
@@ -333,6 +358,110 @@ async def update_notification_settings(
     await db.commit()
 
     return {"message": "הגדרות התראות עודכנו", "channels": channels}
+
+
+@router.patch("/notification-settings")
+async def update_notification_settings_patch(
+    data: NotificationPrefsUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update notification channel preferences (PATCH)."""
+    if not user.employee_id:
+        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+
+    emp_res = await db.execute(
+        select(Employee).where(Employee.id == user.employee_id)
+    )
+    emp = emp_res.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="עובד לא נמצא")
+
+    channels = emp.notification_channels or {}
+    channels["active_channels"] = [ch for ch, enabled in data.channels.items() if enabled]
+    channels["primary_channel"] = channels["active_channels"][0] if channels["active_channels"] else "push"
+    emp.notification_channels = channels
+
+    await db.flush()
+    await db.commit()
+
+    return {"message": "הגדרות התראות עודכנו", "channels": channels}
+
+
+# ═══════════════════════════════════════════
+# My Profile (PUT)
+# ═══════════════════════════════════════════
+
+@router.put("/profile")
+async def update_my_profile_put(
+    data: ProfileUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update current user's profile (PUT — full replace)."""
+    if data.preferred_language:
+        user.preferred_language = data.preferred_language
+        await db.flush()
+
+    if user.employee_id and (data.full_name or data.phone):
+        emp_res = await db.execute(
+            select(Employee).where(Employee.id == user.employee_id)
+        )
+        emp = emp_res.scalar_one_or_none()
+        if emp:
+            if data.full_name:
+                emp.full_name = data.full_name
+            if data.phone:
+                channels = emp.notification_channels or {}
+                channels["phone_whatsapp"] = data.phone
+                emp.notification_channels = channels
+            await db.flush()
+
+    await db.commit()
+    return {"message": "פרופיל עודכן בהצלחה"}
+
+
+# ═══════════════════════════════════════════
+# Avatar Presigned URL
+# ═══════════════════════════════════════════
+
+class AvatarPresignedRequest(BaseModel):
+    content_type: str = "image/jpeg"
+    filename: str | None = None
+
+
+@router.post("/avatar/presigned-url")
+async def get_avatar_presigned_url(
+    data: AvatarPresignedRequest,
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return a presigned S3 URL for avatar upload."""
+    import uuid as uuid_mod
+
+    if not user.employee_id:
+        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if data.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"סוג קובץ לא נתמך. אפשרויות: {', '.join(allowed_types)}"
+        )
+
+    # Generate unique key
+    ext = data.content_type.split("/")[-1]
+    key = f"avatars/{tenant.slug}/{user.employee_id}/{uuid_mod.uuid4()}.{ext}"
+
+    # In production, this would use boto3 to generate a real presigned URL
+    # For now, return a placeholder structure
+    return {
+        "upload_url": f"https://s3.placeholder.com/{key}?presigned=true",
+        "key": key,
+        "content_type": data.content_type,
+        "expires_in": 3600,
+        "message": "URL זמני להעלאת תמונת פרופיל",
+    }
 
 
 # Need this import for count

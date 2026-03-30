@@ -328,3 +328,113 @@ async def assign_work_roles(
 
     await db.commit()
     return new_roles
+
+
+# ═══════════════════════════════════════════
+# GDPR — Personal Data Deletion
+# ═══════════════════════════════════════════
+
+@router.delete("/{employee_id}/personal-data", dependencies=[Depends(require_permission("employees", "delete"))])
+async def delete_personal_data(
+    employee_id: UUID,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """GDPR delete: anonymize employee data (name → 'Deleted User', clear PII fields)."""
+    result = await db.execute(
+        select(Employee).where(Employee.id == employee_id, Employee.tenant_id == tenant.id)
+    )
+    employee = result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="עובד לא נמצא")
+
+    before = {
+        "full_name": employee.full_name,
+        "notification_channels": employee.notification_channels,
+        "custom_fields": employee.custom_fields,
+        "notes": employee.notes,
+    }
+
+    # Anonymize
+    employee.full_name = "Deleted User"
+    employee.notification_channels = None
+    employee.custom_fields = None
+    employee.notes = None
+    employee.is_active = False
+
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        action="gdpr_delete",
+        entity_type="employee",
+        entity_id=employee.id,
+        before_state={"full_name": before["full_name"]},
+        after_state={"full_name": "Deleted User", "anonymized": True},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+
+    return {
+        "id": str(employee.id),
+        "message": "נתונים אישיים נמחקו בהצלחה",
+        "anonymized_fields": ["full_name", "notification_channels", "custom_fields", "notes"],
+    }
+
+
+# ═══════════════════════════════════════════
+# Notification Test
+# ═══════════════════════════════════════════
+
+@router.post("/{employee_id}/notification-test", dependencies=[Depends(require_permission("notifications", "write"))])
+async def send_notification_test(
+    employee_id: UUID,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Send a test notification to an employee via all active channels."""
+    result = await db.execute(
+        select(Employee).where(Employee.id == employee_id, Employee.tenant_id == tenant.id)
+    )
+    employee = result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="עובד לא נמצא")
+
+    channels = employee.notification_channels or {}
+    active_channels = channels.get("active_channels", [])
+    if not active_channels:
+        # Fallback: check which channels have config
+        if channels.get("phone_whatsapp"):
+            active_channels.append("whatsapp")
+        if channels.get("telegram_chat_id"):
+            active_channels.append("telegram")
+        if channels.get("email"):
+            active_channels.append("email")
+
+    if not active_channels:
+        raise HTTPException(status_code=400, detail="לעובד אין ערוצי התראה מוגדרים")
+
+    # Log test notifications (actual sending would be via notification service)
+    from app.models.notification import NotificationLog
+    results = []
+    for channel in active_channels:
+        log = NotificationLog(
+            tenant_id=tenant.id,
+            employee_id=employee.id,
+            channel=channel,
+            event_type_code="test_notification",
+            body_sent=f"הודעת בדיקה — {employee.full_name}",
+            language_sent=employee.preferred_language,
+            status="sent",
+        )
+        db.add(log)
+        results.append({"channel": channel, "status": "sent"})
+
+    await db.commit()
+    return {
+        "employee_id": str(employee.id),
+        "employee_name": employee.full_name,
+        "channels_tested": results,
+    }

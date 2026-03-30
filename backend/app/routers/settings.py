@@ -368,3 +368,241 @@ async def update_setting(
     ))
     await db.commit()
     return TenantSettingResponse.model_validate(setting).model_dump()
+
+
+# ═══════════════════════════════════════════
+# Visibility Settings
+# ═══════════════════════════════════════════
+
+VISIBILITY_KEY = "visibility_settings"
+
+
+class VisibilitySettingsUpdate(BaseModel):
+    show_employee_names: bool = True
+    show_employee_numbers: bool = True
+    show_mission_details: bool = True
+    show_assignment_status: bool = True
+    board_visible_to_all: bool = False
+
+
+@router.get("/visibility", dependencies=[Depends(require_permission("settings", "read"))])
+async def get_visibility_settings(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get tenant visibility settings."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == VISIBILITY_KEY,
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if not setting:
+        return {
+            "show_employee_names": True,
+            "show_employee_numbers": True,
+            "show_mission_details": True,
+            "show_assignment_status": True,
+            "board_visible_to_all": False,
+        }
+    return setting.value
+
+
+@router.put("/visibility", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_visibility_settings(
+    data: VisibilitySettingsUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update tenant visibility settings."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == VISIBILITY_KEY,
+        )
+    )
+    setting = result.scalar_one_or_none()
+    value = data.model_dump()
+    if not setting:
+        setting = TenantSetting(
+            tenant_id=tenant.id,
+            key=VISIBILITY_KEY,
+            value=value,
+            value_type="json",
+            label={"he": "הגדרות נראות", "en": "Visibility Settings"},
+            group="visibility",
+        )
+        db.add(setting)
+    else:
+        setting.value = value
+
+    await db.flush()
+    await db.refresh(setting)
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="update_setting",
+        entity_type="setting", entity_id=setting.id,
+        after_state={"key": VISIBILITY_KEY, "value": value},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return value
+
+
+# ═══════════════════════════════════════════
+# Notification Preference Defaults
+# ═══════════════════════════════════════════
+
+NOTIF_DEFAULTS_KEY = "notification_preference_defaults"
+
+
+class NotificationPreferenceDefaults(BaseModel):
+    default_channels: list[str] = ["push"]
+    default_enabled: bool = True
+    quiet_hours_start: str | None = None  # e.g., "23:00"
+    quiet_hours_end: str | None = None    # e.g., "06:30"
+
+
+@router.get("/notification-preferences/defaults", dependencies=[Depends(require_permission("settings", "read"))])
+async def get_notification_preference_defaults(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get default notification preferences for new employees."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == NOTIF_DEFAULTS_KEY,
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if not setting:
+        return {
+            "default_channels": ["push"],
+            "default_enabled": True,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+        }
+    return setting.value
+
+
+@router.put("/notification-preferences/defaults", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_notification_preference_defaults(
+    data: NotificationPreferenceDefaults,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update default notification preferences for new employees."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == NOTIF_DEFAULTS_KEY,
+        )
+    )
+    setting = result.scalar_one_or_none()
+    value = data.model_dump()
+    if not setting:
+        setting = TenantSetting(
+            tenant_id=tenant.id,
+            key=NOTIF_DEFAULTS_KEY,
+            value=value,
+            value_type="json",
+            label={"he": "ברירות מחדל להתראות", "en": "Notification Defaults"},
+            group="notifications",
+        )
+        db.add(setting)
+    else:
+        setting.value = value
+
+    await db.flush()
+    await db.refresh(setting)
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="update_setting",
+        entity_type="setting", entity_id=setting.id,
+        after_state={"key": NOTIF_DEFAULTS_KEY, "value": value},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return value
+
+
+# ═══════════════════════════════════════════
+# Notification Locked Events
+# ═══════════════════════════════════════════
+
+from app.models.notification import NotificationLockedEvent
+
+
+class LockedEventItem(BaseModel):
+    event_type_code: str
+    locked_channels: list[str] | None = None
+    reason: dict | None = None  # {"he": "...", "en": "..."}
+
+
+class LockedEventsUpdate(BaseModel):
+    events: list[LockedEventItem]
+
+
+@router.get("/notification-preferences/locked-events", dependencies=[Depends(require_permission("settings", "read"))])
+async def get_locked_events(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Get events that employees cannot disable notifications for."""
+    result = await db.execute(
+        select(NotificationLockedEvent).where(
+            NotificationLockedEvent.tenant_id == tenant.id
+        )
+    )
+    return [
+        {
+            "id": str(le.id),
+            "event_type_code": le.event_type_code,
+            "locked_channels": le.locked_channels,
+            "reason": le.reason,
+        }
+        for le in result.scalars().all()
+    ]
+
+
+@router.put("/notification-preferences/locked-events", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_locked_events(
+    data: LockedEventsUpdate,
+    tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Replace all locked events for the tenant."""
+    # Delete existing
+    existing = await db.execute(
+        select(NotificationLockedEvent).where(
+            NotificationLockedEvent.tenant_id == tenant.id
+        )
+    )
+    for le in existing.scalars().all():
+        await db.delete(le)
+    await db.flush()
+
+    # Insert new
+    items = []
+    for event in data.events:
+        le = NotificationLockedEvent(
+            tenant_id=tenant.id,
+            event_type_code=event.event_type_code,
+            locked_channels=event.locked_channels,
+            reason=event.reason,
+        )
+        db.add(le)
+        await db.flush()
+        await db.refresh(le)
+        items.append({
+            "id": str(le.id),
+            "event_type_code": le.event_type_code,
+            "locked_channels": le.locked_channels,
+            "reason": le.reason,
+        })
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="update_locked_events",
+        entity_type="notification_locked_events", entity_id=tenant.id,
+        after_state={"count": len(items)},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return items
