@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,809 +11,1582 @@ import {
 } from "@/components/ui/dialog";
 import {
   LayoutTemplate, Plus, Save, Eye, Trash2, GripVertical, Pencil,
-  ChevronUp, ChevronDown, Palette, Clock, User, FileText, Minus, Copy,
+  Palette, Clock, User, Minus, Copy, Merge, SplitSquareHorizontal,
+  AlignRight, AlignCenter, AlignLeft, Bold, Square, ChevronDown,
+  ChevronUp, Move, Grid3X3, PanelRightOpen, PanelRightClose,
+  RotateCcw, Download, Upload, Table2,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────
 
-type RowType = "mission" | "shift" | "label" | "separator";
-type ColType = "time" | "slot" | "notes" | "custom";
+type CellType = "header" | "subheader" | "role_label" | "soldier_slot" | "time" | "empty" | "separator";
 
-interface BoardCell {
-  value?: string;        // Display value or label
-  colspan?: number;      // Horizontal merge
-  slotId?: string;       // If this is a soldier-assignment slot
-  color?: string;        // Cell background color
-}
-
-interface BoardRow {
+interface GridCell {
   id: string;
-  type: RowType;
-  label: string;         // Row label (e.g., "07:00-15:00" or "מנהל תורן")
+  value: string;
+  type: CellType;
+  colspan: number;
+  rowspan: number;
+  merged: boolean;
+  mergedBy?: string;
+  backgroundColor: string;
+  textColor: string;
+  fontWeight: "normal" | "bold";
+  textAlign: "center" | "right" | "left";
+  borderTop: boolean;
+  borderBottom: boolean;
+  borderLeft: boolean;
+  borderRight: boolean;
   missionTypeId?: string;
+  workRoleId?: string;
   timeRange?: { start: string; end: string };
-  color?: string;        // Row background color
-  cells: BoardCell[];
 }
 
-interface BoardColumn {
-  id: string;
-  type: ColType;
-  label: string;         // Column header
-  width: number;
-  slotWorkRoleId?: string;
-}
-
-interface BoardTemplate {
+interface BoardSection {
   id: string;
   name: string;
-  rows: BoardRow[];
-  columns: BoardColumn[];
+  grid: GridCell[][];
+  rows: number;
+  cols: number;
+  colWidths: number[];
+}
+
+interface AdvancedBoardTemplate {
+  id: string;
+  name: string;
+  scheduleWindowId?: string;
+  sections: BoardSection[];
+  globalStyles: {
+    headerColor: string;
+    subheaderColor: string;
+    borderColor: string;
+    fontFamily: string;
+  };
+}
+
+interface MissionType {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+interface WorkRole {
+  id: string;
+  name: string;
 }
 
 // ─── Helpers ─────────────────────────────────────
 
 let _id = Date.now();
-const uid = () => `${++_id}_${Math.random().toString(36).slice(2, 6)}`;
+const uid = () => `c${++_id}_${Math.random().toString(36).slice(2, 8)}`;
 
-const defaultTemplate = (): BoardTemplate => ({
-  id: uid(),
-  name: "תבנית ברירת מחדל",
-  columns: [
-    { id: uid(), type: "time", label: "שעה", width: 80 },
-    { id: uid(), type: "slot", label: "נהג", width: 120 },
-    { id: uid(), type: "slot", label: 'ר"צ', width: 120 },
-    { id: uid(), type: "slot", label: "עובד 1", width: 120 },
-    { id: uid(), type: "notes", label: "הערות", width: 150 },
-  ],
-  rows: [
-    { id: uid(), type: "shift", label: "בוקר", timeRange: { start: "07:00", end: "15:00" }, cells: [{ value: "07:00-15:00" }, {}, {}, {}, {}] },
-    { id: uid(), type: "shift", label: "ערב", timeRange: { start: "15:00", end: "23:00" }, cells: [{ value: "15:00-23:00" }, {}, {}, {}, {}] },
-    { id: uid(), type: "shift", label: "לילה", timeRange: { start: "23:00", end: "07:00" }, cells: [{ value: "23:00-07:00" }, {}, {}, {}, {}] },
-    { id: uid(), type: "separator", label: "", cells: [{}, {}, {}, {}, {}] },
-    { id: uid(), type: "label", label: "מנהל תורן", cells: [{ value: "מנהל תורן" }, { slotId: "duty_mgr" }, {}, {}, {}] },
-  ],
-});
+function createCell(overrides: Partial<GridCell> = {}): GridCell {
+  return {
+    id: uid(),
+    value: "",
+    type: "empty",
+    colspan: 1,
+    rowspan: 1,
+    merged: false,
+    backgroundColor: "#ffffff",
+    textColor: "#1a1a1a",
+    fontWeight: "normal",
+    textAlign: "center",
+    borderTop: true,
+    borderBottom: true,
+    borderLeft: true,
+    borderRight: true,
+    ...overrides,
+  };
+}
 
-const ensureCells = (row: BoardRow, colCount: number): BoardCell[] => {
-  const cells = [...(row.cells || [])];
-  while (cells.length < colCount) cells.push({});
-  return cells.slice(0, colCount);
-};
+function createSection(name: string, rows = 6, cols = 5): BoardSection {
+  const grid: GridCell[][] = [];
+  for (let r = 0; r < rows; r++) {
+    const row: GridCell[] = [];
+    for (let c = 0; c < cols; c++) {
+      if (r === 0) {
+        row.push(createCell({ type: "header", fontWeight: "bold", backgroundColor: "#166534", textColor: "#ffffff", value: c === 0 ? "שעה" : `עמודה ${c}` }));
+      } else {
+        row.push(createCell());
+      }
+    }
+    grid.push(row);
+  }
+  return {
+    id: uid(),
+    name,
+    grid,
+    rows,
+    cols,
+    colWidths: Array(cols).fill(120),
+  };
+}
 
-// ─── Component ───────────────────────────────────
+function createDefaultTemplate(): AdvancedBoardTemplate {
+  const section1 = createSection("סיור", 8, 6);
+  // Set up a sample header row
+  section1.grid[0][0] = createCell({ type: "header", value: "שעה", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
+  section1.grid[0][1] = createCell({ type: "header", value: "מפקד", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
+  section1.grid[0][2] = createCell({ type: "header", value: "נהג", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
+  section1.grid[0][3] = createCell({ type: "header", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
+  section1.grid[0][4] = createCell({ type: "header", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
+  section1.grid[0][5] = createCell({ type: "header", value: "הערות", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
+  // Time slots
+  const times = ["07:00-11:00", "11:00-15:00", "15:00-19:00", "19:00-23:00", "23:00-03:00", "03:00-07:00"];
+  for (let i = 0; i < times.length && i + 1 < section1.rows; i++) {
+    section1.grid[i + 1][0] = createCell({ type: "time", value: times[i], fontWeight: "bold", backgroundColor: "#f0fdf4" });
+    for (let c = 1; c < 5; c++) {
+      section1.grid[i + 1][c] = createCell({ type: "soldier_slot" });
+    }
+    section1.grid[i + 1][5] = createCell({ type: "empty" });
+  }
+  // Set first row time range
+  section1.grid[1][0].timeRange = { start: "07:00", end: "11:00" };
+  section1.colWidths = [100, 120, 120, 120, 120, 150];
+
+  return {
+    id: uid(),
+    name: "תבנית ברירת מחדל",
+    sections: [section1],
+    globalStyles: {
+      headerColor: "#166534",
+      subheaderColor: "#15803d",
+      borderColor: "#d1d5db",
+      fontFamily: "inherit",
+    },
+  };
+}
+
+function cloneTemplate(t: AdvancedBoardTemplate): AdvancedBoardTemplate {
+  return JSON.parse(JSON.stringify(t));
+}
+
+// Get cells in a rectangular selection
+function getSelectionBounds(cells: GridCell[][], selectedIds: Set<string>): { minR: number; maxR: number; minC: number; maxC: number } | null {
+  let minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
+  for (let r = 0; r < cells.length; r++) {
+    for (let c = 0; c < cells[r].length; c++) {
+      if (selectedIds.has(cells[r][c].id)) {
+        minR = Math.min(minR, r);
+        maxR = Math.max(maxR, r);
+        minC = Math.min(minC, c);
+        maxC = Math.max(maxC, c);
+      }
+    }
+  }
+  if (maxR === -1) return null;
+  return { minR, maxR, minC, maxC };
+}
+
+// ─── Context Menu Component ───────────────────────
+
+interface ContextMenuProps {
+  x: number;
+  y: number;
+  onClose: () => void;
+  items: { label: string; icon?: React.ReactNode; onClick: () => void; disabled?: boolean; separator?: boolean }[];
+}
+
+function ContextMenu({ x, y, onClose, items }: ContextMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[200px]"
+      style={{ left: x, top: y }}
+    >
+      {items.map((item, i) =>
+        item.separator ? (
+          <div key={i} className="border-t border-gray-100 my-1" />
+        ) : (
+          <button
+            key={i}
+            className={cn(
+              "w-full px-3 py-2 text-right text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors",
+              item.disabled && "opacity-40 cursor-not-allowed"
+            )}
+            onClick={() => { if (!item.disabled) { item.onClick(); onClose(); } }}
+            disabled={item.disabled}
+          >
+            {item.icon && <span className="w-4 h-4 flex-shrink-0">{item.icon}</span>}
+            <span>{item.label}</span>
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+// ─── Color Picker Popover ─────────────────────────
+
+const PRESET_COLORS = [
+  "#ffffff", "#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280", "#374151", "#1f2937", "#111827", "#000000",
+  "#fef2f2", "#fee2e2", "#fecaca", "#fca5a5", "#f87171", "#ef4444", "#dc2626", "#b91c1c", "#991b1b", "#7f1d1d",
+  "#fff7ed", "#ffedd5", "#fed7aa", "#fdba74", "#fb923c", "#f97316", "#ea580c", "#c2410c", "#9a3412", "#7c2d12",
+  "#fefce8", "#fef9c3", "#fef08a", "#fde047", "#facc15", "#eab308", "#ca8a04", "#a16207", "#854d0e", "#713f12",
+  "#f0fdf4", "#dcfce7", "#bbf7d0", "#86efac", "#4ade80", "#22c55e", "#16a34a", "#15803d", "#166534", "#14532d",
+  "#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa", "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af", "#1e3a8a",
+  "#f5f3ff", "#ede9fe", "#ddd6fe", "#c4b5fd", "#a78bfa", "#8b5cf6", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95",
+  "#fdf2f8", "#fce7f3", "#fbcfe8", "#f9a8d4", "#f472b6", "#ec4899", "#db2777", "#be185d", "#9d174d", "#831843",
+];
+
+function ColorPickerPopover({ color, onChange, label }: { color: string; onChange: (c: string) => void; label: string }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState(color);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 text-xs"
+        onClick={() => setOpen(!open)}
+        title={label}
+      >
+        <div className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: color }} />
+        <span className="hidden sm:inline">{label}</span>
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 z-50 bg-white border rounded-lg shadow-xl p-3 w-[260px]">
+          <div className="grid grid-cols-10 gap-1 mb-2">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c}
+                className={cn(
+                  "w-5 h-5 rounded border transition-transform hover:scale-125",
+                  c === color ? "ring-2 ring-blue-500 ring-offset-1" : "border-gray-200"
+                )}
+                style={{ backgroundColor: c }}
+                onClick={() => { onChange(c); setOpen(false); }}
+              />
+            ))}
+          </div>
+          <div className="flex gap-1 mt-2">
+            <Input
+              type="color"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              className="w-8 h-8 p-0 border-0 cursor-pointer"
+            />
+            <Input
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              className="flex-1 h-8 text-xs"
+              placeholder="#hex"
+            />
+            <Button size="sm" className="h-8 text-xs" onClick={() => { onChange(custom); setOpen(false); }}>
+              בחר
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────
 
 export default function BoardTemplateEditor() {
-  const { t, i18n } = useTranslation();
   const { toast } = useToast();
-  const lang = i18n.language as "he" | "en";
 
-  const [template, setTemplate] = useState<BoardTemplate>(defaultTemplate());
-  const [missionTypes, setMissionTypes] = useState<any[]>([]);
-  const [workRoles, setWorkRoles] = useState<any[]>([]);
-  const [saving, setSaving] = useState(false);
+  // Data
+  const [templates, setTemplates] = useState<AdvancedBoardTemplate[]>([]);
+  const [activeTemplate, setActiveTemplate] = useState<AdvancedBoardTemplate | null>(null);
+  const [missionTypes, setMissionTypes] = useState<MissionType[]>([]);
+  const [workRoles, setWorkRoles] = useState<WorkRole[]>([]);
+  const [scheduleWindows, setScheduleWindows] = useState<any[]>([]);
+
+  // UI state
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+  const [activeSectionId, setActiveSectionId] = useState<string>("");
+  const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sectionId: string; row: number; col: number } | null>(null);
+  const [showSidePanel, setShowSidePanel] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [showTemplateList, setShowTemplateList] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dragItem, setDragItem] = useState<{ type: string; data: any } | null>(null);
+  const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
+  const [sectionNameInput, setSectionNameInput] = useState("");
+  const [undoStack, setUndoStack] = useState<AdvancedBoardTemplate[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Edit modals
-  const [editRowIdx, setEditRowIdx] = useState<number | null>(null);
-  const [editColIdx, setEditColIdx] = useState<number | null>(null);
-  const [editCellPos, setEditCellPos] = useState<{ row: number; col: number } | null>(null);
+  // Column resize
+  const [resizingCol, setResizingCol] = useState<{ sectionId: string; colIndex: number; startX: number; startWidth: number } | null>(null);
 
-  // Row add modal
-  const [showAddRow, setShowAddRow] = useState(false);
-  const [newRowType, setNewRowType] = useState<RowType>("shift");
-  const [newRowLabel, setNewRowLabel] = useState("");
-  const [newRowStart, setNewRowStart] = useState("08:00");
-  const [newRowEnd, setNewRowEnd] = useState("16:00");
-  const [newRowMissionTypeId, setNewRowMissionTypeId] = useState("");
+  const gridRef = useRef<HTMLDivElement>(null);
 
-  // Col add modal
-  const [showAddCol, setShowAddCol] = useState(false);
-  const [newColType, setNewColType] = useState<ColType>("slot");
-  const [newColLabel, setNewColLabel] = useState("");
+  // ─── Load Data ─────────────────────────────────
 
-  // Load mission types and work roles
   useEffect(() => {
-    Promise.all([
-      api.get(tenantApi("/mission-types")).catch(() => ({ data: [] })),
-      api.get(tenantApi("/settings/work-roles")).catch(() => ({ data: [] })),
-    ]).then(([mtRes, wrRes]) => {
-      setMissionTypes(mtRes.data || []);
-      setWorkRoles(wrRes.data || []);
-    });
-
-    // Load saved template
-    api.get(tenantApi("/settings")).then(res => {
-      const settings = res.data || [];
-      const boardSetting = settings.find((s: any) => s.key === "board_grid_template");
-      if (boardSetting?.value) {
-        try {
-          const saved = typeof boardSetting.value === "string"
-            ? JSON.parse(boardSetting.value)
-            : boardSetting.value._v
-              ? (typeof boardSetting.value._v === "string" ? JSON.parse(boardSetting.value._v) : boardSetting.value._v)
-              : boardSetting.value;
-          if (saved.columns && saved.rows) {
-            setTemplate(saved);
-          }
-        } catch {}
-      }
-    }).catch(() => {});
+    setIsMobile(window.innerWidth < 768);
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
   }, []);
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [mtRes, wrRes, swRes] = await Promise.all([
+        api.get(tenantApi("/mission-types")).catch(() => ({ data: [] })),
+        api.get(tenantApi("/settings/work-roles")).catch(() => ({ data: [] })),
+        api.get(tenantApi("/schedule-windows")).catch(() => ({ data: [] })),
+      ]);
+      setMissionTypes(Array.isArray(mtRes.data) ? mtRes.data : []);
+      setWorkRoles(Array.isArray(wrRes.data) ? wrRes.data : []);
+      setScheduleWindows(Array.isArray(swRes.data) ? swRes.data : []);
+    } catch { /* silent */ }
+
+    // Load saved templates
+    try {
+      const res = await api.get(tenantApi("/daily-board-templates"));
+      const loaded = Array.isArray(res.data) ? res.data : [];
+      if (loaded.length > 0) {
+        setTemplates(loaded);
+      }
+    } catch { /* silent */ }
+  };
+
+  // ─── Push Undo ──────────────────────────────────
+
+  const pushUndo = useCallback(() => {
+    if (!activeTemplate) return;
+    setUndoStack((prev) => [...prev.slice(-19), cloneTemplate(activeTemplate)]);
+  }, [activeTemplate]);
+
+  const undo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    setUndoStack((s) => s.slice(0, -1));
+    setActiveTemplate(prev);
+  }, [undoStack]);
+
+  // ─── Template Actions ──────────────────────────
+
+  const createNewTemplate = () => {
+    const t = createDefaultTemplate();
+    setActiveTemplate(t);
+    setActiveSectionId(t.sections[0]?.id || "");
+    setShowTemplateList(false);
+    setSelectedCells(new Set());
+  };
+
+  const openTemplate = (t: AdvancedBoardTemplate) => {
+    setActiveTemplate(cloneTemplate(t));
+    setActiveSectionId(t.sections[0]?.id || "");
+    setShowTemplateList(false);
+    setSelectedCells(new Set());
+  };
+
   const saveTemplate = async () => {
+    if (!activeTemplate) return;
     setSaving(true);
     try {
-      await api.post(tenantApi("/settings"), {
-        key: "board_grid_template",
-        value: template,
-        group: "board",
+      const key = activeTemplate.scheduleWindowId
+        ? `board_grid_template_${activeTemplate.scheduleWindowId}`
+        : `board_grid_template_default`;
+      await api.post(tenantApi("/settings"), { key, value: JSON.stringify(activeTemplate) });
+      // Also update local list
+      setTemplates((prev) => {
+        const idx = prev.findIndex((t) => t.id === activeTemplate.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = cloneTemplate(activeTemplate);
+          return next;
+        }
+        return [...prev, cloneTemplate(activeTemplate)];
       });
-      toast("success", "תבנית הלוח נשמרה בהצלחה");
+      toast("success", "התבנית נשמרה בהצלחה");
     } catch {
-      toast("error", "שגיאה בשמירה");
+      toast("error", "שגיאה בשמירת התבנית");
     } finally {
       setSaving(false);
     }
   };
 
-  // ─── Row Operations ────────────────────────────
-
-  const addRow = () => {
-    const cells: BoardCell[] = template.columns.map(() => ({}));
-    let row: BoardRow;
-
-    if (newRowType === "shift") {
-      cells[0] = { value: `${newRowStart}-${newRowEnd}` };
-      row = {
-        id: uid(), type: "shift", label: newRowLabel || `${newRowStart}-${newRowEnd}`,
-        timeRange: { start: newRowStart, end: newRowEnd }, cells,
-      };
-    } else if (newRowType === "mission") {
-      cells[0] = { value: newRowLabel };
-      row = {
-        id: uid(), type: "mission", label: newRowLabel,
-        missionTypeId: newRowMissionTypeId || undefined, cells,
-      };
-    } else if (newRowType === "separator") {
-      row = { id: uid(), type: "separator", label: "", cells };
-    } else {
-      cells[0] = { value: newRowLabel };
-      row = { id: uid(), type: "label", label: newRowLabel, cells };
-    }
-
-    setTemplate(prev => ({
-      ...prev,
-      rows: [...prev.rows, row],
-    }));
-    setShowAddRow(false);
-    setNewRowLabel("");
+  const exportTemplate = () => {
+    if (!activeTemplate) return;
+    const blob = new Blob([JSON.stringify(activeTemplate, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `board-template-${activeTemplate.name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const removeRow = (idx: number) => {
-    setTemplate(prev => ({
-      ...prev,
-      rows: prev.rows.filter((_, i) => i !== idx),
-    }));
-  };
-
-  const moveRow = (idx: number, dir: -1 | 1) => {
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= template.rows.length) return;
-    setTemplate(prev => {
-      const rows = [...prev.rows];
-      [rows[idx], rows[newIdx]] = [rows[newIdx], rows[idx]];
-      return { ...prev, rows };
-    });
-  };
-
-  // ─── Column Operations ─────────────────────────
-
-  const addColumn = () => {
-    const col: BoardColumn = {
-      id: uid(), type: newColType, label: newColLabel || "חדש", width: 120,
+  const importTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (data.sections && data.globalStyles) {
+          setActiveTemplate(data);
+          setActiveSectionId(data.sections[0]?.id || "");
+          toast("success", "התבנית יובאה בהצלחה");
+        } else {
+          toast("error", "קובץ לא תקין");
+        }
+      } catch {
+        toast("error", "שגיאה בקריאת הקובץ");
+      }
     };
-    setTemplate(prev => ({
-      ...prev,
-      columns: [...prev.columns, col],
-      rows: prev.rows.map(row => ({
-        ...row,
-        cells: [...ensureCells(row, prev.columns.length), {}],
-      })),
-    }));
-    setShowAddCol(false);
-    setNewColLabel("");
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
-  const removeColumn = (idx: number) => {
-    setTemplate(prev => ({
-      ...prev,
-      columns: prev.columns.filter((_, i) => i !== idx),
-      rows: prev.rows.map(row => ({
-        ...row,
-        cells: ensureCells(row, prev.columns.length).filter((_, i) => i !== idx),
-      })),
-    }));
-  };
+  // ─── Section Operations ────────────────────────
 
-  const moveColumn = (idx: number, dir: -1 | 1) => {
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= template.columns.length) return;
-    setTemplate(prev => {
-      const columns = [...prev.columns];
-      [columns[idx], columns[newIdx]] = [columns[newIdx], columns[idx]];
-      const rows = prev.rows.map(row => {
-        const cells = ensureCells(row, prev.columns.length);
-        const newCells = [...cells];
-        [newCells[idx], newCells[newIdx]] = [newCells[newIdx], newCells[idx]];
-        return { ...row, cells: newCells };
+  const activeSection = useMemo(
+    () => activeTemplate?.sections.find((s) => s.id === activeSectionId) || null,
+    [activeTemplate, activeSectionId]
+  );
+
+  const updateSection = useCallback(
+    (sectionId: string, updater: (s: BoardSection) => BoardSection) => {
+      if (!activeTemplate) return;
+      pushUndo();
+      setActiveTemplate((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          sections: prev.sections.map((s) => (s.id === sectionId ? updater({ ...s }) : s)),
+        };
       });
-      return { ...prev, columns, rows };
+    },
+    [activeTemplate, pushUndo]
+  );
+
+  const addSection = () => {
+    if (!activeTemplate) return;
+    pushUndo();
+    const s = createSection(`קטע ${activeTemplate.sections.length + 1}`);
+    setActiveTemplate((prev) => prev ? { ...prev, sections: [...prev.sections, s] } : prev);
+    setActiveSectionId(s.id);
+  };
+
+  const removeSection = (id: string) => {
+    if (!activeTemplate || activeTemplate.sections.length <= 1) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const sections = prev.sections.filter((s) => s.id !== id);
+      return { ...prev, sections };
+    });
+    if (activeSectionId === id) {
+      setActiveSectionId(activeTemplate.sections.find((s) => s.id !== id)?.id || "");
+    }
+  };
+
+  const moveSectionUp = (id: string) => {
+    if (!activeTemplate) return;
+    const idx = activeTemplate.sections.findIndex((s) => s.id === id);
+    if (idx <= 0) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const sections = [...prev.sections];
+      [sections[idx - 1], sections[idx]] = [sections[idx], sections[idx - 1]];
+      return { ...prev, sections };
     });
   };
 
-  // ─── Cell Operations ───────────────────────────
+  const moveSectionDown = (id: string) => {
+    if (!activeTemplate) return;
+    const idx = activeTemplate.sections.findIndex((s) => s.id === id);
+    if (idx < 0 || idx >= activeTemplate.sections.length - 1) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const sections = [...prev.sections];
+      [sections[idx], sections[idx + 1]] = [sections[idx + 1], sections[idx]];
+      return { ...prev, sections };
+    });
+  };
 
-  const updateCell = (rowIdx: number, colIdx: number, updates: Partial<BoardCell>) => {
-    setTemplate(prev => ({
-      ...prev,
-      rows: prev.rows.map((row, ri) => {
-        if (ri !== rowIdx) return row;
-        const cells = ensureCells(row, prev.columns.length);
-        cells[colIdx] = { ...cells[colIdx], ...updates };
-        return { ...row, cells };
-      }),
+  // ─── Grid Operations ───────────────────────────
+
+  const addRow = useCallback((sectionId: string, afterRow: number) => {
+    updateSection(sectionId, (s) => {
+      const newRow = Array.from({ length: s.cols }, () => createCell());
+      const grid = [...s.grid];
+      grid.splice(afterRow + 1, 0, newRow);
+      return { ...s, grid, rows: s.rows + 1 };
+    });
+  }, [updateSection]);
+
+  const addCol = useCallback((sectionId: string, afterCol: number) => {
+    updateSection(sectionId, (s) => {
+      const grid = s.grid.map((row) => {
+        const newRow = [...row];
+        newRow.splice(afterCol + 1, 0, createCell());
+        return newRow;
+      });
+      const colWidths = [...s.colWidths];
+      colWidths.splice(afterCol + 1, 0, 120);
+      return { ...s, grid, cols: s.cols + 1, colWidths };
+    });
+  }, [updateSection]);
+
+  const deleteRow = useCallback((sectionId: string, rowIdx: number) => {
+    updateSection(sectionId, (s) => {
+      if (s.rows <= 1) return s;
+      const grid = s.grid.filter((_, i) => i !== rowIdx);
+      return { ...s, grid, rows: s.rows - 1 };
+    });
+  }, [updateSection]);
+
+  const deleteCol = useCallback((sectionId: string, colIdx: number) => {
+    updateSection(sectionId, (s) => {
+      if (s.cols <= 1) return s;
+      const grid = s.grid.map((row) => row.filter((_, i) => i !== colIdx));
+      const colWidths = s.colWidths.filter((_, i) => i !== colIdx);
+      return { ...s, grid, cols: s.cols - 1, colWidths };
+    });
+  }, [updateSection]);
+
+  // ─── Merge / Split ─────────────────────────────
+
+  const mergeCells = useCallback(() => {
+    if (!activeSection || selectedCells.size < 2) return;
+    const bounds = getSelectionBounds(activeSection.grid, selectedCells);
+    if (!bounds) return;
+
+    const { minR, maxR, minC, maxC } = bounds;
+    // Verify all cells in rectangle are selected (must be a perfect rectangle)
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        if (activeSection.grid[r][c].merged) {
+          toast("error", "לא ניתן למזג תאים שכבר ממוזגים. פצל אותם קודם.");
+          return;
+        }
+      }
+    }
+
+    updateSection(activeSectionId, (s) => {
+      const grid = s.grid.map((row) => row.map((cell) => ({ ...cell })));
+      const topLeft = grid[minR][minC];
+      topLeft.colspan = maxC - minC + 1;
+      topLeft.rowspan = maxR - minR + 1;
+
+      for (let r = minR; r <= maxR; r++) {
+        for (let c = minC; c <= maxC; c++) {
+          if (r === minR && c === minC) continue;
+          grid[r][c] = { ...grid[r][c], merged: true, mergedBy: topLeft.id };
+        }
+      }
+      return { ...s, grid };
+    });
+    setSelectedCells(new Set());
+  }, [activeSection, selectedCells, activeSectionId, updateSection, toast]);
+
+  const splitCell = useCallback((sectionId: string, cellId: string) => {
+    updateSection(sectionId, (s) => {
+      const grid = s.grid.map((row) => row.map((cell) => ({ ...cell })));
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r].length; c++) {
+          const cell = grid[r][c];
+          if (cell.id === cellId && (cell.colspan > 1 || cell.rowspan > 1)) {
+            const endR = r + cell.rowspan;
+            const endC = c + cell.colspan;
+            for (let rr = r; rr < endR && rr < grid.length; rr++) {
+              for (let cc = c; cc < endC && cc < grid[rr].length; cc++) {
+                grid[rr][cc] = { ...grid[rr][cc], merged: false, mergedBy: undefined, colspan: 1, rowspan: 1 };
+              }
+            }
+            return { ...s, grid };
+          }
+        }
+      }
+      return s;
+    });
+  }, [updateSection]);
+
+  // ─── Cell Selection ─────────────────────────────
+
+  const handleCellClick = useCallback((cellId: string, sectionId: string, e: React.MouseEvent) => {
+    if (sectionId !== activeSectionId) {
+      setActiveSectionId(sectionId);
+      setSelectedCells(new Set([cellId]));
+      return;
+    }
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      setSelectedCells((prev) => {
+        const next = new Set(prev);
+        if (next.has(cellId)) next.delete(cellId);
+        else next.add(cellId);
+        return next;
+      });
+    } else {
+      setSelectedCells(new Set([cellId]));
+    }
+  }, [activeSectionId]);
+
+  const handleCellDoubleClick = useCallback((cellId: string) => {
+    setEditingCellId(cellId);
+  }, []);
+
+  const handleCellEdit = useCallback((sectionId: string, cellId: string, value: string) => {
+    updateSection(sectionId, (s) => ({
+      ...s,
+      grid: s.grid.map((row) =>
+        row.map((cell) => (cell.id === cellId ? { ...cell, value } : cell))
+      ),
     }));
-  };
+  }, [updateSection]);
 
-  // ─── Row type styling ─────────────────────────
+  const handleCellContextMenu = useCallback((e: React.MouseEvent, sectionId: string, row: number, col: number) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, sectionId, row, col });
+  }, []);
 
-  const rowBg = (row: BoardRow) => {
-    if (row.color) return row.color;
-    switch (row.type) {
-      case "separator": return "#e5e7eb";
-      case "label": return "#dbeafe";
-      case "mission": return "#fef3c7";
-      default: return "transparent";
+  // ─── Apply Styles to Selection ──────────────────
+
+  const applyToSelected = useCallback(
+    (updater: (cell: GridCell) => GridCell) => {
+      if (!activeSectionId || selectedCells.size === 0) return;
+      pushUndo();
+      setActiveTemplate((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          sections: prev.sections.map((s) =>
+            s.id === activeSectionId
+              ? {
+                  ...s,
+                  grid: s.grid.map((row) =>
+                    row.map((cell) => (selectedCells.has(cell.id) ? updater({ ...cell }) : cell))
+                  ),
+                }
+              : s
+          ),
+        };
+      });
+    },
+    [activeSectionId, selectedCells, pushUndo]
+  );
+
+  // Get first selected cell for property display
+  const selectedCell = useMemo(() => {
+    if (!activeSection || selectedCells.size === 0) return null;
+    for (const row of activeSection.grid) {
+      for (const cell of row) {
+        if (selectedCells.has(cell.id)) return cell;
+      }
     }
+    return null;
+  }, [activeSection, selectedCells]);
+
+  // ─── Drag & Drop ────────────────────────────────
+
+  const handleDragStart = (type: string, data: any) => {
+    setDragItem({ type, data });
   };
 
-  const rowTypeIcon = (type: RowType) => {
-    switch (type) {
-      case "shift": return <Clock className="h-3.5 w-3.5 text-green-600" />;
-      case "mission": return <LayoutTemplate className="h-3.5 w-3.5 text-yellow-600" />;
-      case "label": return <FileText className="h-3.5 w-3.5 text-blue-600" />;
-      case "separator": return <Minus className="h-3.5 w-3.5 text-gray-400" />;
-    }
-  };
+  const handleDrop = useCallback((sectionId: string, row: number, col: number) => {
+    if (!dragItem) return;
+    pushUndo();
+    updateSection(sectionId, (s) => {
+      const grid = s.grid.map((r) => r.map((c) => ({ ...c })));
+      const cell = grid[row]?.[col];
+      if (!cell || cell.merged) return s;
 
-  const colCount = template.columns.length;
+      if (dragItem.type === "missionType") {
+        cell.value = dragItem.data.name;
+        cell.missionTypeId = dragItem.data.id;
+        cell.type = "header";
+        cell.fontWeight = "bold";
+        if (dragItem.data.color) cell.backgroundColor = dragItem.data.color;
+      } else if (dragItem.type === "workRole") {
+        cell.value = dragItem.data.name;
+        cell.workRoleId = dragItem.data.id;
+        cell.type = "role_label";
+        cell.fontWeight = "bold";
+      } else if (dragItem.type === "timeRange") {
+        cell.value = `${dragItem.data.start}-${dragItem.data.end}`;
+        cell.timeRange = dragItem.data;
+        cell.type = "time";
+      }
+
+      return { ...s, grid };
+    });
+    setDragItem(null);
+  }, [dragItem, pushUndo, updateSection]);
+
+  // ─── Column Resize ─────────────────────────────
+
+  useEffect(() => {
+    if (!resizingCol) return;
+    const handleMove = (e: MouseEvent) => {
+      const diff = e.clientX - resizingCol.startX;
+      const newWidth = Math.max(50, resizingCol.startWidth + diff);
+      setActiveTemplate((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          sections: prev.sections.map((s) => {
+            if (s.id !== resizingCol.sectionId) return s;
+            const colWidths = [...s.colWidths];
+            colWidths[resizingCol.colIndex] = newWidth;
+            return { ...s, colWidths };
+          }),
+        };
+      });
+    };
+    const handleUp = () => setResizingCol(null);
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("mouseup", handleUp);
+    };
+  }, [resizingCol]);
+
+  // ─── Keyboard Shortcuts ─────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedCells(new Set());
+        setEditingCellId(null);
+        setContextMenu(null);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if (e.key === "Delete" && selectedCells.size > 0 && !editingCellId) {
+        applyToSelected((c) => ({ ...c, value: "" }));
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [undo, selectedCells, editingCellId, applyToSelected]);
+
+  // ─── Template List View ─────────────────────────
+
+  if (showTemplateList && !activeTemplate) {
+    return (
+      <div className="space-y-6" dir="rtl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <LayoutTemplate className="w-6 h-6" />
+              עורך לוח מתקדם
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">עריכת תבניות לוח שיבוצים בסגנון Excel — מיזוג תאים, צבעים, קטעים מרובים</p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={createNewTemplate}>
+              <Plus className="w-4 h-4 ml-1" />
+              תבנית חדשה
+            </Button>
+            <label className="cursor-pointer">
+              <input type="file" accept=".json" className="hidden" onChange={importTemplate} />
+              <Button variant="outline" asChild>
+                <span><Upload className="w-4 h-4 ml-1" />ייבוא</span>
+              </Button>
+            </label>
+          </div>
+        </div>
+
+        {templates.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <Table2 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500 text-lg mb-2">אין תבניות לוח עדיין</p>
+              <p className="text-gray-400 text-sm mb-6">צור תבנית חדשה כדי להתחיל לעצב את לוח השיבוצים</p>
+              <Button onClick={createNewTemplate}>
+                <Plus className="w-4 h-4 ml-1" />
+                צור תבנית ראשונה
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {templates.map((t) => (
+              <Card
+                key={t.id}
+                className="cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+                onClick={() => openTemplate(t)}
+              >
+                <CardContent className="py-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold">{t.name}</h3>
+                      <p className="text-xs text-gray-500">
+                        {t.sections.length} קטעים • {t.sections.reduce((a, s) => a + s.rows, 0)} שורות
+                      </p>
+                    </div>
+                    <Badge className="bg-green-50 text-green-700">{t.scheduleWindowId ? "מקושר" : "כללי"}</Badge>
+                  </div>
+                  {/* Mini preview */}
+                  <div className="border rounded p-2 bg-gray-50 space-y-1">
+                    {t.sections.slice(0, 2).map((s) => (
+                      <div key={s.id} className="text-xs">
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-gray-400 mr-1">({s.rows}×{s.cols})</span>
+                      </div>
+                    ))}
+                    {t.sections.length > 2 && (
+                      <span className="text-xs text-gray-400">+{t.sections.length - 2} עוד...</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Preview Mode ───────────────────────────────
+
+  if (showPreview && activeTemplate) {
+    return (
+      <div className="space-y-4" dir="rtl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Eye className="w-5 h-5" />
+            תצוגה מקדימה — {activeTemplate.name}
+          </h2>
+          <Button variant="outline" onClick={() => setShowPreview(false)}>
+            חזרה לעריכה
+          </Button>
+        </div>
+        {activeTemplate.sections.map((section) => (
+          <div key={section.id} className="border rounded-lg overflow-hidden">
+            <div className="bg-gray-800 text-white px-4 py-2 font-bold text-center text-lg">
+              {section.name}
+            </div>
+            <div
+              className="overflow-x-auto"
+              style={{
+                display: "grid",
+                gridTemplateColumns: section.colWidths.map((w) => `${w}px`).join(" "),
+                direction: "rtl",
+              }}
+            >
+              {section.grid.flatMap((row, rIdx) =>
+                row.map((cell, cIdx) => {
+                  if (cell.merged) return null;
+                  return (
+                    <div
+                      key={cell.id}
+                      style={{
+                        gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
+                        gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
+                        backgroundColor: cell.backgroundColor,
+                        color: cell.textColor,
+                        fontWeight: cell.fontWeight,
+                        textAlign: cell.textAlign,
+                        borderTop: cell.borderTop ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        padding: "6px 8px",
+                        minHeight: "32px",
+                        fontSize: "13px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
+                      }}
+                    >
+                      {cell.value}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!activeTemplate) return null;
+
+  // ─── Mobile Read-Only ───────────────────────────
+
+  if (isMobile) {
+    return (
+      <div className="space-y-4 p-4" dir="rtl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">{activeTemplate.name}</h2>
+          <Button variant="outline" size="sm" onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}>
+            חזרה
+          </Button>
+        </div>
+        <p className="text-sm text-gray-500 bg-yellow-50 border border-yellow-200 rounded p-2">
+          📱 תצוגה בלבד — העריכה זמינה במחשב שולחני
+        </p>
+        {activeTemplate.sections.map((section) => (
+          <div key={section.id} className="border rounded-lg overflow-x-auto">
+            <div className="bg-gray-800 text-white px-3 py-1.5 font-bold text-center">
+              {section.name}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: section.colWidths.map((w) => `${Math.max(60, w * 0.7)}px`).join(" "),
+                direction: "rtl",
+                fontSize: "11px",
+              }}
+            >
+              {section.grid.flatMap((row, rIdx) =>
+                row.map((cell, cIdx) => {
+                  if (cell.merged) return null;
+                  return (
+                    <div
+                      key={cell.id}
+                      style={{
+                        gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
+                        gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
+                        backgroundColor: cell.backgroundColor,
+                        color: cell.textColor,
+                        fontWeight: cell.fontWeight,
+                        textAlign: cell.textAlign,
+                        border: `1px solid ${activeTemplate.globalStyles.borderColor}`,
+                        padding: "3px 4px",
+                        minHeight: "24px",
+                      }}
+                    >
+                      {cell.value}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ─── Editor View ────────────────────────────────
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <LayoutTemplate className="h-6 w-6 text-indigo-600" />
-            בנאי לוח יומי — WYSIWYG
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            בנה את הלוח כמו גיליון אקסל: הוסף שורות ועמודות, סדר מחדש, ולחץ על תא כדי לערוך
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
-            <Eye className="me-1 h-4 w-4" />תצוגה מקדימה
-          </Button>
-          <Button onClick={saveTemplate} disabled={saving}>
-            <Save className="me-1 h-4 w-4" />{saving ? "שומר..." : "שמור תבנית"}
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col h-full min-h-[600px]" dir="rtl">
+      {/* ─── Top Bar ─────────────────────────────── */}
+      <div className="border-b bg-white px-4 py-2 flex items-center gap-2 flex-wrap">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}
+        >
+          ← חזרה
+        </Button>
 
-      {/* Template name */}
-      <div className="flex items-center gap-3">
-        <Label className="text-sm font-bold">שם התבנית:</Label>
+        <div className="h-6 border-r border-gray-200 mx-1" />
+
         <Input
-          value={template.name}
-          onChange={e => setTemplate(prev => ({ ...prev, name: e.target.value }))}
-          className="max-w-xs"
+          value={activeTemplate.name}
+          onChange={(e) =>
+            setActiveTemplate((prev) => prev ? { ...prev, name: e.target.value } : prev)
+          }
+          className="w-48 h-8 text-sm font-semibold"
         />
+
+        <Select
+          value={activeTemplate.scheduleWindowId || ""}
+          onChange={(e) =>
+            setActiveTemplate((prev) =>
+              prev ? { ...prev, scheduleWindowId: e.target.value || undefined } : prev
+            )
+          }
+          className="w-44 h-8 text-xs"
+        >
+          <option value="">ללא חלון שיבוץ</option>
+          {scheduleWindows.map((w) => (
+            <option key={w.id} value={w.id}>{w.name}</option>
+          ))}
+        </Select>
+
+        <div className="h-6 border-r border-gray-200 mx-1" />
+
+        <Button variant="outline" size="sm" onClick={addSection} className="text-xs h-7">
+          <Plus className="w-3 h-3 ml-1" />
+          הוסף קטע
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          disabled={selectedCells.size < 2}
+          onClick={mergeCells}
+        >
+          <Grid3X3 className="w-3 h-3 ml-1" />
+          מזג תאים
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          disabled={!selectedCell || (selectedCell.colspan <= 1 && selectedCell.rowspan <= 1)}
+          onClick={() => selectedCell && splitCell(activeSectionId, selectedCell.id)}
+        >
+          <SplitSquareHorizontal className="w-3 h-3 ml-1" />
+          פצל
+        </Button>
+
+        <div className="h-6 border-r border-gray-200 mx-1" />
+
+        <ColorPickerPopover
+          color={selectedCell?.backgroundColor || "#ffffff"}
+          onChange={(c) => applyToSelected((cell) => ({ ...cell, backgroundColor: c }))}
+          label="רקע"
+        />
+        <ColorPickerPopover
+          color={selectedCell?.textColor || "#1a1a1a"}
+          onChange={(c) => applyToSelected((cell) => ({ ...cell, textColor: c }))}
+          label="טקסט"
+        />
+
+        <button
+          className={cn(
+            "px-2 py-1 rounded border text-xs h-7",
+            selectedCell?.fontWeight === "bold" ? "bg-gray-200 border-gray-400" : "border-gray-200 hover:bg-gray-50"
+          )}
+          onClick={() => applyToSelected((c) => ({ ...c, fontWeight: c.fontWeight === "bold" ? "normal" : "bold" }))}
+        >
+          <Bold className="w-3 h-3" />
+        </button>
+
+        <div className="flex border rounded overflow-hidden h-7">
+          {(["right", "center", "left"] as const).map((align) => {
+            const Icon = align === "right" ? AlignRight : align === "center" ? AlignCenter : AlignLeft;
+            return (
+              <button
+                key={align}
+                className={cn(
+                  "px-1.5 text-xs border-l first:border-l-0",
+                  selectedCell?.textAlign === align ? "bg-gray-200" : "hover:bg-gray-50"
+                )}
+                onClick={() => applyToSelected((c) => ({ ...c, textAlign: align }))}
+              >
+                <Icon className="w-3 h-3" />
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          className={cn(
+            "px-2 py-1 rounded border text-xs h-7",
+            selectedCell?.borderTop ? "bg-gray-200 border-gray-400" : "border-gray-200"
+          )}
+          onClick={() =>
+            applyToSelected((c) => {
+              const allOn = c.borderTop && c.borderBottom && c.borderLeft && c.borderRight;
+              return { ...c, borderTop: !allOn, borderBottom: !allOn, borderLeft: !allOn, borderRight: !allOn };
+            })
+          }
+          title="גבולות"
+        >
+          <Square className="w-3 h-3" />
+        </button>
+
+        <div className="h-6 border-r border-gray-200 mx-1" />
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          onClick={() => activeSection && addRow(activeSectionId, (activeSection.rows || 1) - 1)}
+        >
+          <Plus className="w-3 h-3 ml-0.5" />שורה
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          onClick={() => activeSection && addCol(activeSectionId, (activeSection.cols || 1) - 1)}
+        >
+          <Plus className="w-3 h-3 ml-0.5" />עמודה
+        </Button>
+
+        <div className="flex-1" />
+
+        <Button variant="ghost" size="sm" className="text-xs h-7" onClick={undo} disabled={undoStack.length === 0}>
+          <RotateCcw className="w-3 h-3 ml-1" />
+          ביטול
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={exportTemplate}>
+          <Download className="w-3 h-3 ml-1" />
+          ייצוא
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setShowPreview(true)}>
+          <Eye className="w-3 h-3 ml-1" />
+          תצוגה מקדימה
+        </Button>
+        <button
+          className="p-1.5 rounded hover:bg-gray-100 text-gray-500"
+          onClick={() => setShowSidePanel(!showSidePanel)}
+          title={showSidePanel ? "הסתר פאנל" : "הצג פאנל"}
+        >
+          {showSidePanel ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+        </button>
+        <Button size="sm" className="h-7 text-xs" onClick={saveTemplate} disabled={saving}>
+          <Save className="w-3 h-3 ml-1" />
+          {saving ? "שומר..." : "שמור"}
+        </Button>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex gap-2 flex-wrap">
-        <Button size="sm" variant="outline" onClick={() => { setNewRowType("shift"); setNewRowLabel(""); setShowAddRow(true); }}>
-          <Plus className="me-1 h-4 w-4" />הוסף שורה
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => { setNewColType("slot"); setNewColLabel(""); setShowAddCol(true); }}>
-          <Plus className="me-1 h-4 w-4" />הוסף עמודה
-        </Button>
-      </div>
-
-      {/* ═══ THE GRID ═══ */}
-      <div className="overflow-x-auto rounded-xl border shadow-sm">
-        <table className="w-full border-collapse" style={{ minWidth: template.columns.reduce((s, c) => s + c.width, 60) }}>
-          {/* Column Headers */}
-          <thead>
-            <tr className="bg-muted/60">
-              {/* Row controls column */}
-              <th className="border px-1 py-2 w-[60px] text-center text-[10px] text-muted-foreground">
-                ↕
-              </th>
-              {template.columns.map((col, ci) => (
-                <th
-                  key={col.id}
-                  className="border px-2 py-2 text-sm font-bold cursor-pointer hover:bg-muted/80 transition-colors group relative"
-                  style={{ minWidth: col.width, width: col.width }}
-                  onClick={() => setEditColIdx(ci)}
+      {/* ─── Section Tabs ────────────────────────── */}
+      <div className="border-b bg-gray-50 px-4 py-1 flex items-center gap-1 overflow-x-auto">
+        {activeTemplate.sections.map((s, idx) => (
+          <div
+            key={s.id}
+            className={cn(
+              "flex items-center gap-1 px-3 py-1 rounded-t text-sm cursor-pointer border border-b-0 transition-colors",
+              s.id === activeSectionId
+                ? "bg-white border-gray-300 font-semibold"
+                : "bg-gray-100 border-transparent hover:bg-gray-200 text-gray-600"
+            )}
+            onClick={() => setActiveSectionId(s.id)}
+          >
+            {editingSectionName === s.id ? (
+              <Input
+                value={sectionNameInput}
+                onChange={(e) => setSectionNameInput(e.target.value)}
+                onBlur={() => {
+                  updateSection(s.id, (sec) => ({ ...sec, name: sectionNameInput || sec.name }));
+                  setEditingSectionName(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    updateSection(s.id, (sec) => ({ ...sec, name: sectionNameInput || sec.name }));
+                    setEditingSectionName(null);
+                  }
+                }}
+                className="w-24 h-5 text-xs px-1"
+                autoFocus
+              />
+            ) : (
+              <span
+                onDoubleClick={() => {
+                  setEditingSectionName(s.id);
+                  setSectionNameInput(s.name);
+                }}
+              >
+                {s.name}
+              </span>
+            )}
+            <span className="text-[10px] text-gray-400">({s.rows}×{s.cols})</span>
+            <div className="flex gap-0.5 mr-1">
+              <button onClick={(e) => { e.stopPropagation(); moveSectionUp(s.id); }} className="hover:text-blue-600" title="הזז למעלה">
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); moveSectionDown(s.id); }} className="hover:text-blue-600" title="הזז למטה">
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {activeTemplate.sections.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeSection(s.id); }}
+                  className="hover:text-red-600"
+                  title="מחק קטע"
                 >
-                  <div className="flex items-center justify-between gap-1">
-                    <span>{col.label}</span>
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {ci > 0 && (
-                        <button onClick={e => { e.stopPropagation(); moveColumn(ci, -1); }} className="text-muted-foreground hover:text-foreground" title="הזז שמאלה">
-                          ←
-                        </button>
-                      )}
-                      {ci < colCount - 1 && (
-                        <button onClick={e => { e.stopPropagation(); moveColumn(ci, 1); }} className="text-muted-foreground hover:text-foreground" title="הזז ימינה">
-                          →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-[10px] font-normal text-muted-foreground">
-                    {col.type === "time" ? "⏰" : col.type === "slot" ? "👤" : col.type === "notes" ? "📝" : "✏️"}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {template.rows.map((row, ri) => {
-              const cells = ensureCells(row, colCount);
-              const bg = rowBg(row);
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        <button
+          className="px-2 py-1 text-gray-400 hover:text-gray-600 text-sm"
+          onClick={addSection}
+          title="הוסף קטע"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
 
-              if (row.type === "separator") {
-                return (
-                  <tr key={row.id}>
-                    <td className="border px-1 py-0.5 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        {ri > 0 && <button onClick={() => moveRow(ri, -1)} className="text-muted-foreground hover:text-foreground text-xs">▲</button>}
-                        {ri < template.rows.length - 1 && <button onClick={() => moveRow(ri, 1)} className="text-muted-foreground hover:text-foreground text-xs">▼</button>}
-                        <button onClick={() => removeRow(ri)} className="text-red-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
-                      </div>
-                    </td>
-                    <td colSpan={colCount} className="border h-2" style={{ backgroundColor: bg }} />
-                  </tr>
-                );
-              }
+      {/* ─── Main Content ────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Grid Area */}
+        <div className="flex-1 overflow-auto p-4 bg-gray-100" ref={gridRef}>
+          {activeTemplate.sections.map((section) => (
+            <div
+              key={section.id}
+              className={cn(
+                "mb-6 bg-white rounded-lg shadow-sm border",
+                section.id === activeSectionId ? "ring-2 ring-blue-200" : ""
+              )}
+              onClick={() => setActiveSectionId(section.id)}
+            >
+              {/* Section Header */}
+              <div
+                className="px-4 py-2 font-bold text-center text-lg border-b"
+                style={{ backgroundColor: activeTemplate.globalStyles.headerColor, color: "#fff" }}
+              >
+                {section.name}
+              </div>
 
-              return (
-                <tr key={row.id} style={{ backgroundColor: bg }} className="hover:brightness-95 transition-all">
-                  {/* Row controls */}
-                  <td className="border px-1 py-1 text-center" style={{ backgroundColor: "#f9fafb" }}>
-                    <div className="flex flex-col items-center gap-0.5">
-                      {rowTypeIcon(row.type)}
-                      {ri > 0 && <button onClick={() => moveRow(ri, -1)} className="text-muted-foreground hover:text-foreground text-[10px]">▲</button>}
-                      {ri < template.rows.length - 1 && <button onClick={() => moveRow(ri, 1)} className="text-muted-foreground hover:text-foreground text-[10px]">▼</button>}
-                      <button onClick={() => setEditRowIdx(ri)} className="text-muted-foreground hover:text-foreground"><Pencil className="h-2.5 w-2.5" /></button>
-                      <button onClick={() => removeRow(ri)} className="text-red-400 hover:text-red-600"><Trash2 className="h-2.5 w-2.5" /></button>
-                    </div>
-                  </td>
-                  {/* Data cells */}
-                  {cells.map((cell, ci) => {
-                    if (cell.colspan && cell.colspan > 1) {
-                      // This cell spans multiple columns — handled by the merged cell
-                    }
-                    // Check if this cell is hidden by a previous cell's colspan
-                    const prevMerge = cells.slice(0, ci).find((c, idx) => c.colspan && idx + (c.colspan || 1) > ci);
-                    if (prevMerge) return null;
-
-                    const col = template.columns[ci];
-                    const isSlotCol = col?.type === "slot";
-                    const isTimeCol = col?.type === "time";
-                    const hasSlot = cell.slotId || (isSlotCol && row.type === "shift");
-
+              {/* Grid */}
+              <div className="overflow-x-auto p-1">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: section.colWidths.map((w) => `${w}px`).join(" "),
+                    direction: "rtl",
+                    position: "relative",
+                  }}
+                >
+                  {/* Column resize handles */}
+                  {section.colWidths.map((w, cIdx) => {
+                    let leftPos = 0;
+                    for (let i = section.colWidths.length - 1; i > cIdx; i--) leftPos += section.colWidths[i];
                     return (
-                      <td
-                        key={ci}
-                        colSpan={cell.colspan || 1}
-                        className={`border px-2 py-2 text-sm cursor-pointer hover:ring-2 hover:ring-primary-300 hover:ring-inset transition-all ${
-                          hasSlot ? "bg-blue-50/50 dark:bg-blue-900/10" : ""
-                        }`}
-                        style={{ minWidth: col?.width || 100, backgroundColor: cell.color || undefined }}
-                        onClick={() => setEditCellPos({ row: ri, col: ci })}
-                      >
-                        {cell.value ? (
-                          <span className="font-medium">{cell.value}</span>
-                        ) : hasSlot ? (
-                          <div className="flex items-center justify-center gap-1 text-blue-400 text-xs py-1">
-                            <User className="h-3.5 w-3.5" />
-                            <span>לחץ לשבץ</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/30 text-xs">—</span>
-                        )}
-                      </td>
+                      <div
+                        key={`resize-${cIdx}`}
+                        className="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-10"
+                        style={{ right: leftPos + w - 2 }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setResizingCol({ sectionId: section.id, colIndex: cIdx, startX: e.clientX, startWidth: w });
+                        }}
+                      />
                     );
                   })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-green-600" /> שורת משמרת</span>
-        <span className="flex items-center gap-1"><LayoutTemplate className="h-3 w-3 text-yellow-600" /> שורת סוג משימה</span>
-        <span className="flex items-center gap-1"><FileText className="h-3 w-3 text-blue-600" /> שורת תווית</span>
-        <span className="flex items-center gap-1"><Minus className="h-3 w-3 text-gray-400" /> מפריד</span>
-        <span className="flex items-center gap-1"><User className="h-3 w-3 text-blue-400" /> סלוט חייל (לחיץ)</span>
-      </div>
+                  {section.grid.flatMap((row, rIdx) =>
+                    row.map((cell, cIdx) => {
+                      if (cell.merged) return null;
+                      const isSelected = selectedCells.has(cell.id);
+                      const isEditing = editingCellId === cell.id;
 
-      {/* ═══ MODALS ═══ */}
+                      return (
+                        <div
+                          key={cell.id}
+                          className={cn(
+                            "relative group transition-shadow",
+                            isSelected && "ring-2 ring-blue-500 ring-inset z-10",
+                          )}
+                          style={{
+                            gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
+                            gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
+                            backgroundColor: cell.backgroundColor,
+                            color: cell.textColor,
+                            fontWeight: cell.fontWeight,
+                            textAlign: cell.textAlign,
+                            borderTop: cell.borderTop ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                            borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                            borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                            borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                            padding: "4px 6px",
+                            minHeight: "32px",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                            userSelect: "none",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
+                          }}
+                          onClick={(e) => handleCellClick(cell.id, section.id, e)}
+                          onDoubleClick={() => handleCellDoubleClick(cell.id)}
+                          onContextMenu={(e) => handleCellContextMenu(e, section.id, rIdx, cIdx)}
+                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = "2px dashed #3b82f6"; }}
+                          onDragLeave={(e) => { e.currentTarget.style.outline = ""; }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.style.outline = "";
+                            handleDrop(section.id, rIdx, cIdx);
+                          }}
+                        >
+                          {isEditing ? (
+                            <input
+                              className="w-full h-full bg-transparent outline-none text-center"
+                              style={{ color: cell.textColor, fontWeight: cell.fontWeight, textAlign: cell.textAlign, fontSize: "13px" }}
+                              value={cell.value}
+                              onChange={(e) => handleCellEdit(section.id, cell.id, e.target.value)}
+                              onBlur={() => setEditingCellId(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") setEditingCellId(null);
+                                if (e.key === "Tab") {
+                                  e.preventDefault();
+                                  setEditingCellId(null);
+                                  // Move to next cell
+                                  const nextCell = row[cIdx + 1];
+                                  if (nextCell && !nextCell.merged) {
+                                    setSelectedCells(new Set([nextCell.id]));
+                                    setEditingCellId(nextCell.id);
+                                  }
+                                }
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="truncate">{cell.value || (isSelected ? "" : "")}</span>
+                          )}
 
-      {/* Add Row */}
-      <Dialog open={showAddRow} onOpenChange={setShowAddRow}>
-        <DialogContent className="max-w-[450px]">
-          <DialogHeader><DialogTitle>הוסף שורה</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>סוג שורה</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {([
-                  { type: "shift" as RowType, label: "⏰ משמרת", desc: "שורה עם טווח שעות" },
-                  { type: "mission" as RowType, label: "📋 סוג משימה", desc: "שורה מקושרת לסוג משימה" },
-                  { type: "label" as RowType, label: "🏷️ תווית", desc: "שורת טקסט חופשי" },
-                  { type: "separator" as RowType, label: "➖ מפריד", desc: "קו הפרדה" },
-                ]).map(opt => (
-                  <button
-                    key={opt.type}
-                    type="button"
-                    onClick={() => setNewRowType(opt.type)}
-                    className={`rounded-xl border p-3 text-start transition-all ${
-                      newRowType === opt.type ? "ring-2 ring-primary-500 border-primary-300 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="text-sm font-medium">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
-                  </button>
-                ))}
+                          {/* Merge indicator */}
+                          {(cell.colspan > 1 || cell.rowspan > 1) && (
+                            <span className="absolute top-0 left-0 text-[8px] text-blue-400 opacity-60 px-0.5">
+                              {cell.colspan}×{cell.rowspan}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
+          ))}
+        </div>
 
-            {newRowType !== "separator" && (
-              <div className="space-y-2">
-                <Label>תווית / שם</Label>
-                <Input value={newRowLabel} onChange={e => setNewRowLabel(e.target.value)} placeholder="לדוגמה: בוקר, מנהל תורן..." />
-              </div>
-            )}
-
-            {newRowType === "shift" && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>שעת התחלה</Label>
-                  <Input type="time" value={newRowStart} onChange={e => setNewRowStart(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>שעת סיום</Label>
-                  <Input type="time" value={newRowEnd} onChange={e => setNewRowEnd(e.target.value)} />
-                </div>
-              </div>
-            )}
-
-            {newRowType === "mission" && missionTypes.length > 0 && (
-              <div className="space-y-2">
-                <Label>סוג משימה</Label>
-                <Select value={newRowMissionTypeId} onChange={e => setNewRowMissionTypeId(e.target.value)}>
-                  <option value="">ללא קישור</option>
-                  {missionTypes.map((mt: any) => (
-                    <option key={mt.id} value={mt.id}>{mt.name?.[lang] || mt.name?.he || mt.name}</option>
+        {/* Side Panel */}
+        {showSidePanel && (
+          <div className="w-64 border-r bg-white overflow-y-auto flex-shrink-0">
+            {/* Mission Types */}
+            <div className="border-b p-3">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                <LayoutTemplate className="w-4 h-4" />
+                סוגי משימות
+              </h3>
+              {missionTypes.length === 0 ? (
+                <p className="text-xs text-gray-400">אין סוגי משימות</p>
+              ) : (
+                <div className="space-y-1">
+                  {missionTypes.map((mt) => (
+                    <div
+                      key={mt.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded border border-gray-100 cursor-grab hover:bg-gray-50 text-xs"
+                      draggable
+                      onDragStart={() => handleDragStart("missionType", mt)}
+                    >
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: mt.color || "#6b7280" }} />
+                      <span>{mt.name}</span>
+                    </div>
                   ))}
-                </Select>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddRow(false)}>ביטול</Button>
-            <Button onClick={addRow}>הוסף</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                </div>
+              )}
+            </div>
 
-      {/* Add Column */}
-      <Dialog open={showAddCol} onOpenChange={setShowAddCol}>
-        <DialogContent className="max-w-[400px]">
-          <DialogHeader><DialogTitle>הוסף עמודה</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>סוג עמודה</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {([
-                  { type: "slot" as ColType, label: "👤 סלוט חייל", desc: "עמודה לשיבוץ חייל" },
-                  { type: "time" as ColType, label: "⏰ שעה", desc: "עמודת זמן" },
-                  { type: "notes" as ColType, label: "📝 הערות", desc: "עמודת הערות" },
-                  { type: "custom" as ColType, label: "✏️ מותאם", desc: "עמודה חופשית" },
-                ]).map(opt => (
-                  <button
-                    key={opt.type}
-                    type="button"
-                    onClick={() => setNewColType(opt.type)}
-                    className={`rounded-xl border p-3 text-start transition-all ${
-                      newColType === opt.type ? "ring-2 ring-primary-500 border-primary-300 bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"
-                    }`}
+            {/* Work Roles */}
+            <div className="border-b p-3">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                <User className="w-4 h-4" />
+                תפקידי עבודה
+              </h3>
+              {workRoles.length === 0 ? (
+                <p className="text-xs text-gray-400">אין תפקידים</p>
+              ) : (
+                <div className="space-y-1">
+                  {workRoles.map((wr) => (
+                    <div
+                      key={wr.id}
+                      className="px-2 py-1.5 rounded border border-gray-100 cursor-grab hover:bg-gray-50 text-xs"
+                      draggable
+                      onDragStart={() => handleDragStart("workRole", wr)}
+                    >
+                      {wr.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Time Ranges */}
+            <div className="border-b p-3">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                משמרות
+              </h3>
+              <div className="space-y-1">
+                {[
+                  { label: "בוקר", start: "07:00", end: "15:00" },
+                  { label: "צהריים", start: "15:00", end: "23:00" },
+                  { label: "לילה", start: "23:00", end: "07:00" },
+                  { label: "4 שעות", start: "07:00", end: "11:00" },
+                  { label: "4 שעות", start: "11:00", end: "15:00" },
+                  { label: "4 שעות", start: "15:00", end: "19:00" },
+                  { label: "4 שעות", start: "19:00", end: "23:00" },
+                  { label: "4 שעות", start: "23:00", end: "03:00" },
+                  { label: "4 שעות", start: "03:00", end: "07:00" },
+                ].map((tr, i) => (
+                  <div
+                    key={i}
+                    className="px-2 py-1.5 rounded border border-gray-100 cursor-grab hover:bg-gray-50 text-xs flex justify-between"
+                    draggable
+                    onDragStart={() => handleDragStart("timeRange", { start: tr.start, end: tr.end })}
                   >
-                    <div className="text-sm font-medium">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
-                  </button>
+                    <span>{tr.label}</span>
+                    <span className="text-gray-400">{tr.start}-{tr.end}</span>
+                  </div>
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>כותרת עמודה</Label>
-              <Input value={newColLabel} onChange={e => setNewColLabel(e.target.value)} placeholder="לדוגמה: נהג, שומר, מפקד..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddCol(false)}>ביטול</Button>
-            <Button onClick={addColumn}>הוסף</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Edit Row */}
-      <Dialog open={editRowIdx !== null} onOpenChange={open => { if (!open) setEditRowIdx(null); }}>
-        <DialogContent className="max-w-[450px]">
-          <DialogHeader><DialogTitle>עריכת שורה</DialogTitle></DialogHeader>
-          {editRowIdx !== null && (() => {
-            const row = template.rows[editRowIdx];
-            if (!row) return null;
-            return (
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>תווית</Label>
-                  <Input
-                    value={row.label}
-                    onChange={e => setTemplate(prev => ({
-                      ...prev,
-                      rows: prev.rows.map((r, i) => i === editRowIdx ? { ...r, label: e.target.value } : r),
-                    }))}
-                  />
-                </div>
-                {row.type === "shift" && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>שעת התחלה</Label>
-                      <Input
-                        type="time"
-                        value={row.timeRange?.start || ""}
-                        onChange={e => setTemplate(prev => ({
-                          ...prev,
-                          rows: prev.rows.map((r, i) => i === editRowIdx
-                            ? { ...r, timeRange: { start: e.target.value, end: r.timeRange?.end || "" } }
-                            : r
-                          ),
-                        }))}
-                      />
+            {/* Cell Properties */}
+            {selectedCell && (
+              <div className="p-3">
+                <h3 className="font-semibold text-sm mb-2">מאפייני תא</h3>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <Label className="text-xs">סוג</Label>
+                    <Select
+                      value={selectedCell.type}
+                      onChange={(e) => applyToSelected((c) => ({ ...c, type: e.target.value as CellType }))}
+                      className="h-7 text-xs"
+                    >
+                      <option value="empty">ריק</option>
+                      <option value="header">כותרת</option>
+                      <option value="subheader">כותרת משנה</option>
+                      <option value="role_label">תפקיד</option>
+                      <option value="soldier_slot">משבצת חייל</option>
+                      <option value="time">שעה</option>
+                      <option value="separator">מפריד</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">ערך</Label>
+                    <Input
+                      value={selectedCell.value}
+                      onChange={(e) => applyToSelected((c) => ({ ...c, value: e.target.value }))}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  {selectedCell.type === "time" && (
+                    <div className="flex gap-1">
+                      <div className="flex-1">
+                        <Label className="text-xs">מ-</Label>
+                        <Input
+                          type="time"
+                          value={selectedCell.timeRange?.start || ""}
+                          onChange={(e) =>
+                            applyToSelected((c) => ({
+                              ...c,
+                              timeRange: { start: e.target.value, end: c.timeRange?.end || "" },
+                            }))
+                          }
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-xs">עד</Label>
+                        <Input
+                          type="time"
+                          value={selectedCell.timeRange?.end || ""}
+                          onChange={(e) =>
+                            applyToSelected((c) => ({
+                              ...c,
+                              timeRange: { start: c.timeRange?.start || "", end: e.target.value },
+                            }))
+                          }
+                          className="h-7 text-xs"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>שעת סיום</Label>
-                      <Input
-                        type="time"
-                        value={row.timeRange?.end || ""}
-                        onChange={e => setTemplate(prev => ({
-                          ...prev,
-                          rows: prev.rows.map((r, i) => i === editRowIdx
-                            ? { ...r, timeRange: { ...r.timeRange!, end: e.target.value } }
-                            : r
-                          ),
-                        }))}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>צבע רקע</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="color"
-                      value={row.color || "#ffffff"}
-                      onChange={e => setTemplate(prev => ({
-                        ...prev,
-                        rows: prev.rows.map((r, i) => i === editRowIdx ? { ...r, color: e.target.value } : r),
-                      }))}
-                      className="w-12 h-10"
-                    />
-                    <Button variant="ghost" size="sm" onClick={() => setTemplate(prev => ({
-                      ...prev,
-                      rows: prev.rows.map((r, i) => i === editRowIdx ? { ...r, color: undefined } : r),
-                    }))}>
-                      נקה צבע
-                    </Button>
+                  )}
+                  <div className="pt-1 border-t">
+                    <span className="text-gray-400">
+                      מיזוג: {selectedCell.colspan}×{selectedCell.rowspan}
+                      {selectedCell.missionTypeId && " • משימה מקושרת"}
+                      {selectedCell.workRoleId && " • תפקיד מקושר"}
+                    </span>
                   </div>
                 </div>
               </div>
-            );
-          })()}
-          <DialogFooter>
-            <Button onClick={() => setEditRowIdx(null)}>סגור</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Column */}
-      <Dialog open={editColIdx !== null} onOpenChange={open => { if (!open) setEditColIdx(null); }}>
-        <DialogContent className="max-w-[400px]">
-          <DialogHeader><DialogTitle>עריכת עמודה</DialogTitle></DialogHeader>
-          {editColIdx !== null && (() => {
-            const col = template.columns[editColIdx];
-            if (!col) return null;
-            return (
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>כותרת</Label>
-                  <Input
-                    value={col.label}
-                    onChange={e => setTemplate(prev => ({
-                      ...prev,
-                      columns: prev.columns.map((c, i) => i === editColIdx ? { ...c, label: e.target.value } : c),
-                    }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>רוחב (px)</Label>
-                  <Input
-                    type="number" min={50} max={400}
-                    value={col.width}
-                    onChange={e => setTemplate(prev => ({
-                      ...prev,
-                      columns: prev.columns.map((c, i) => i === editColIdx ? { ...c, width: parseInt(e.target.value) || 100 } : c),
-                    }))}
-                  />
-                </div>
-                <div className="pt-2 border-t">
-                  <Button variant="destructive" size="sm" onClick={() => { removeColumn(editColIdx); setEditColIdx(null); }}>
-                    <Trash2 className="me-1 h-4 w-4" />מחק עמודה
-                  </Button>
-                </div>
-              </div>
-            );
-          })()}
-          <DialogFooter>
-            <Button onClick={() => setEditColIdx(null)}>סגור</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Cell */}
-      <Dialog open={editCellPos !== null} onOpenChange={open => { if (!open) setEditCellPos(null); }}>
-        <DialogContent className="max-w-[400px]">
-          <DialogHeader><DialogTitle>עריכת תא</DialogTitle></DialogHeader>
-          {editCellPos && (() => {
-            const row = template.rows[editCellPos.row];
-            const cells = ensureCells(row, colCount);
-            const cell = cells[editCellPos.col] || {};
-            const col = template.columns[editCellPos.col];
-
-            return (
-              <div className="space-y-4 py-4">
-                <div className="text-xs text-muted-foreground">
-                  שורה: <strong>{row.label || row.type}</strong> | עמודה: <strong>{col?.label}</strong>
-                </div>
-                <div className="space-y-2">
-                  <Label>ערך / תוכן</Label>
-                  <Input
-                    value={cell.value || ""}
-                    onChange={e => updateCell(editCellPos.row, editCellPos.col, { value: e.target.value })}
-                    placeholder="טקסט חופשי, שם חייל..."
-                  />
-                </div>
-                {col?.type === "slot" && (
-                  <div className="space-y-2">
-                    <Label>מזהה סלוט (slot ID)</Label>
-                    <Input
-                      value={cell.slotId || ""}
-                      onChange={e => updateCell(editCellPos.row, editCellPos.col, { slotId: e.target.value })}
-                      placeholder="auto"
-                    />
-                    <p className="text-[10px] text-muted-foreground">סלוט מאפשר שיבוץ חיילים אוטומטי. השאר ריק אם לא נדרש.</p>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>מיזוג תאים (colspan)</Label>
-                  <Input
-                    type="number" min={1} max={colCount}
-                    value={cell.colspan || 1}
-                    onChange={e => updateCell(editCellPos.row, editCellPos.col, { colspan: parseInt(e.target.value) || 1 })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>צבע רקע</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="color"
-                      value={cell.color || "#ffffff"}
-                      onChange={e => updateCell(editCellPos.row, editCellPos.col, { color: e.target.value })}
-                      className="w-12 h-10"
-                    />
-                    <Button variant="ghost" size="sm" onClick={() => updateCell(editCellPos.row, editCellPos.col, { color: undefined })}>
-                      נקה
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-          <DialogFooter>
-            <Button onClick={() => setEditCellPos(null)}>סגור</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Preview */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-auto">
-          <DialogHeader><DialogTitle>תצוגה מקדימה — {template.name}</DialogTitle></DialogHeader>
-          <div className="py-4">
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-700 text-white">
-                    {template.columns.map(col => (
-                      <th key={col.id} className="border border-slate-600 px-3 py-2 text-sm font-bold" style={{ minWidth: col.width }}>
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {template.rows.map(row => {
-                    const cells = ensureCells(row, colCount);
-                    const bg = rowBg(row);
-
-                    if (row.type === "separator") {
-                      return <tr key={row.id}><td colSpan={colCount} className="border h-1.5" style={{ backgroundColor: "#cbd5e1" }} /></tr>;
-                    }
-
-                    return (
-                      <tr key={row.id} style={{ backgroundColor: bg }}>
-                        {cells.map((cell, ci) => {
-                          const prevMerge = cells.slice(0, ci).find((c, idx) => c.colspan && idx + (c.colspan || 1) > ci);
-                          if (prevMerge) return null;
-                          const col = template.columns[ci];
-                          const hasSlot = cell.slotId || (col?.type === "slot" && row.type === "shift");
-
-                          return (
-                            <td key={ci} colSpan={cell.colspan || 1}
-                              className={`border px-3 py-2 text-sm ${hasSlot ? "text-center" : ""}`}
-                              style={{ backgroundColor: cell.color || undefined }}
-                            >
-                              {cell.value || (hasSlot ? (
-                                <span className="inline-block border-2 border-dashed border-blue-300 rounded px-3 py-1 text-blue-400 text-xs">
-                                  [חייל]
-                                </span>
-                              ) : "—")}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>סגור</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: "מזג תאים",
+              icon: <Grid3X3 className="w-3 h-3" />,
+              onClick: mergeCells,
+              disabled: selectedCells.size < 2,
+            },
+            {
+              label: "פצל תא",
+              icon: <SplitSquareHorizontal className="w-3 h-3" />,
+              onClick: () => {
+                const cell = activeSection?.grid[contextMenu.row]?.[contextMenu.col];
+                if (cell) splitCell(contextMenu.sectionId, cell.id);
+              },
+              disabled: (() => {
+                const cell = activeSection?.grid[contextMenu.row]?.[contextMenu.col];
+                return !cell || (cell.colspan <= 1 && cell.rowspan <= 1);
+              })(),
+            },
+            { label: "", separator: true, onClick: () => {} },
+            {
+              label: "הוסף שורה למעלה",
+              icon: <Plus className="w-3 h-3" />,
+              onClick: () => addRow(contextMenu.sectionId, contextMenu.row - 1),
+            },
+            {
+              label: "הוסף שורה למטה",
+              icon: <Plus className="w-3 h-3" />,
+              onClick: () => addRow(contextMenu.sectionId, contextMenu.row),
+            },
+            {
+              label: "הוסף עמודה מימין",
+              icon: <Plus className="w-3 h-3" />,
+              onClick: () => addCol(contextMenu.sectionId, contextMenu.col - 1),
+            },
+            {
+              label: "הוסף עמודה משמאל",
+              icon: <Plus className="w-3 h-3" />,
+              onClick: () => addCol(contextMenu.sectionId, contextMenu.col),
+            },
+            { label: "", separator: true, onClick: () => {} },
+            {
+              label: "מחק שורה",
+              icon: <Trash2 className="w-3 h-3" />,
+              onClick: () => deleteRow(contextMenu.sectionId, contextMenu.row),
+            },
+            {
+              label: "מחק עמודה",
+              icon: <Trash2 className="w-3 h-3" />,
+              onClick: () => deleteCol(contextMenu.sectionId, contextMenu.col),
+            },
+            { label: "", separator: true, onClick: () => {} },
+            {
+              label: "נקה תוכן",
+              icon: <Minus className="w-3 h-3" />,
+              onClick: () => applyToSelected((c) => ({ ...c, value: "" })),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
