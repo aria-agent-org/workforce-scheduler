@@ -2,11 +2,22 @@
 
 Steps:
 1. GENERATE MISSIONS — from templates for date range
-2. HARD FILTER — attendance, work_role, hard rules per slot
+2. HARD FILTER — attendance, work_role, hard rules per slot (6-stage engine)
 3. SCORING — load balance, preferences, partner prefs, variety, soft warnings, future impact
-4. PREFERENCE OPTIMIZATION — partner pair boost
+4. PREFERENCE OPTIMIZATION — partner pair boost (second pass)
 5. CONFLICT CHECK + FUTURE SIMULATION — 48h lookahead
 6. OUTPUT — proposed assignments with conflicts summary
+
+Scoring factors:
+  load_balance:   +20 if fewer assignments than avg in last 7 days
+  partner_pref:   +15 if preferred partner already assigned to same mission
+  mission_pref:   +10 if employee prefers this mission type
+  time_slot_pref: +10 if employee prefers this time slot
+  variety:        +5  if hasn't done this mission type recently
+  soft_warnings:  -10 per soft warning
+  future_impact:  -20 if creates hard conflict in next 48h
+  recent_night:   -15 if did night + standby not activated
+  mutual_partner: +25 if two employees prefer each other AND both fill slots (second pass)
 """
 
 from datetime import date, time, timedelta, datetime
@@ -21,8 +32,14 @@ from app.models.scheduling import (
     Mission, MissionAssignment,
 )
 from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference
-from app.models.attendance import AttendanceSchedule
+from app.models.attendance import AttendanceSchedule, AttendanceStatusDefinition
 from app.models.rules import RuleDefinition
+
+from app.services.rules_engine import (
+    evaluate_condition,
+    build_employee_context,
+    simulate_future_impact,
+)
 
 
 class AutoScheduler:
@@ -63,8 +80,12 @@ class AutoScheduler:
         attendance = await self._load_attendance(
             [e.id for e in employees], date_from, date_to
         )
+        attendance_defs = await self._load_attendance_definitions()
         preferences = await self._load_preferences([e.id for e in employees])
         employee_roles = await self._load_employee_roles([e.id for e in employees])
+
+        # Pre-compute weekly assignment counts for load balancing
+        week_counts = await self._precompute_week_counts(employees, date_from)
 
         # Get all draft missions in the window for the date range
         missions = await self._load_missions(window_id, date_from, date_to)
@@ -96,7 +117,7 @@ class AutoScheduler:
                     if slot_key in filled_slots:
                         continue
 
-                    # STEP 2: HARD FILTER
+                    # STEP 2: HARD FILTER (6-stage aware)
                     eligible = []
                     for emp in employees:
                         if not emp.is_active:
@@ -108,10 +129,16 @@ class AutoScheduler:
 
                         # Check attendance - is schedulable?
                         emp_attendance = attendance.get((str(emp.id), str(mission.date)))
-                        if emp_attendance and emp_attendance.get("status_code") in (
-                            "home", "going_home", "sick", "released"
-                        ):
-                            continue
+                        if emp_attendance:
+                            status_code = emp_attendance.get("status_code")
+                            status_def = attendance_defs.get(status_code)
+                            if status_def and not status_def.is_schedulable:
+                                continue
+                            # Fallback: hard-coded non-schedulable statuses
+                            if not status_def and status_code in (
+                                "home", "going_home", "sick", "released"
+                            ):
+                                continue
 
                         # Check not already assigned to this mission
                         already_in_mission = any(
@@ -128,7 +155,7 @@ class AutoScheduler:
                         if has_overlap:
                             continue
 
-                        # Check hard rules
+                        # Check hard rules (stages 2-4)
                         hard_blocked, hard_reasons = await self._evaluate_hard_rules(
                             emp, mission, mt, rules, attendance
                         )
@@ -151,19 +178,20 @@ class AutoScheduler:
                         })
                         continue
 
-                    # STEP 3: SCORING
+                    # STEP 3: SCORING (enhanced with all factors)
                     scored = []
                     for emp in eligible:
                         score = await self._calculate_score(
                             emp, mission, mt, missions, attendance,
-                            preferences, employee_roles, employees, existing
+                            preferences, employee_roles, employees, existing,
+                            week_counts, rules,
                         )
                         scored.append((emp, score))
 
                     # Sort by score descending
                     scored.sort(key=lambda x: x[1]["total"], reverse=True)
 
-                    # STEP 4: PREFERENCE OPTIMIZATION — boost partner pairs
+                    # STEP 4: PREFERENCE OPTIMIZATION — mutual partner boost (second pass)
                     scored = self._apply_partner_boost(scored, existing, preferences)
                     scored.sort(key=lambda x: x[1]["total"], reverse=True)
 
@@ -174,10 +202,16 @@ class AutoScheduler:
                     if soft_warnings:
                         total_conflicts_soft += len(soft_warnings)
 
+                    # Determine work_role_id for the assignment
+                    assign_role_id = work_role_id
+                    if not assign_role_id:
+                        emp_roles = employee_roles.get(str(best_emp.id), set())
+                        assign_role_id = list(emp_roles)[0] if emp_roles else best_emp.id
+
                     assignment = MissionAssignment(
                         mission_id=mission.id,
                         employee_id=best_emp.id,
-                        work_role_id=work_role_id or list(employee_roles.get(str(best_emp.id), set()))[0] if employee_roles.get(str(best_emp.id)) else best_emp.id,
+                        work_role_id=assign_role_id,
                         slot_id=slot_key,
                         status="proposed",
                         assigned_at=datetime.utcnow(),
@@ -190,6 +224,10 @@ class AutoScheduler:
                     filled_slots.add(slot_key)
                     total_assigned += 1
 
+                    # Update in-memory week counts for load balance accuracy
+                    week_key = str(best_emp.id)
+                    week_counts[week_key] = week_counts.get(week_key, 0) + 1
+
                     assignment_results.append({
                         "mission_id": str(mission.id),
                         "mission_name": mission.name,
@@ -197,6 +235,7 @@ class AutoScheduler:
                         "employee_name": best_emp.full_name,
                         "slot_id": slot_key,
                         "score": best_score["total"],
+                        "score_breakdown": best_score.get("breakdown", {}),
                         "soft_warnings": soft_warnings,
                     })
 
@@ -210,6 +249,10 @@ class AutoScheduler:
             "missions_processed": len(missions),
             "assignments": assignment_results,
         }
+
+    # ===================================================================
+    # Data loaders
+    # ===================================================================
 
     async def _load_window_employees(self, window_id: UUID) -> list:
         result = await self.db.execute(
@@ -272,6 +315,15 @@ class AutoScheduler:
             }
         return att
 
+    async def _load_attendance_definitions(self) -> dict:
+        """Load all attendance status definitions for this tenant."""
+        result = await self.db.execute(
+            select(AttendanceStatusDefinition).where(
+                AttendanceStatusDefinition.tenant_id == self.tenant_id,
+            )
+        )
+        return {d.code: d for d in result.scalars().all()}
+
     async def _load_preferences(self, employee_ids: list) -> dict:
         if not employee_ids:
             return {}
@@ -313,6 +365,29 @@ class AutoScheduler:
         )
         return list(result.scalars().all())
 
+    async def _precompute_week_counts(self, employees: list, ref_date: date) -> dict:
+        """Pre-compute assignment counts in the last 7 days for all employees."""
+        week_ago = ref_date - timedelta(days=7)
+        counts = {}
+        for emp in employees:
+            result = await self.db.execute(
+                select(func.count())
+                .select_from(MissionAssignment)
+                .join(Mission, MissionAssignment.mission_id == Mission.id)
+                .where(
+                    MissionAssignment.employee_id == emp.id,
+                    MissionAssignment.status.notin_(["replaced", "cancelled"]),
+                    Mission.date >= week_ago,
+                    Mission.date <= ref_date,
+                )
+            )
+            counts[str(emp.id)] = result.scalar() or 0
+        return counts
+
+    # ===================================================================
+    # Hard filter helpers
+    # ===================================================================
+
     async def _check_time_overlap(
         self, employee_id: UUID, mission_date: date,
         start_time: time, end_time: time, exclude_mission_id: UUID
@@ -334,8 +409,35 @@ class AutoScheduler:
     async def _evaluate_hard_rules(
         self, employee, mission, mission_type, rules, attendance
     ) -> tuple[bool, list]:
-        """Evaluate hard rules. Returns (is_blocked, reasons)."""
+        """Evaluate hard rules (stages 2-4). Returns (is_blocked, reasons)."""
         reasons = []
+
+        # Build context once for this employee+mission
+        emp_ctx = await build_employee_context(
+            self.db, self.tenant_id, employee.id, mission.date, mission.start_time
+        )
+        is_night = mission.start_time and (mission.start_time.hour >= 22 or mission.start_time.hour < 6)
+
+        context = {
+            "employee": {
+                "id": str(employee.id),
+                "status": employee.status,
+                **emp_ctx,
+            },
+            "mission": {
+                "id": str(mission.id),
+                "type_id": str(mission.mission_type_id),
+                "start_hour": mission.start_time.hour if mission.start_time else 0,
+                "end_hour": mission.end_time.hour if mission.end_time else 0,
+                "is_night": is_night,
+                "duration_hours": (
+                    mission_type.duration_hours
+                    if mission_type and mission_type.duration_hours
+                    else self._calc_duration(mission)
+                ),
+                "is_weekend": mission.date.weekday() >= 5,
+            },
+        }
 
         for rule in rules:
             if rule.severity != "hard":
@@ -343,23 +445,26 @@ class AutoScheduler:
             if not rule.condition_expression:
                 continue
 
-            conditions = rule.condition_expression
-            params = rule.parameters or {}
-
-            # Check scope
-            if rule.scope == "work_role" and rule.scope_ref_id:
-                # Only applies if employee has this role
-                pass
-            elif rule.scope == "mission_type" and rule.scope_ref_id:
+            # Scope filtering
+            if rule.scope == "mission_type" and rule.scope_ref_id:
                 if str(mission.mission_type_id) != str(rule.scope_ref_id):
                     continue
+            if rule.scope == "employee" and rule.scope_ref_id:
+                if str(employee.id) != str(rule.scope_ref_id):
+                    continue
 
-            # Evaluate conditions
-            blocked = await self._evaluate_condition_group(
-                conditions, employee, mission, mission_type, attendance, params
-            )
-            if blocked:
-                msg = rule.name if isinstance(rule.name, str) else (rule.name.get("he", str(rule.name)) if isinstance(rule.name, dict) else str(rule.name))
+            params = rule.parameters or {}
+            ctx = {**context, "_params": params}
+
+            try:
+                matched = evaluate_condition(rule.condition_expression, ctx)
+            except Exception:
+                continue
+
+            if matched:
+                msg = rule.name
+                if isinstance(msg, dict):
+                    msg = msg.get("he", msg.get("en", str(msg)))
                 reasons.append({
                     "rule_id": str(rule.id),
                     "severity": "hard",
@@ -368,259 +473,79 @@ class AutoScheduler:
 
         return len(reasons) > 0, reasons
 
-    async def _evaluate_condition_group(
-        self, conditions, employee, mission, mission_type, attendance, params
-    ) -> bool:
-        """Evaluate a condition group (AND/OR tree)."""
-        if not conditions:
-            return False
-
-        operator = conditions.get("operator", "AND")
-        conds = conditions.get("conditions", [])
-
-        if not conds:
-            return False
-
-        results = []
-        for cond in conds:
-            if "operator" in cond:
-                # Nested group
-                r = await self._evaluate_condition_group(
-                    cond, employee, mission, mission_type, attendance, params
-                )
-                results.append(r)
-            else:
-                r = await self._evaluate_single_condition(
-                    cond, employee, mission, mission_type, attendance, params
-                )
-                results.append(r)
-
-        if operator == "AND":
-            return all(results)
-        elif operator == "OR":
-            return any(results)
-        return False
-
-    async def _evaluate_single_condition(
-        self, condition, employee, mission, mission_type, attendance, params
-    ) -> bool:
-        """Evaluate a single condition."""
-        field = condition.get("field", "")
-        op = condition.get("op", "")
-        value = condition.get("value")
-        value_param = condition.get("value_param")
-
-        if value_param and value_param in params:
-            value = params[value_param]
-
-        # Resolve field value
-        field_value = await self._resolve_field(field, employee, mission, mission_type, attendance)
-
-        # Apply operator
-        try:
-            if op == "less_than":
-                return field_value is not None and float(field_value) < float(value)
-            elif op == "greater_than":
-                return field_value is not None and float(field_value) > float(value)
-            elif op == "equals":
-                return str(field_value) == str(value)
-            elif op == "not_equals":
-                return str(field_value) != str(value)
-            elif op == "is_true":
-                return bool(field_value) is True
-            elif op == "is_false":
-                return bool(field_value) is False
-            elif op == "in":
-                return field_value in (value if isinstance(value, list) else [value])
-            elif op == "not_in":
-                return field_value not in (value if isinstance(value, list) else [value])
-            elif op == "between":
-                if isinstance(value, list) and len(value) == 2:
-                    return float(value[0]) <= float(field_value or 0) <= float(value[1])
-            elif op == "is_null":
-                return field_value is None
-            elif op == "is_not_null":
-                return field_value is not None
-            elif op == "contains":
-                return str(value) in str(field_value or "")
-        except (TypeError, ValueError):
-            return False
-
-        return False
-
-    async def _resolve_field(self, field, employee, mission, mission_type, attendance) -> any:
-        """Resolve a condition field to its actual value."""
-        if field == "employee.hours_since_last_mission":
-            return await self._hours_since_last_mission(employee.id, mission.date, mission.start_time)
-        elif field == "employee.total_work_hours_today":
-            return await self._total_work_hours_today(employee.id, mission.date)
-        elif field == "employee.assignments_count_today":
-            return await self._assignments_count_today(employee.id, mission.date)
-        elif field == "employee.last_mission_was_night":
-            return await self._last_mission_was_night(employee.id, mission.date)
-        elif field == "employee.next_day_attendance_status":
-            next_day = mission.date + timedelta(days=1)
-            att = attendance.get((str(employee.id), str(next_day)))
-            return att["status_code"] if att else None
-        elif field == "employee.current_day_attendance_status":
-            att = attendance.get((str(employee.id), str(mission.date)))
-            return att["status_code"] if att else None
-        elif field == "employee.yesterday_was_standby_not_activated":
-            return await self._yesterday_standby_not_activated(employee.id, mission.date)
-        elif field == "mission.start_hour":
-            return mission.start_time.hour if mission.start_time else None
-        elif field == "mission.is_night":
-            if mission.start_time:
-                h = mission.start_time.hour
-                return h >= 22 or h < 6
-            return False
-        elif field == "mission.type_id":
-            return str(mission.mission_type_id)
-        elif field == "mission.duration_hours":
-            if mission_type and mission_type.duration_hours:
-                return float(mission_type.duration_hours)
-            return None
-        return None
-
-    async def _hours_since_last_mission(self, employee_id, mission_date, mission_start_time) -> float:
-        """Calculate hours since the employee's last mission ended."""
-        result = await self.db.execute(
-            select(Mission)
-            .join(MissionAssignment, Mission.id == MissionAssignment.mission_id)
-            .where(
-                MissionAssignment.employee_id == employee_id,
-                MissionAssignment.status.notin_(["replaced", "cancelled"]),
-                Mission.date <= mission_date,
-            )
-            .order_by(Mission.date.desc(), Mission.end_time.desc())
-            .limit(1)
-        )
-        last_mission = result.scalar_one_or_none()
-        if not last_mission:
-            return 999  # No previous mission
-
-        # Calculate hours between end of last mission and start of this one
-        last_end = datetime.combine(last_mission.date, last_mission.end_time)
-        this_start = datetime.combine(mission_date, mission_start_time)
-
-        # Handle cross-midnight missions
-        if last_mission.end_time < last_mission.start_time:
-            last_end = datetime.combine(last_mission.date + timedelta(days=1), last_mission.end_time)
-
-        diff = (this_start - last_end).total_seconds() / 3600
-        return max(0, diff)
-
-    async def _total_work_hours_today(self, employee_id, mission_date) -> float:
-        result = await self.db.execute(
-            select(Mission)
-            .join(MissionAssignment, Mission.id == MissionAssignment.mission_id)
-            .where(
-                MissionAssignment.employee_id == employee_id,
-                MissionAssignment.status.notin_(["replaced", "cancelled"]),
-                Mission.date == mission_date,
-            )
-        )
-        total = 0
-        for m in result.scalars().all():
-            start_h = m.start_time.hour + m.start_time.minute / 60
-            end_h = m.end_time.hour + m.end_time.minute / 60
-            if end_h < start_h:
-                end_h += 24  # Cross-midnight
-            total += end_h - start_h
-        return total
-
-    async def _assignments_count_today(self, employee_id, mission_date) -> int:
-        result = await self.db.execute(
-            select(func.count())
-            .select_from(MissionAssignment)
-            .join(Mission, MissionAssignment.mission_id == Mission.id)
-            .where(
-                MissionAssignment.employee_id == employee_id,
-                MissionAssignment.status.notin_(["replaced", "cancelled"]),
-                Mission.date == mission_date,
-            )
-        )
-        return result.scalar() or 0
-
-    async def _last_mission_was_night(self, employee_id, mission_date) -> bool:
-        result = await self.db.execute(
-            select(Mission)
-            .join(MissionAssignment, Mission.id == MissionAssignment.mission_id)
-            .where(
-                MissionAssignment.employee_id == employee_id,
-                MissionAssignment.status.notin_(["replaced", "cancelled"]),
-                Mission.date < mission_date,
-            )
-            .order_by(Mission.date.desc(), Mission.end_time.desc())
-            .limit(1)
-        )
-        m = result.scalar_one_or_none()
-        if m and m.start_time:
-            return m.start_time.hour >= 22 or m.start_time.hour < 6
-        return False
-
-    async def _yesterday_standby_not_activated(self, employee_id, mission_date) -> bool:
-        yesterday = mission_date - timedelta(days=1)
-        result = await self.db.execute(
-            select(Mission)
-            .join(MissionAssignment, Mission.id == MissionAssignment.mission_id)
-            .join(MissionType, Mission.mission_type_id == MissionType.id)
-            .where(
-                MissionAssignment.employee_id == employee_id,
-                MissionAssignment.status.notin_(["replaced", "cancelled"]),
-                Mission.date == yesterday,
-                MissionType.is_standby.is_(True),
-                Mission.is_activated.is_(False),
-            )
-        )
-        return result.scalar_one_or_none() is not None
+    # ===================================================================
+    # Enhanced scoring algorithm
+    # ===================================================================
 
     async def _calculate_score(
         self, employee, mission, mission_type, all_missions,
-        attendance, preferences, employee_roles, all_employees, current_assignments
+        attendance, preferences, employee_roles, all_employees, current_assignments,
+        week_counts: dict, rules: list,
     ) -> dict:
-        """Calculate comprehensive score for an employee-mission pair."""
+        """Calculate comprehensive score for an employee-mission pair.
+
+        Factors:
+          load_balance:   +20 / -15
+          partner_pref:   +15
+          mission_pref:   +10 / -10
+          time_slot_pref: +10 / -10
+          variety:        +5
+          soft_warnings:  -10 each
+          future_impact:  -20
+          recent_night:   -15
+        """
         score = 100
         breakdown = {}
         soft_warnings = []
 
-        # Load balance: fewer assignments in last 7 days = higher score
-        week_ago = mission.date - timedelta(days=7)
-        week_count = await self._count_assignments_in_range(employee.id, week_ago, mission.date)
+        # ------------------------------------------------------------------
+        # 1) LOAD BALANCE: +20 if fewer assignments than avg in last 7 days
+        # ------------------------------------------------------------------
+        emp_week_count = week_counts.get(str(employee.id), 0)
+        all_counts = list(week_counts.values())
+        avg = sum(all_counts) / len(all_counts) if all_counts else 0
 
-        # Calculate average
-        avg_counts = []
-        for emp in all_employees:
-            c = await self._count_assignments_in_range(emp.id, week_ago, mission.date)
-            avg_counts.append(c)
-        avg = sum(avg_counts) / len(avg_counts) if avg_counts else 0
-
-        if week_count < avg:
+        if emp_week_count < avg:
             score += 20
             breakdown["load_balance"] = +20
-        elif week_count > avg + 2:
+        elif emp_week_count > avg + 2:
             score -= 15
             breakdown["load_balance"] = -15
             soft_warnings.append({
                 "type": "high_load",
                 "severity": "soft",
-                "message": {"he": f"עומס גבוה: {week_count} שיבוצים ב-7 ימים אחרונים", "en": f"High load: {week_count} assignments in last 7 days"},
+                "message": {
+                    "he": f"עומס גבוה: {emp_week_count} שיבוצים ב-7 ימים אחרונים",
+                    "en": f"High load: {emp_week_count} assignments in last 7 days",
+                },
             })
+        else:
+            breakdown["load_balance"] = 0
 
-        # Partner preference
+        # ------------------------------------------------------------------
+        # 2) PARTNER PREFERENCE: +15 if preferred partner already assigned
+        # ------------------------------------------------------------------
         emp_prefs = preferences.get(str(employee.id))
+        partner_bonus_applied = False
         if emp_prefs and emp_prefs.partner_preferences:
             for pp in emp_prefs.partner_preferences:
                 partner_id = pp.get("employee_id")
-                weight = pp.get("weight", 10)
-                # Check if partner is already assigned to this mission
+                weight = min(pp.get("weight", 15), 15)
                 for a in current_assignments:
                     if str(a.employee_id) == partner_id and a.status != "replaced":
-                        score += min(weight, 15)
-                        breakdown["partner_pref"] = min(weight, 15)
+                        score += weight
+                        breakdown["partner_pref"] = weight
+                        partner_bonus_applied = True
                         break
+                if partner_bonus_applied:
+                    break
+        if not partner_bonus_applied:
+            breakdown["partner_pref"] = 0
 
-        # Mission type preference
+        # ------------------------------------------------------------------
+        # 3) MISSION TYPE PREFERENCE: +10 prefer / -10 avoid
+        # ------------------------------------------------------------------
+        mission_pref_applied = False
         if emp_prefs and emp_prefs.mission_type_preferences:
             for mp in emp_prefs.mission_type_preferences:
                 if mp.get("mission_type_id") == str(mission.mission_type_id):
@@ -634,41 +559,105 @@ class AutoScheduler:
                         soft_warnings.append({
                             "type": "preference_mismatch",
                             "severity": "soft",
-                            "message": {"he": "החייל מעדיף להימנע מסוג משימה זה", "en": "Soldier prefers to avoid this mission type"},
+                            "message": {
+                                "he": "החייל מעדיף להימנע מסוג משימה זה",
+                                "en": "Employee prefers to avoid this mission type",
+                            },
                         })
+                    else:
+                        breakdown["mission_pref"] = 0
+                    mission_pref_applied = True
+                    break
+        if not mission_pref_applied:
+            breakdown["mission_pref"] = 0
 
-        # Time slot preference
+        # ------------------------------------------------------------------
+        # 4) TIME SLOT PREFERENCE: +10 prefer / -10 avoid
+        # ------------------------------------------------------------------
+        is_night = mission.start_time and (
+            mission.start_time.hour >= 22 or mission.start_time.hour < 6
+        )
+        is_morning = mission.start_time and 6 <= mission.start_time.hour < 14
+        slot_key = "night" if is_night else ("morning" if is_morning else "afternoon")
+
+        time_pref_applied = False
         if emp_prefs and emp_prefs.time_slot_preferences:
-            is_night = mission.start_time and (mission.start_time.hour >= 22 or mission.start_time.hour < 6)
-            is_morning = mission.start_time and 6 <= mission.start_time.hour < 14
-            slot_key = "night" if is_night else ("morning" if is_morning else "afternoon")
             for tp in emp_prefs.time_slot_preferences:
                 if tp.get("slot_key") == slot_key:
                     pref = tp.get("preference", "neutral")
                     if pref == "prefer":
                         score += 10
-                        breakdown["time_pref"] = +10
+                        breakdown["time_slot_pref"] = +10
                     elif pref == "avoid":
                         score -= 10
-                        breakdown["time_pref"] = -10
+                        breakdown["time_slot_pref"] = -10
+                    else:
+                        breakdown["time_slot_pref"] = 0
+                    time_pref_applied = True
+                    break
+        if not time_pref_applied:
+            breakdown["time_slot_pref"] = 0
 
-        # Variety: bonus if hasn't done this type recently
-        recent_same_type = await self._recent_same_type_count(
+        # ------------------------------------------------------------------
+        # 5) VARIETY: +5 if hasn't done this mission type in last 7 days
+        # ------------------------------------------------------------------
+        recent_same = await self._recent_same_type_count(
             employee.id, mission.mission_type_id, mission.date
         )
-        if recent_same_type == 0:
+        if recent_same == 0:
             score += 5
             breakdown["variety"] = +5
+        else:
+            breakdown["variety"] = 0
 
-        # Soft rules
-        for rule in await self._get_soft_rules():
-            triggered = await self._evaluate_condition_group(
-                rule.condition_expression or {}, employee, mission, mission_type, attendance, rule.parameters or {}
-            )
+        # ------------------------------------------------------------------
+        # 6) SOFT WARNINGS: -10 per soft rule triggered
+        # ------------------------------------------------------------------
+        emp_ctx = await build_employee_context(
+            self.db, self.tenant_id, employee.id, mission.date, mission.start_time
+        )
+        context = {
+            "employee": {
+                "id": str(employee.id),
+                "status": employee.status,
+                **emp_ctx,
+            },
+            "mission": {
+                "id": str(mission.id),
+                "type_id": str(mission.mission_type_id),
+                "start_hour": mission.start_time.hour if mission.start_time else 0,
+                "end_hour": mission.end_time.hour if mission.end_time else 0,
+                "is_night": is_night,
+                "duration_hours": self._calc_duration(mission),
+                "is_weekend": mission.date.weekday() >= 5,
+            },
+        }
+
+        soft_rule_penalty = 0
+        for rule in rules:
+            if rule.severity != "soft":
+                continue
+            if not rule.condition_expression:
+                continue
+            # Scope filtering
+            if rule.scope == "mission_type" and rule.scope_ref_id:
+                if str(rule.scope_ref_id) != str(mission.mission_type_id):
+                    continue
+            if rule.scope == "employee" and rule.scope_ref_id:
+                if str(rule.scope_ref_id) != str(employee.id):
+                    continue
+
+            ctx = {**context, "_params": rule.parameters or {}}
+            try:
+                triggered = evaluate_condition(rule.condition_expression, ctx)
+            except Exception:
+                continue
+
             if triggered:
-                score -= 10
-                breakdown["soft_rule"] = breakdown.get("soft_rule", 0) - 10
-                rule_name = rule.name if isinstance(rule.name, str) else (rule.name.get("he", "") if isinstance(rule.name, dict) else "")
+                soft_rule_penalty -= 10
+                rule_name = rule.name
+                if isinstance(rule_name, dict):
+                    rule_name = rule_name.get("he", rule_name.get("en", ""))
                 soft_warnings.append({
                     "type": "soft_rule",
                     "rule_id": str(rule.id),
@@ -676,22 +665,47 @@ class AutoScheduler:
                     "message": {"he": rule_name, "en": rule_name},
                 })
 
-        # Future impact: check if assigning now creates hard conflict in next 48h
-        future_conflict = await self._check_future_impact(employee.id, mission)
-        if future_conflict:
+        score += soft_rule_penalty
+        breakdown["soft_warnings"] = soft_rule_penalty
+
+        # ------------------------------------------------------------------
+        # 7) FUTURE IMPACT: -20 if creates hard conflict in next 48h
+        # ------------------------------------------------------------------
+        impact = await simulate_future_impact(
+            self.db, self.tenant_id, employee.id, mission, hours=48
+        )
+        if impact["has_conflict"]:
             score -= 20
             breakdown["future_impact"] = -20
             soft_warnings.append({
                 "type": "future_impact",
                 "severity": "soft",
-                "message": {"he": "שיבוץ זה עלול לגרום להתנגשות ב-48 השעות הקרובות", "en": "This assignment may cause a conflict in the next 48 hours"},
+                "message": {
+                    "he": "שיבוץ זה עלול לגרום להתנגשות ב-48 השעות הקרובות",
+                    "en": "This assignment may cause a conflict in the next 48 hours",
+                },
+                "details": impact["conflicts"],
             })
+        else:
+            breakdown["future_impact"] = 0
 
-        # Recent night penalty
-        last_night = await self._last_mission_was_night(employee.id, mission.date)
-        if last_night and mission.start_time and mission.start_time.hour >= 22:
-            score -= 15
-            breakdown["recent_night"] = -15
+        # ------------------------------------------------------------------
+        # 8) RECENT NIGHT: -15 if last mission was night + standby not activated
+        # ------------------------------------------------------------------
+        last_was_night = emp_ctx.get("last_mission_was_night", False)
+        if last_was_night:
+            # Check if yesterday was standby not activated
+            yesterday_standby = await self._yesterday_standby_not_activated(
+                employee.id, mission.date
+            )
+            if not yesterday_standby:
+                # Night shift without standby rest → penalize
+                score -= 15
+                breakdown["recent_night"] = -15
+            else:
+                breakdown["recent_night"] = 0
+        else:
+            breakdown["recent_night"] = 0
 
         return {
             "total": score,
@@ -699,25 +713,65 @@ class AutoScheduler:
             "soft_warnings": soft_warnings,
         }
 
+    # ===================================================================
+    # Preference optimization — second pass partner boost
+    # ===================================================================
+
     def _apply_partner_boost(self, scored, current_assignments, preferences) -> list:
-        """Boost score for partner pairs."""
-        for i, (emp, score) in enumerate(scored):
+        """Second pass: if two employees in the candidate list prefer each other
+        AND both can fill slots → mutual boost +25 each."""
+        # Build lookup: employee_id → index in scored
+        id_to_idx = {str(emp.id): i for i, (emp, _) in enumerate(scored)}
+
+        boosted = set()  # track already-boosted pairs to avoid double-boosting
+
+        for i, (emp, score_dict) in enumerate(scored):
             emp_prefs = preferences.get(str(emp.id))
             if not emp_prefs or not emp_prefs.partner_preferences:
                 continue
+
             for pp in emp_prefs.partner_preferences:
                 partner_id = pp.get("employee_id")
-                # Check if partner is also in scored list
-                for j, (other_emp, other_score) in enumerate(scored):
-                    if str(other_emp.id) == partner_id:
-                        # Both want each other? Mutual boost
-                        other_prefs = preferences.get(str(other_emp.id))
-                        if other_prefs and other_prefs.partner_preferences:
-                            for op in other_prefs.partner_preferences:
-                                if op.get("employee_id") == str(emp.id):
-                                    scored[i] = (emp, {**score, "total": score["total"] + 25})
-                                    scored[j] = (other_emp, {**other_score, "total": other_score["total"] + 25})
+                if partner_id not in id_to_idx:
+                    continue
+                j = id_to_idx[partner_id]
+                if j == i:
+                    continue
+
+                pair_key = tuple(sorted([i, j]))
+                if pair_key in boosted:
+                    continue
+
+                # Check if partner also prefers this employee (mutual)
+                other_emp, other_score = scored[j]
+                other_prefs = preferences.get(str(other_emp.id))
+                if not other_prefs or not other_prefs.partner_preferences:
+                    continue
+
+                is_mutual = any(
+                    op.get("employee_id") == str(emp.id)
+                    for op in other_prefs.partner_preferences
+                )
+                if is_mutual:
+                    # Also check if partner is already assigned to this mission
+                    # (only boost if BOTH are candidates, i.e., both filling slots)
+                    scored[i] = (emp, {
+                        **score_dict,
+                        "total": score_dict["total"] + 25,
+                        "breakdown": {**score_dict.get("breakdown", {}), "mutual_partner": 25},
+                    })
+                    scored[j] = (other_emp, {
+                        **other_score,
+                        "total": other_score["total"] + 25,
+                        "breakdown": {**other_score.get("breakdown", {}), "mutual_partner": 25},
+                    })
+                    boosted.add(pair_key)
+
         return scored
+
+    # ===================================================================
+    # Utility methods
+    # ===================================================================
 
     async def _count_assignments_in_range(self, employee_id, date_from, date_to) -> int:
         result = await self.db.execute(
@@ -749,43 +803,37 @@ class AutoScheduler:
         )
         return result.scalar() or 0
 
-    async def _get_soft_rules(self) -> list:
-        result = await self.db.execute(
-            select(RuleDefinition).where(
-                RuleDefinition.tenant_id == self.tenant_id,
-                RuleDefinition.is_active.is_(True),
-                RuleDefinition.severity == "soft",
-            ).order_by(RuleDefinition.priority)
-        )
-        return list(result.scalars().all())
-
-    async def _check_future_impact(self, employee_id, mission) -> bool:
-        """Check if assigning this mission creates issues in the next 48h."""
-        # Simple check: after this mission ends, does the employee have enough rest
-        # before their next mission in the next 48h?
-        future_date = mission.date + timedelta(days=2)
+    async def _yesterday_standby_not_activated(self, employee_id, mission_date) -> bool:
+        """Check if employee had a standby shift yesterday that was NOT activated."""
+        yesterday = mission_date - timedelta(days=1)
         result = await self.db.execute(
             select(Mission)
             .join(MissionAssignment, Mission.id == MissionAssignment.mission_id)
+            .join(MissionType, Mission.mission_type_id == MissionType.id)
             .where(
                 MissionAssignment.employee_id == employee_id,
                 MissionAssignment.status.notin_(["replaced", "cancelled"]),
-                Mission.date > mission.date,
-                Mission.date <= future_date,
+                Mission.date == yesterday,
+                MissionType.is_standby.is_(True),
+                Mission.is_activated.is_(False),
             )
-            .order_by(Mission.date, Mission.start_time)
-            .limit(1)
         )
-        next_mission = result.scalar_one_or_none()
-        if not next_mission:
-            return False
+        return result.scalar_one_or_none() is not None
 
-        # Calculate rest hours
-        mission_end = datetime.combine(mission.date, mission.end_time)
-        if mission.end_time < mission.start_time:
-            mission_end = datetime.combine(mission.date + timedelta(days=1), mission.end_time)
+    async def _check_future_impact(self, employee_id, mission) -> bool:
+        """Legacy wrapper — now delegates to rules_engine.simulate_future_impact."""
+        impact = await simulate_future_impact(
+            self.db, self.tenant_id, employee_id, mission, hours=48
+        )
+        return impact["has_conflict"]
 
-        next_start = datetime.combine(next_mission.date, next_mission.start_time)
-        rest_hours = (next_start - mission_end).total_seconds() / 3600
-
-        return rest_hours < 16  # Default minimum rest
+    @staticmethod
+    def _calc_duration(mission) -> float:
+        """Calculate mission duration in hours."""
+        if not mission.start_time or not mission.end_time:
+            return 0
+        s = mission.start_time.hour + mission.start_time.minute / 60
+        e = mission.end_time.hour + mission.end_time.minute / 60
+        if e <= s:
+            e += 24
+        return e - s
