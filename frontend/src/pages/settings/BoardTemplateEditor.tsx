@@ -368,12 +368,19 @@ export default function BoardTemplateEditor() {
         // Convert DB format to advanced template format
         const converted = loaded.map((t: any) => {
           if (t.layout?.sections) {
-            // Already in advanced format
+            // Already in advanced format — ensure colWidths exist on each section
+            const sections = (t.layout.sections || []).map((s: any) => ({
+              ...s,
+              grid: s.grid || [],
+              rows: s.rows || (s.grid?.length || 0),
+              cols: s.cols || (s.grid?.[0]?.length || 5),
+              colWidths: s.colWidths || Array(s.cols || s.grid?.[0]?.length || 5).fill(120),
+            }));
             return {
               id: t.layout.id || t.id,
               _dbId: t.id,
               name: t.name,
-              sections: t.layout.sections || [],
+              sections,
               globalStyles: t.layout.globalStyles || { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
               scheduleWindowId: t.layout.scheduleWindowId || null,
             };
@@ -392,7 +399,7 @@ export default function BoardTemplateEditor() {
             id: t.id,
             _dbId: t.id,
             name: t.name,
-            sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: defaultGrid, rows: defaultRows, cols: defaultCols }],
+            sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: defaultGrid, rows: defaultRows, cols: defaultCols, colWidths: Array(defaultCols).fill(120) }],
             globalStyles: { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
             scheduleWindowId: null,
           };
@@ -635,7 +642,7 @@ export default function BoardTemplateEditor() {
         newRow.splice(afterCol + 1, 0, createCell());
         return newRow;
       });
-      const colWidths = [...s.colWidths];
+      const colWidths = [...(s.colWidths || [])];
       colWidths.splice(afterCol + 1, 0, 120);
       return { ...s, grid, cols: s.cols + 1, colWidths };
     });
@@ -653,7 +660,7 @@ export default function BoardTemplateEditor() {
     updateSection(sectionId, (s) => {
       if (s.cols <= 1) return s;
       const grid = s.grid.map((row) => row.filter((_, i) => i !== colIdx));
-      const colWidths = s.colWidths.filter((_, i) => i !== colIdx);
+      const colWidths = (s.colWidths || []).filter((_, i) => i !== colIdx);
       return { ...s, grid, cols: s.cols - 1, colWidths };
     });
   }, [updateSection]);
@@ -839,7 +846,7 @@ export default function BoardTemplateEditor() {
           ...prev,
           sections: prev.sections.map((s) => {
             if (s.id !== resizingCol.sectionId) return s;
-            const colWidths = [...s.colWidths];
+            const colWidths = [...(s.colWidths || [])];
             colWidths[resizingCol.colIndex] = newWidth;
             return { ...s, colWidths };
           }),
@@ -977,7 +984,7 @@ export default function BoardTemplateEditor() {
               className="overflow-x-auto"
               style={{
                 display: "grid",
-                gridTemplateColumns: section.colWidths.map((w) => `${w}px`).join(" "),
+                gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${w}px`).join(" "),
                 direction: "rtl",
               }}
             >
@@ -1042,7 +1049,7 @@ export default function BoardTemplateEditor() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: section.colWidths.map((w) => `${Math.max(60, w * 0.7)}px`).join(" "),
+                gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${Math.max(60, w * 0.7)}px`).join(" "),
                 direction: "rtl",
                 fontSize: "11px",
               }}
@@ -1356,13 +1363,13 @@ export default function BoardTemplateEditor() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: section.colWidths.map((w) => `${w}px`).join(" "),
+                    gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${w}px`).join(" "),
                     direction: "rtl",
                     position: "relative",
                   }}
                 >
                   {/* Column resize handles */}
-                  {section.colWidths.map((w, cIdx) => {
+                  {(section.colWidths || Array(section.cols || 5).fill(120)).map((w, cIdx) => {
                     let leftPos = 0;
                     for (let i = section.colWidths.length - 1; i > cIdx; i--) leftPos += section.colWidths[i];
                     return (
