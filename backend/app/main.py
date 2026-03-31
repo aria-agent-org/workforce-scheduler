@@ -7,9 +7,14 @@ from collections.abc import AsyncGenerator
 import json
 import structlog
 
+from packaging.version import Version
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
 
 from app.config import get_settings
 from app.core.exceptions import AppError
@@ -35,6 +40,27 @@ from app.routers import help_topics as help_topics_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
+
+API_VERSION = "0.2.0"
+
+
+class APIVersionMiddleware(BaseHTTPMiddleware):
+    """Add X-API-Version header to all responses and handle deprecation."""
+
+    async def dispatch(
+        self, request: StarletteRequest, call_next: RequestResponseEndpoint
+    ) -> StarletteResponse:
+        response = await call_next(request)
+        response.headers["X-API-Version"] = API_VERSION
+        # Deprecation: if client requests an older version, signal deprecation
+        requested_version = request.query_params.get("version")
+        if requested_version:
+            try:
+                if Version(requested_version) < Version(API_VERSION):
+                    response.headers["Deprecation"] = "true"
+            except Exception:
+                pass  # Ignore invalid version strings
+        return response
 
 # Configure structlog
 setup_logging()
@@ -84,6 +110,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # API versioning header middleware
+    app.add_middleware(APIVersionMiddleware)
 
     # Security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)

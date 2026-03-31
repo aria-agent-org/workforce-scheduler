@@ -22,6 +22,7 @@ import {
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import HelpTooltip from "@/components/common/HelpTooltip";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 type Tab = "windows" | "board" | "types" | "templates";
 
@@ -142,6 +143,62 @@ export default function SchedulingPage() {
   const [generateForm, setGenerateForm] = useState({ template_id: "", start_date: "", end_date: "" });
 
   const [loadError, setLoadError] = useState(false);
+
+  // Concurrent edit tracking via WebSocket
+  const [editingUsers, setEditingUsers] = useState<Record<string, { user_name: string; timestamp: number }>>({});
+  const currentUserName = typeof window !== "undefined" ? localStorage.getItem("user_name") || "" : "";
+
+  const { send: wsSend } = useWebSocket({
+    "user.editing": (msg: any) => {
+      if (msg.user_name === currentUserName) return; // Ignore own edits
+      const key = `${msg.entity_type}:${msg.entity_id}`;
+      setEditingUsers(prev => ({
+        ...prev,
+        [key]: { user_name: msg.user_name, timestamp: Date.now() },
+      }));
+    },
+    "notification.sent": () => {
+      // Trigger notification badge update via custom event
+      document.dispatchEvent(new CustomEvent("shavtzak:notification-received"));
+    },
+  });
+
+  // Clear stale editing indicators after 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEditingUsers(prev => {
+        const now = Date.now();
+        const next: typeof prev = {};
+        for (const [key, val] of Object.entries(prev)) {
+          if (now - val.timestamp < 30000) next[key] = val;
+        }
+        return next;
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Broadcast editing state when a mission is expanded for editing
+  useEffect(() => {
+    if (expandedMission) {
+      wsSend({
+        type: "user.editing",
+        entity_type: "mission",
+        entity_id: expandedMission,
+        user_name: currentUserName,
+      });
+      // Re-send every 15s while editing
+      const interval = setInterval(() => {
+        wsSend({
+          type: "user.editing",
+          entity_type: "mission",
+          entity_id: expandedMission,
+          user_name: currentUserName,
+        });
+      }, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [expandedMission, wsSend, currentUserName]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -926,6 +983,18 @@ export default function SchedulingPage() {
                               <div className="h-full rounded-full transition-all" style={{ width: `${fillPercent}%`, backgroundColor: fillPercent === 100 ? "#22c55e" : fillPercent > 0 ? "#eab308" : "#ef4444" }} />
                             </div>
                           )}
+                          {/* Concurrent edit indicator */}
+                          {editingUsers[`mission:${m.id}`] && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+                              </span>
+                              <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                                {editingUsers[`mission:${m.id}`].user_name} עורך כעת
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1299,9 +1368,9 @@ export default function SchedulingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Mission Type Modal (Create/Edit) */}
+      {/* Mission Type Modal (Create/Edit) — bottom sheet on mobile */}
       <Dialog open={showTypeModal} onOpenChange={(open) => { setShowTypeModal(open); if (!open) setEditingTypeId(null); }}>
-        <DialogContent className="max-w-[700px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[700px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
           <DialogHeader><DialogTitle>{editingTypeId ? t("editMissionType") : t("newMissionType")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -1753,9 +1822,9 @@ export default function SchedulingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Assign Soldier */}
+      {/* Assign Soldier — bottom sheet on mobile */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto mobile-fullscreen">
+        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
           <DialogHeader><DialogTitle>{t("assignSoldier")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             {/* Slot selection — show available slots from mission type */}
@@ -2107,9 +2176,9 @@ export default function SchedulingPage() {
         variant="destructive"
       />
 
-      {/* Import Soldiers Wizard — Multi-Step */}
+      {/* Import Soldiers Wizard — Multi-Step — bottom sheet on mobile */}
       <Dialog open={showImportWizard} onOpenChange={setShowImportWizard}>
-        <DialogContent className="max-w-[650px] max-h-[85vh] overflow-y-auto mobile-fullscreen">
+        <DialogContent className="max-w-[650px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
           <DialogHeader>
             <DialogTitle>הוסף חיילים ללוח עבודה</DialogTitle>
             {/* Step indicator */}

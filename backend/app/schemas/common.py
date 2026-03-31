@@ -45,4 +45,13 @@ class HealthResponse(BaseModel):
     """Health check response."""
     status: str
     version: str
-    timestamp: datetime
+    timestamp: datetime | None = None
+    db: str | None = None
+    redis: str | None = None
+
+
+class DetailedHealthResponse(BaseModel):
+    """Detailed health check with per-service latency."""
+    status: str
+    version: str
+    services: dict[str, Any]

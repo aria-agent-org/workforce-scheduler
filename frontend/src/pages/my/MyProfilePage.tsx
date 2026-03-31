@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { User, KeyRound, Globe, Bell, Save, Shield, Heart, MessageCircle, Send } from "lucide-react";
+import { User, KeyRound, Globe, Bell, Save, Shield, Heart, MessageCircle, Send, Camera } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import { isPushSupported, getPushPermission, subscribeToPush, isPushSubscribed, sendTestPush } from "@/lib/push";
@@ -119,6 +119,47 @@ export default function MyProfilePage() {
   const [pushPermission, setPushPermission] = useState<string>("default");
   const [pushSubscribed, setPushSubscribed] = useState(false);
 
+  // Avatar
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) node.setAttribute("accept", "image/*");
+  }, []);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      // Get presigned URL
+      const presignRes = await api.post(tenantApi("/my/avatar/presigned-url"), {
+        content_type: file.type,
+        file_name: file.name,
+      });
+      const { upload_url, avatar_url } = presignRes.data;
+
+      // Upload directly to presigned URL
+      await fetch(upload_url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      // Notify backend that upload is complete
+      try {
+        await api.patch(tenantApi("/my/profile"), { avatar_url });
+      } catch { /* some backends auto-detect */ }
+
+      setAvatarUrl(avatar_url + "?t=" + Date.now());
+      toast("success", "תמונת הפרופיל עודכנה");
+      loadProfile();
+    } catch (err: any) {
+      toast("error", getErrorMessage(err, "שגיאה בהעלאת תמונה"));
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const loadProfile = useCallback(async () => {
     try {
       const res = await api.get(tenantApi("/my/profile"));
@@ -128,6 +169,9 @@ export default function MyProfilePage() {
         phone: res.data.employee?.notification_channels?.phone_whatsapp || "",
         preferred_language: res.data.user?.preferred_language || "he",
       });
+      if (res.data.employee?.avatar_url) {
+        setAvatarUrl(res.data.employee.avatar_url);
+      }
     } catch {
       toast("error", "שגיאה בטעינת פרופיל");
     } finally {
@@ -214,6 +258,54 @@ export default function MyProfilePage() {
         <User className="h-6 w-6" />
         הפרופיל שלי
       </h1>
+
+      {/* Avatar Section */}
+      <div className="flex flex-col items-center gap-3">
+        <div className="relative group">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="תמונת פרופיל"
+              className="h-24 w-24 rounded-full object-cover border-4 border-primary-100 dark:border-primary-900/30 shadow-md"
+            />
+          ) : (
+            <div className="h-24 w-24 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-3xl font-bold text-primary-600 dark:text-primary-400 border-4 border-primary-50 dark:border-primary-900/20 shadow-md">
+              {(profile?.employee?.full_name || profile?.user?.email || "?")
+                .split(" ")
+                .map((w: string) => w[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+            </div>
+          )}
+          <label className="absolute bottom-0 end-0 h-8 w-8 rounded-full bg-primary-500 text-white flex items-center justify-center cursor-pointer shadow-lg hover:bg-primary-600 transition-colors group-hover:scale-110">
+            <Camera className="h-4 w-4" />
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              ref={avatarInputRef}
+              onChange={handleAvatarUpload}
+              disabled={uploadingAvatar}
+            />
+          </label>
+        </div>
+        {uploadingAvatar && (
+          <span className="text-sm text-muted-foreground animate-pulse">מעלה תמונה...</span>
+        )}
+        <button
+          className="text-xs text-primary-500 hover:underline"
+          onClick={() => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
+            input.onchange = (e) => handleAvatarUpload(e as any);
+            input.click();
+          }}
+        >
+          שנה תמונה
+        </button>
+      </div>
 
       {/* User Info */}
       <Card>

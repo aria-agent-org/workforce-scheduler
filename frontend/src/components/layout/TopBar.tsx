@@ -37,17 +37,30 @@ export default function TopBar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Load in-app notifications
+  // Load in-app notifications with proper unread count
   const loadNotifications = useCallback(async () => {
     try {
-      const res = await api.get(tenantApi("/notifications/logs"), {
-        params: { page_size: 10, channel: "in_app" },
-      });
-      const items = res.data.items || res.data || [];
+      // Try the self-service endpoint first for accurate unread count
+      let items: any[] = [];
+      let unread = 0;
+
+      try {
+        const myRes = await api.get(tenantApi("/my/notifications"), {
+          params: { page_size: 10 },
+        });
+        items = myRes.data.items || myRes.data || [];
+        unread = items.filter((n: any) => !n.read_at && n.status !== "read").length;
+      } catch {
+        // Fallback to notifications/logs
+        const res = await api.get(tenantApi("/notifications/logs"), {
+          params: { page_size: 10, channel: "in_app" },
+        });
+        items = res.data.items || res.data || [];
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        unread = items.filter((n: any) => n.sent_at > oneDayAgo && n.status === "sent").length;
+      }
+
       setNotifications(items.slice(0, 10));
-      // Count unread (sent in last 24h as proxy)
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const unread = items.filter((n: any) => n.sent_at > oneDayAgo && n.status === "sent").length;
       setUnreadCount(unread);
     } catch {
       // Silent fail for notifications
@@ -86,12 +99,22 @@ export default function TopBar() {
     const handler = (e: Event) => {
       const msg = (e as CustomEvent).detail?.message;
       if (msg) {
-        // Use a subtle approach — small toast at bottom
-        loadNotifications(); // Refresh notifications
+        loadNotifications();
       }
     };
     document.addEventListener("shavtzak:push-subscribed", handler);
     return () => document.removeEventListener("shavtzak:push-subscribed", handler);
+  }, [loadNotifications]);
+
+  // Listen for real-time WebSocket notification events
+  useEffect(() => {
+    const handler = () => {
+      // Immediately increment badge, then refresh from server
+      setUnreadCount(prev => prev + 1);
+      loadNotifications();
+    };
+    document.addEventListener("shavtzak:notification-received", handler);
+    return () => document.removeEventListener("shavtzak:notification-received", handler);
   }, [loadNotifications]);
 
   // Close dropdown on outside click
