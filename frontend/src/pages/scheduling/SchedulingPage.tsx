@@ -915,7 +915,7 @@ export default function SchedulingPage() {
                                   {a.employee_name}
                                 </button>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">{a.slot_id}</span>
+                                  <span className="text-xs text-muted-foreground">{(() => { const mt2 = missionTypes.find((t: any) => t.id === missions.find((m2: any) => m2.assignments?.some((a2: any) => a2.id === a.id))?.mission_type_id); const sl = mt2?.required_slots?.find((s: any) => s.slot_id === a.slot_id); return sl?.label?.[lang] || sl?.label?.he || a.slot_id; })()}</span>
                                   {a.conflicts_detected?.length > 0 && (
                                     <Badge className="bg-yellow-100 text-yellow-700">
                                       <AlertTriangle className="inline h-3 w-3 me-1" />{a.conflicts_detected.length} אזהרות

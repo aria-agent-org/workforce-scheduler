@@ -274,7 +274,7 @@ export default function MissionDetailPage() {
                         </div>
                         <div>
                           <p className="font-medium text-sm">{a.employee_name}</p>
-                          <p className="text-xs text-muted-foreground">משבצת: {a.slot_id}</p>
+                          <p className="text-xs text-muted-foreground">משבצת: {a.slot_label || a.slot_id}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
