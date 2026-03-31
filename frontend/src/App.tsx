@@ -9,6 +9,7 @@ import PermissionGuard from "./components/common/PermissionGuard";
 import { ToastProvider } from "./components/ui/toast";
 import { useThemeStore } from "./stores/themeStore";
 import { KeyboardShortcutsProvider } from "./components/common/KeyboardShortcuts";
+import RouteAnnouncer from "./components/common/RouteAnnouncer";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,6 +60,7 @@ function App() {
       <ToastProvider>
         <KeyboardShortcutsProvider>
         <BrowserRouter>
+            <RouteAnnouncer />
             <Suspense fallback={<LoadingSpinner />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />

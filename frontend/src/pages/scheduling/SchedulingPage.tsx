@@ -824,16 +824,18 @@ export default function SchedulingPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
+      <div className="flex gap-2 border-b pb-2 overflow-x-auto scrollbar-hide" role="tablist" aria-label="טאבים שיבוצים">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
+            role="tab"
+            aria-selected={activeTab === key}
             onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-4 py-2 text-sm transition-colors ${
-              activeTab === key ? "bg-primary-500 text-white" : "bg-muted text-muted-foreground hover:bg-accent"
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm transition-all min-h-[44px] ${
+              activeTab === key ? "bg-primary-500 text-white shadow-elevation-2" : "bg-muted text-muted-foreground hover:bg-accent"
             }`}
           >
-            <Icon className="h-4 w-4" />{label}
+            <Icon className="h-4 w-4" aria-hidden="true" />{label}
           </button>
         ))}
       </div>
