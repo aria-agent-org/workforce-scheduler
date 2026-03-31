@@ -27,7 +27,7 @@ interface Assignment {
   status: string;
   mission_status: string;
   conflicts_detected: any;
-  crew_members?: Array<{
+  crew?: Array<{
     employee_id: string;
     full_name: string;
     slot_label?: string;
@@ -171,7 +171,7 @@ export default function MySchedulePage() {
                               {a.mission_type_icon || "📋"}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-semibold text-sm truncate">{a.mission_name}</p>
+                              <a href={`/missions/${a.mission_id}`} className="font-semibold text-sm truncate text-primary-600 hover:underline">{a.mission_name}</a>
                               {missionTypeName && (
                                 <Badge
                                   className="text-[10px] mt-0.5"
@@ -197,10 +197,10 @@ export default function MySchedulePage() {
                               </div>
 
                               {/* Crew members */}
-                              {a.crew_members && a.crew_members.length > 0 && (
+                              {a.crew && a.crew.length > 0 && (
                                 <div className="flex items-center gap-1 mt-2 flex-wrap">
                                   <Users className="h-3 w-3 text-muted-foreground" />
-                                  {a.crew_members.map((cm, i) => (
+                                  {a.crew.map((cm, i) => (
                                     <Badge key={i} className="text-[10px] bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                       {cm.full_name}
                                       {cm.slot_label && <span className="text-muted-foreground mr-0.5"> ({cm.slot_label})</span>}
