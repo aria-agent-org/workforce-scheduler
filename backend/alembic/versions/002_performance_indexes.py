@@ -8,7 +8,7 @@ Create Date: 2026-03-30
 from alembic import op
 
 revision = "002_performance_indexes"
-down_revision = "001_initial"
+down_revision = "004"
 branch_labels = None
 depends_on = None
 
