@@ -14,7 +14,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Info, Zap, Scale, Shield, Clock, FileSpreadsheet } from "lucide-react";
+import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Info, Zap, Scale, Shield, Clock, FileSpreadsheet, Copy, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import * as XLSX from "xlsx";
@@ -48,6 +48,167 @@ const SEVERITY_OPTIONS = [
   { value: "hard", label: "חמור — חוסם שיבוץ", description: "המערכת לא תאפשר שיבוץ שמפר את החוק", color: "bg-red-100 text-red-700" },
 ];
 
+// ─── Condition Groups (AND/OR nesting) ────────────
+
+interface ConditionItem {
+  field: string;
+  operator: string;
+  value: string;
+}
+
+interface ConditionGroup {
+  logicOperator: "and" | "or";
+  conditions: ConditionItem[];
+}
+
+function flattenGroupsToConditions(groups: ConditionGroup[]): { operator: string; conditions: any[] } {
+  // If single group, return flat
+  if (groups.length === 1) {
+    return {
+      operator: groups[0].logicOperator,
+      conditions: groups[0].conditions.map(c => ({
+        field: c.field,
+        operator: c.operator,
+        value: c.value === "true" ? true : c.value === "false" ? false : isNaN(Number(c.value)) ? c.value : Number(c.value),
+      })),
+    };
+  }
+  // Multiple groups: wrap in AND of OR groups
+  return {
+    operator: "and",
+    conditions: groups.map(g => ({
+      operator: g.logicOperator,
+      conditions: g.conditions.map(c => ({
+        field: c.field,
+        operator: c.operator,
+        value: c.value === "true" ? true : c.value === "false" ? false : isNaN(Number(c.value)) ? c.value : Number(c.value),
+      })),
+    })),
+  };
+}
+
+function parseConditionExpression(expr: any): ConditionGroup[] {
+  if (!expr) return [{ logicOperator: "and", conditions: [{ field: "", operator: "gt", value: "" }] }];
+  const conds = expr.conditions || [];
+  if (conds.length === 0) return [{ logicOperator: "and", conditions: [{ field: "", operator: "gt", value: "" }] }];
+  // Check if nested groups
+  if (conds[0]?.conditions) {
+    return conds.map((g: any) => ({
+      logicOperator: g.operator || "and",
+      conditions: (g.conditions || []).map((c: any) => ({
+        field: c.field || "",
+        operator: c.operator || "gt",
+        value: String(c.value ?? ""),
+      })),
+    }));
+  }
+  // Flat conditions → single group
+  return [{
+    logicOperator: (expr.operator || "and") as "and" | "or",
+    conditions: conds.map((c: any) => ({
+      field: c.field || "",
+      operator: c.operator || "gt",
+      value: String(c.value ?? ""),
+    })),
+  }];
+}
+
+// ─── Rule Templates ────────────────────────────────
+
+interface RuleTemplate {
+  id: string;
+  name_he: string;
+  name_en: string;
+  category: string;
+  severity: string;
+  description_he: string;
+  groups: ConditionGroup[];
+  action_type: string;
+  action_message_he: string;
+  priority: number;
+}
+
+const RULE_TEMPLATES: RuleTemplate[] = [
+  {
+    id: "min_rest",
+    name_he: "מנוחה מינימלית 8 שעות",
+    name_en: "Minimum 8h rest",
+    category: "rest",
+    severity: "hard",
+    description_he: "חוסם שיבוץ אם לא עברו לפחות 8 שעות מנוחה מהמשימה האחרונה",
+    groups: [{ logicOperator: "and", conditions: [{ field: "employee.hours_since_last_mission", operator: "lt", value: "8" }] }],
+    action_type: "block",
+    action_message_he: "לחייל לא עברו 8 שעות מנוחה מהמשימה האחרונה",
+    priority: 90,
+  },
+  {
+    id: "max_week_hours",
+    name_he: "מקסימום 48 שעות בשבוע",
+    name_en: "Max 48h per week",
+    category: "fairness",
+    severity: "soft",
+    description_he: "אזהרה אם חייל עובד יותר מ-48 שעות בשבוע",
+    groups: [{ logicOperator: "and", conditions: [{ field: "employee.total_work_hours_week", operator: "gt", value: "48" }] }],
+    action_type: "warn",
+    action_message_he: "החייל עבר 48 שעות עבודה השבוע",
+    priority: 70,
+  },
+  {
+    id: "consecutive_days",
+    name_he: "מקסימום 6 ימים רצופים",
+    name_en: "Max 6 consecutive days",
+    category: "rest",
+    severity: "hard",
+    description_he: "חוסם שיבוץ אם החייל עבד 6 ימים רצופים ללא חופש",
+    groups: [{ logicOperator: "and", conditions: [{ field: "employee.consecutive_days_worked", operator: "gte", value: "6" }] }],
+    action_type: "block",
+    action_message_he: "החייל עבד 6 ימים רצופים — חייב לקבל יום חופש",
+    priority: 85,
+  },
+  {
+    id: "night_rest",
+    name_he: "מנוחה אחרי משמרת לילה",
+    name_en: "Rest after night shift",
+    category: "safety",
+    severity: "hard",
+    description_he: "חוסם שיבוץ בוקר אחרי משמרת לילה אם לא עברו 12 שעות",
+    groups: [{
+      logicOperator: "and",
+      conditions: [
+        { field: "employee.last_mission_was_night", operator: "is_true", value: "true" },
+        { field: "employee.hours_since_last_mission", operator: "lt", value: "12" },
+      ],
+    }],
+    action_type: "block",
+    action_message_he: "לא ניתן לשבץ משמרת בוקר אחרי לילה — נדרשות 12 שעות מנוחה",
+    priority: 95,
+  },
+  {
+    id: "max_shifts_week",
+    name_he: "מקסימום 6 משמרות בשבוע",
+    name_en: "Max 6 shifts per week",
+    category: "fairness",
+    severity: "soft",
+    description_he: "אזהרה אם חייל עושה יותר מ-6 משימות בשבוע",
+    groups: [{ logicOperator: "and", conditions: [{ field: "employee.missions_week", operator: "gt", value: "6" }] }],
+    action_type: "warn",
+    action_message_he: "החייל עשה יותר מ-6 משימות השבוע",
+    priority: 60,
+  },
+  {
+    id: "only_present",
+    name_he: "שיבוץ רק לנוכחים",
+    name_en: "Only schedule present soldiers",
+    category: "general",
+    severity: "hard",
+    description_he: "חוסם שיבוץ של חייל שלא נמצא בסטטוס נוכח",
+    groups: [{ logicOperator: "and", conditions: [{ field: "employee.status", operator: "neq", value: "present" }] }],
+    action_type: "block",
+    action_message_he: "החייל לא בסטטוס נוכח — לא ניתן לשבץ",
+    priority: 100,
+  },
+];
+
 const TYPE_LABELS: Record<string, string> = {
   number: "מספר",
   bool: "כן/לא",
@@ -66,12 +227,16 @@ export default function RulesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
 
-  // Form
+  // Form — now with condition groups for AND/OR nesting
   const [form, setForm] = useState({
     name_he: "", name_en: "", category: "general", severity: "soft", priority: 0,
-    conditions: [{ field: "", operator: "gt", value: "" }] as Array<{ field: string; operator: string; value: string }>,
+    conditionGroups: [{ logicOperator: "and", conditions: [{ field: "", operator: "gt", value: "" }] }] as ConditionGroup[],
     action_type: "warn", action_message_he: "", action_message_en: "",
   });
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false);
+
+  // Backward compat helper: flat conditions from groups
+  const formConditions = form.conditionGroups.flatMap(g => g.conditions);
 
   // Test
   const [testContext, setTestContext] = useState("{}");
@@ -81,17 +246,13 @@ export default function RulesPage() {
   // Auto-save for rule editing
   const ruleAutoSaveFn = useCallback(async () => {
     if (!editingRule || !form.name_he) return;
-    const conditions = form.conditions.map(c => ({
-      field: c.field,
-      operator: c.operator,
-      value: c.value === "true" ? true : c.value === "false" ? false : isNaN(Number(c.value)) ? c.value : Number(c.value),
-    }));
+    const conditionExpr = flattenGroupsToConditions(form.conditionGroups);
     const body = {
       name: { he: form.name_he, en: form.name_en || form.name_he },
       category: form.category,
       severity: form.severity,
       priority: form.priority,
-      condition_expression: { operator: "and", conditions },
+      condition_expression: conditionExpr,
       action_expression: {
         type: form.action_type,
         message: { he: form.action_message_he, en: form.action_message_en || form.action_message_he },
@@ -164,20 +325,17 @@ export default function RulesPage() {
 
   const saveRule = async () => {
     if (!form.name_he) { toast("error", "יש להזין שם לחוק"); return; }
-    if (form.conditions.some(c => !c.field)) { toast("error", "יש לבחור שדה לכל תנאי"); return; }
+    const allConds = form.conditionGroups.flatMap(g => g.conditions);
+    if (allConds.some(c => !c.field)) { toast("error", "יש לבחור שדה לכל תנאי"); return; }
 
     try {
-      const conditions = form.conditions.map(c => ({
-        field: c.field,
-        operator: c.operator,
-        value: c.value === "true" ? true : c.value === "false" ? false : isNaN(Number(c.value)) ? c.value : Number(c.value),
-      }));
+      const conditionExpr = flattenGroupsToConditions(form.conditionGroups);
       const body = {
         name: { he: form.name_he, en: form.name_en || form.name_he },
         category: form.category,
         severity: form.severity,
         priority: form.priority,
-        condition_expression: { operator: "and", conditions },
+        condition_expression: conditionExpr,
         action_expression: {
           type: form.action_type,
           message: { he: form.action_message_he, en: form.action_message_en || form.action_message_he },
@@ -211,13 +369,9 @@ export default function RulesPage() {
 
   const testRule = async () => {
     try {
-      const conditions = form.conditions.map(c => ({
-        field: c.field,
-        operator: c.operator,
-        value: c.value === "true" ? true : c.value === "false" ? false : isNaN(Number(c.value)) ? c.value : Number(c.value),
-      }));
+      const conditionExpr = flattenGroupsToConditions(form.conditionGroups);
       const res = await api.post(tenantApi("/rules/test"), {
-        condition_expression: { operator: "and", conditions },
+        condition_expression: conditionExpr,
         test_context: JSON.parse(testContext),
       });
       setTestResult(res.data);
@@ -230,28 +384,46 @@ export default function RulesPage() {
     setEditingRule(null);
     setForm({
       name_he: "", name_en: "", category: "general", severity: "soft", priority: 0,
-      conditions: [{ field: "", operator: "gt", value: "" }],
+      conditionGroups: [{ logicOperator: "and", conditions: [{ field: "", operator: "gt", value: "" }] }],
       action_type: "warn", action_message_he: "", action_message_en: "",
     });
     setTestResult(null);
     setShowTestPanel(false);
+    setShowTemplatePanel(false);
     setShowModal(true);
   };
 
   const openEdit = (rule: any) => {
     setEditingRule(rule);
-    const conds = rule.condition_expression?.conditions || [];
+    const groups = parseConditionExpression(rule.condition_expression);
     setForm({
       name_he: rule.name?.he || "", name_en: rule.name?.en || "",
       category: rule.category, severity: rule.severity, priority: rule.priority,
-      conditions: conds.length > 0 ? conds.map((c: any) => ({ field: c.field || "", operator: c.operator || "gt", value: String(c.value ?? "") })) : [{ field: "", operator: "gt", value: "" }],
+      conditionGroups: groups,
       action_type: rule.action_expression?.type || "warn",
       action_message_he: rule.action_expression?.message?.he || "",
       action_message_en: rule.action_expression?.message?.en || "",
     });
     setTestResult(null);
     setShowTestPanel(false);
+    setShowTemplatePanel(false);
     setShowModal(true);
+  };
+
+  const applyTemplate = (tpl: RuleTemplate) => {
+    setForm({
+      name_he: tpl.name_he,
+      name_en: tpl.name_en,
+      category: tpl.category,
+      severity: tpl.severity,
+      priority: tpl.priority,
+      conditionGroups: tpl.groups.map(g => ({ ...g, conditions: g.conditions.map(c => ({ ...c })) })),
+      action_type: tpl.action_type,
+      action_message_he: tpl.action_message_he,
+      action_message_en: "",
+    });
+    setShowTemplatePanel(false);
+    toast("success", `תבנית "${tpl.name_he}" הוחלה — ניתן לערוך לפני שמירה`);
   };
 
   // Build human-readable summary of a rule's conditions
@@ -401,6 +573,55 @@ export default function RulesPage() {
           </DialogHeader>
           <div className="space-y-5 py-4">
 
+            {/* === Rule Templates === */}
+            {!editingRule && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowTemplatePanel(!showTemplatePanel)}
+                  className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors w-full"
+                >
+                  {showTemplatePanel ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <BookOpen className="h-4 w-4" />
+                  📋 תבניות מוכנות — בחר תבנית חוק נפוצה
+                </button>
+                {showTemplatePanel && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in slide-in-from-top-2">
+                    {RULE_TEMPLATES.map((tpl) => {
+                      const catOpt = CATEGORY_OPTIONS.find(c => c.value === tpl.category);
+                      const CatIcon = catOpt?.icon || ShieldCheck;
+                      return (
+                        <button
+                          key={tpl.id}
+                          onClick={() => applyTemplate(tpl)}
+                          className="text-right rounded-xl border p-3 hover:border-primary-300 hover:shadow-sm transition-all bg-card"
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              tpl.severity === "hard" ? "bg-red-100 dark:bg-red-900/30" : "bg-yellow-100 dark:bg-yellow-900/30"
+                            }`}>
+                              <CatIcon className={`h-4 w-4 ${catOpt?.color || "text-gray-500"}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm">{tpl.name_he}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{tpl.description_he}</p>
+                              <div className="flex gap-1 mt-1.5">
+                                <Badge className={tpl.severity === "hard" ? "bg-red-100 text-red-700 text-[10px]" : "bg-yellow-100 text-yellow-700 text-[10px]"}>
+                                  {tpl.severity === "hard" ? "חמור" : "רך"}
+                                </Badge>
+                                <Badge className="bg-muted text-muted-foreground text-[10px]">
+                                  {catOpt?.label || tpl.category}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* === Section 1: Basic Info === */}
             <div className="space-y-3">
               <h3 className="text-sm font-bold text-muted-foreground flex items-center gap-2">
@@ -498,276 +719,374 @@ export default function RulesPage() {
               </div>
             </div>
 
-            {/* === Section 3: Conditions (THE CORE) === */}
+            {/* === Section 3: Conditions (THE CORE) with AND/OR Groups === */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-muted-foreground flex items-center gap-2">
                   🔍 תנאים — מתי החוק חל?
                   <HelpTooltip
                     title={{ he: "מהו תנאי?", en: "What is a condition?" }}
-                    content={{ he: "תנאי בודק נתון מסוים לפני כל שיבוץ.\nלדוגמה: אם עברו פחות מ-16 שעות מנוחה → החוק חל.\n\nאם יש כמה תנאים, כולם צריכים להתקיים (וגם).\n\nהיקף החוק (scope) נקבע לפי השדות שתבחר:\n• שדות עובד → חל על עובד ספציפי\n• שדות משימה → חל על סוג משימה\n• שניהם → גלובלי (כל הטננט)", en: "A condition checks a value before each assignment. Scope is determined by the fields you choose." }}
+                    content={{ he: "תנאי בודק נתון מסוים לפני כל שיבוץ.\nניתן ליצור קבוצות תנאים עם חיבור וגם (AND) או או (OR).\n\nדוגמה: (שעות מנוחה < 8) וגם (משמרת לילה = כן)", en: "Conditions check values before assignment. Group with AND/OR." }}
                     examples={[
                       { he: "שעות מנוחה < 16 → חסום שיבוץ", en: "Rest hours < 16 → block" },
-                      { he: "שעות עבודה היום > 8 → אזהרה", en: "Work hours today > 8 → warn" },
+                      { he: "(לילה = כן) או (שעות > 12) → אזהרה", en: "(night = yes) or (hours > 12) → warn" },
                     ]}
                   />
                 </h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="min-h-[36px]"
-                  onClick={() => setForm({...form, conditions: [...form.conditions, { field: "", operator: "gt", value: "" }]})}
-                >
-                  <Plus className="h-3 w-3 me-1" />הוסף תנאי
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-[36px] text-xs"
+                    onClick={() => {
+                      const groups = [...form.conditionGroups];
+                      groups.push({ logicOperator: "or", conditions: [{ field: "", operator: "gt", value: "" }] });
+                      setForm({ ...form, conditionGroups: groups });
+                    }}
+                    title="הוסף קבוצת OR — לפחות אחת מהקבוצות צריכה להתקיים"
+                  >
+                    <Plus className="h-3 w-3 me-1" />קבוצת OR
+                  </Button>
+                </div>
               </div>
 
-              {form.conditions.map((cond, i) => {
-                const fieldInfo = getFieldInfo(cond.field);
-                const availableOps = getOperatorsForField(cond.field);
+              {form.conditionGroups.map((group, gIdx) => (
+                <div key={gIdx} className="space-y-2">
+                  {gIdx > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex-1 border-t border-orange-300" />
+                      <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-bold text-xs">
+                        וגם (AND) בין הקבוצות
+                      </span>
+                      <div className="flex-1 border-t border-orange-300" />
+                    </div>
+                  )}
 
-                return (
-                  <div key={i} className="rounded-xl border bg-muted/20 p-3 space-y-2">
-                    {i > 0 && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                        <div className="flex-1 border-t" />
-                        <span className="bg-muted px-2 py-0.5 rounded-full font-medium">וגם (AND)</span>
-                        <div className="flex-1 border-t" />
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
-                      {/* Field selector */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs">מה לבדוק?</Label>
-                          {fieldInfo && (
-                            <HelpTooltip
-                              title={fieldInfo.label}
-                              content={fieldInfo.description || fieldInfo.label}
-                              examples={fieldInfo.example ? [{ he: `דוגמה: ${fieldInfo.example}`, en: `Example: ${fieldInfo.example}` }] : undefined}
-                            />
-                          )}
-                        </div>
-                        <Select
-                          value={cond.field}
-                          onChange={e => {
-                            const c = [...form.conditions];
-                            c[i].field = e.target.value;
-                            // Reset operator for new field type
-                            const newFieldInfo = conditionFields.find(f => f.field === e.target.value);
-                            if (newFieldInfo?.type === "bool") {
-                              c[i].operator = "is_true";
-                              c[i].value = "true";
-                            }
-                            setForm({...form, conditions: c});
+                  <div className={`rounded-xl border-2 p-3 space-y-2 ${
+                    group.logicOperator === "or"
+                      ? "border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10"
+                      : "border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-900/10"
+                  }`}>
+                    {/* Group header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
+                            group.logicOperator === "and"
+                              ? "bg-green-500 text-white"
+                              : "bg-muted text-muted-foreground hover:bg-green-100"
+                          }`}
+                          onClick={() => {
+                            const groups = [...form.conditionGroups];
+                            groups[gIdx] = { ...groups[gIdx], logicOperator: "and" };
+                            setForm({ ...form, conditionGroups: groups });
                           }}
-                          className="min-h-[44px]"
                         >
-                          <option value="">בחר שדה...</option>
-                          <optgroup label="👤 עובד">
-                            {conditionFields.filter(f => f.field.startsWith("employee.")).map(f => {
-                              const desc = f.description?.[lang] || f.description?.he || "";
-                              const shortDesc = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
-                              return (
-                                <option key={f.field} value={f.field}>
-                                  {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type}){shortDesc ? ` — ${shortDesc}` : ""}
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                          <optgroup label="📋 משימה">
-                            {conditionFields.filter(f => f.field.startsWith("mission.")).map(f => {
-                              const desc = f.description?.[lang] || f.description?.he || "";
-                              const shortDesc = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
-                              return (
-                                <option key={f.field} value={f.field}>
-                                  {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type}){shortDesc ? ` — ${shortDesc}` : ""}
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                          <optgroup label="🔗 שיבוץ">
-                            {conditionFields.filter(f => f.field.startsWith("assignment.")).map(f => {
-                              const desc = f.description?.[lang] || f.description?.he || "";
-                              const shortDesc = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
-                              return (
-                                <option key={f.field} value={f.field}>
-                                  {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type}){shortDesc ? ` — ${shortDesc}` : ""}
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        </Select>
-                      </div>
-
-                      {/* Operator */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs">איך?</Label>
-                          <HelpTooltip content={{ he: "בחר את סוג ההשוואה:\n• גדול מ (>) — ערך גבוה מהמספר שתזין\n• קטן מ (<) — ערך נמוך מהמספר\n• שווה ל (=) — ערך זהה\n• שונה מ (≠) — ערך שונה\n• בין (↔) — טווח מספרים\n• אחד מ (∈) — אחד מרשימת ערכים\n• כן/לא (✓/✗) — לשדות בוליאניים\n• ריק/לא ריק (∅) — בדיקת קיום ערך", en: "Choose comparison: >, <, =, ≠, between, in, is_true/false, is_null/not_null" }} />
-                        </div>
-                        <Select
-                          value={cond.operator}
-                          onChange={e => {
-                            const c = [...form.conditions]; c[i].operator = e.target.value; setForm({...form, conditions: c});
+                          AND (וגם)
+                        </button>
+                        <button
+                          className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
+                            group.logicOperator === "or"
+                              ? "bg-blue-500 text-white"
+                              : "bg-muted text-muted-foreground hover:bg-blue-100"
+                          }`}
+                          onClick={() => {
+                            const groups = [...form.conditionGroups];
+                            groups[gIdx] = { ...groups[gIdx], logicOperator: "or" };
+                            setForm({ ...form, conditionGroups: groups });
                           }}
-                          className="min-h-[44px] min-w-[140px]"
                         >
-                          {availableOps.map(op => (
-                            <option key={op.value} value={op.value}>
-                              {op.symbol} {lang === "he" ? op.label_he : op.label_en}
-                            </option>
-                          ))}
-                        </Select>
+                          OR (או)
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          {group.logicOperator === "and" ? "כל התנאים צריכים להתקיים" : "לפחות תנאי אחד צריך להתקיים"}
+                        </span>
                       </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            const groups = [...form.conditionGroups];
+                            groups[gIdx] = {
+                              ...groups[gIdx],
+                              conditions: [...groups[gIdx].conditions, { field: "", operator: "gt", value: "" }],
+                            };
+                            setForm({ ...form, conditionGroups: groups });
+                          }}
+                        >
+                          <Plus className="h-3 w-3 me-1" />תנאי
+                        </Button>
+                        {form.conditionGroups.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-red-500"
+                            onClick={() => {
+                              setForm({
+                                ...form,
+                                conditionGroups: form.conditionGroups.filter((_, gi) => gi !== gIdx),
+                              });
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
 
-                      {/* Value — smart visibility based on operator */}
-                      {(() => {
-                        const hideValue = ["is_true", "is_false", "is_null", "is_not_null"].includes(cond.operator);
-                        const isBetween = cond.operator === "between";
-                        const isMulti = ["in", "not_in"].includes(cond.operator);
+                    {/* Conditions in this group */}
+                    {group.conditions.map((cond, cIdx) => {
+                      const fieldInfo = getFieldInfo(cond.field);
+                      const availableOps = getOperatorsForField(cond.field);
 
-                        if (hideValue) return <div />;
+                      const updateCond = (updates: Partial<ConditionItem>) => {
+                        const groups = [...form.conditionGroups];
+                        const conds = [...groups[gIdx].conditions];
+                        conds[cIdx] = { ...conds[cIdx], ...updates };
+                        groups[gIdx] = { ...groups[gIdx], conditions: conds };
+                        setForm({ ...form, conditionGroups: groups });
+                      };
 
-                        if (isBetween) {
-                          const parts = (cond.value || ",").split(",");
-                          return (
-                            <div className="space-y-1">
-                              <Label className="text-xs">טווח (מ — עד)</Label>
-                              <div className="flex gap-1.5 items-center">
-                                <Input
-                                  type="number"
-                                  value={parts[0] || ""}
-                                  onChange={e => {
-                                    const c = [...form.conditions]; c[i].value = `${e.target.value},${parts[1] || ""}`; setForm({...form, conditions: c});
-                                  }}
-                                  placeholder="מינימום"
-                                  className="min-h-[44px]"
-                                />
-                                <span className="text-muted-foreground text-xs">—</span>
-                                <Input
-                                  type="number"
-                                  value={parts[1] || ""}
-                                  onChange={e => {
-                                    const c = [...form.conditions]; c[i].value = `${parts[0] || ""},${e.target.value}`; setForm({...form, conditions: c});
-                                  }}
-                                  placeholder="מקסימום"
-                                  className="min-h-[44px]"
-                                />
-                              </div>
+                      return (
+                        <div key={cIdx} className="rounded-lg border bg-card p-3 space-y-2">
+                          {cIdx > 0 && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                              <div className="flex-1 border-t" />
+                              <span className={`px-2 py-0.5 rounded-full font-medium ${
+                                group.logicOperator === "and" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                              }`}>
+                                {group.logicOperator === "and" ? "וגם (AND)" : "או (OR)"}
+                              </span>
+                              <div className="flex-1 border-t" />
                             </div>
-                          );
-                        }
+                          )}
 
-                        if (isMulti) {
-                          const tags = cond.value ? cond.value.split(",").filter(Boolean) : [];
-                          return (
+                          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
+                            {/* Field selector */}
                             <div className="space-y-1">
-                              <Label className="text-xs">ערכים (הפרד בפסיק)</Label>
-                              <div className="space-y-1.5">
-                                {fieldInfo?.type === "select" && fieldInfo.options ? (
-                                  <div className="flex flex-wrap gap-1.5 rounded-lg border p-2 min-h-[44px]">
-                                    {fieldInfo.options.map((opt: string) => {
-                                      const selected = tags.includes(opt);
-                                      return (
-                                        <button key={opt} type="button" onClick={() => {
-                                          const c = [...form.conditions];
-                                          const newTags = selected ? tags.filter(t => t !== opt) : [...tags, opt];
-                                          c[i].value = newTags.join(",");
-                                          setForm({...form, conditions: c});
-                                        }} className={`text-xs px-2 py-1 rounded-lg border transition-colors ${selected ? "bg-primary-500 text-white border-primary-500" : "bg-muted hover:bg-accent"}`}>
-                                          {opt}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <Input
-                                    value={cond.value}
-                                    onChange={e => {
-                                      const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
-                                    }}
-                                    placeholder="ערך1,ערך2,ערך3"
-                                    className="min-h-[44px]"
+                              <div className="flex items-center gap-1">
+                                <Label className="text-xs">מה לבדוק?</Label>
+                                {fieldInfo && (
+                                  <HelpTooltip
+                                    title={fieldInfo.label}
+                                    content={fieldInfo.description || fieldInfo.label}
+                                    examples={fieldInfo.example ? [{ he: `דוגמה: ${fieldInfo.example}`, en: `Example: ${fieldInfo.example}` }] : undefined}
                                   />
                                 )}
                               </div>
-                            </div>
-                          );
-                        }
-
-                        // Default: single value
-                        return (
-                          <div className="space-y-1">
-                            <Label className="text-xs">ערך</Label>
-                            {fieldInfo?.type === "select" && fieldInfo.options ? (
                               <Select
-                                value={cond.value}
+                                value={cond.field}
                                 onChange={e => {
-                                  const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
+                                  const newField = e.target.value;
+                                  const newFieldInfo = conditionFields.find(f => f.field === newField);
+                                  const updates: Partial<ConditionItem> = { field: newField };
+                                  if (newFieldInfo?.type === "bool") {
+                                    updates.operator = "is_true";
+                                    updates.value = "true";
+                                  }
+                                  updateCond(updates);
                                 }}
                                 className="min-h-[44px]"
                               >
-                                <option value="">בחר...</option>
-                                {fieldInfo.options.map((opt: string) => (
-                                  <option key={opt} value={opt}>{opt}</option>
+                                <option value="">בחר שדה...</option>
+                                <optgroup label="👤 עובד">
+                                  {conditionFields.filter(f => f.field.startsWith("employee.")).map(f => (
+                                    <option key={f.field} value={f.field}>
+                                      {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="📋 משימה">
+                                  {conditionFields.filter(f => f.field.startsWith("mission.")).map(f => (
+                                    <option key={f.field} value={f.field}>
+                                      {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="🔗 שיבוץ">
+                                  {conditionFields.filter(f => f.field.startsWith("assignment.")).map(f => (
+                                    <option key={f.field} value={f.field}>
+                                      {f.label?.[lang] || f.label?.he} ({TYPE_LABELS[f.type] || f.type})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </Select>
+                            </div>
+
+                            {/* Operator */}
+                            <div className="space-y-1">
+                              <Label className="text-xs">איך?</Label>
+                              <Select
+                                value={cond.operator}
+                                onChange={e => updateCond({ operator: e.target.value })}
+                                className="min-h-[44px] min-w-[140px]"
+                              >
+                                {availableOps.map(op => (
+                                  <option key={op.value} value={op.value}>
+                                    {op.symbol} {lang === "he" ? op.label_he : op.label_en}
+                                  </option>
                                 ))}
                               </Select>
-                            ) : (
-                              <Input
-                                value={cond.value}
-                                onChange={e => {
-                                  const c = [...form.conditions]; c[i].value = e.target.value; setForm({...form, conditions: c});
-                                }}
-                                placeholder={fieldInfo?.example ? `דוגמה: ${fieldInfo.example}` : "הזן ערך..."}
-                                className="min-h-[44px]"
-                                type={fieldInfo?.type === "number" ? "number" : "text"}
-                              />
-                            )}
+                            </div>
+
+                            {/* Value — adaptive input based on operator & field type */}
+                            {(() => {
+                              const hideValue = ["is_true", "is_false", "is_null", "is_not_null"].includes(cond.operator);
+                              const isBetween = cond.operator === "between";
+                              const isMulti = ["in", "not_in"].includes(cond.operator);
+
+                              if (hideValue) return <div />;
+
+                              if (isBetween) {
+                                const parts = (cond.value || ",").split(",");
+                                return (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">טווח (מ — עד)</Label>
+                                    <div className="flex gap-1.5 items-center">
+                                      <Input
+                                        type="number"
+                                        value={parts[0] || ""}
+                                        onChange={e => updateCond({ value: `${e.target.value},${parts[1] || ""}` })}
+                                        placeholder="מינימום"
+                                        className="min-h-[44px]"
+                                      />
+                                      <span className="text-muted-foreground text-xs">—</span>
+                                      <Input
+                                        type="number"
+                                        value={parts[1] || ""}
+                                        onChange={e => updateCond({ value: `${parts[0] || ""},${e.target.value}` })}
+                                        placeholder="מקסימום"
+                                        className="min-h-[44px]"
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              if (isMulti) {
+                                const tags = cond.value ? cond.value.split(",").filter(Boolean) : [];
+                                return (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">ערכים (הפרד בפסיק)</Label>
+                                    {fieldInfo?.type === "select" && fieldInfo.options ? (
+                                      <div className="flex flex-wrap gap-1.5 rounded-lg border p-2 min-h-[44px]">
+                                        {fieldInfo.options.map((opt: string) => {
+                                          const selected = tags.includes(opt);
+                                          return (
+                                            <button key={opt} type="button" onClick={() => {
+                                              const newTags = selected ? tags.filter(t => t !== opt) : [...tags, opt];
+                                              updateCond({ value: newTags.join(",") });
+                                            }} className={`text-xs px-2 py-1 rounded-lg border transition-colors ${selected ? "bg-primary-500 text-white border-primary-500" : "bg-muted hover:bg-accent"}`}>
+                                              {opt}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <Input
+                                        value={cond.value}
+                                        onChange={e => updateCond({ value: e.target.value })}
+                                        placeholder="ערך1,ערך2,ערך3"
+                                        className="min-h-[44px]"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              // Adaptive single value: date picker for date fields, number for numbers, select for selects
+                              const isDateField = cond.field?.includes("date") || cond.field?.includes("day_of_week");
+                              return (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">ערך</Label>
+                                  {fieldInfo?.type === "select" && fieldInfo.options ? (
+                                    <Select
+                                      value={cond.value}
+                                      onChange={e => updateCond({ value: e.target.value })}
+                                      className="min-h-[44px]"
+                                    >
+                                      <option value="">בחר...</option>
+                                      {fieldInfo.options.map((opt: string) => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                      ))}
+                                    </Select>
+                                  ) : isDateField ? (
+                                    <Input
+                                      type="date"
+                                      value={cond.value}
+                                      onChange={e => updateCond({ value: e.target.value })}
+                                      className="min-h-[44px]"
+                                    />
+                                  ) : (
+                                    <Input
+                                      value={cond.value}
+                                      onChange={e => updateCond({ value: e.target.value })}
+                                      placeholder={fieldInfo?.example ? `דוגמה: ${fieldInfo.example}` : "הזן ערך..."}
+                                      className="min-h-[44px]"
+                                      type={fieldInfo?.type === "number" ? "number" : "text"}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            {/* Delete condition */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="min-h-[44px] min-w-[44px]"
+                              onClick={() => {
+                                const groups = [...form.conditionGroups];
+                                if (groups[gIdx].conditions.length <= 1 && form.conditionGroups.length <= 1) return;
+                                if (groups[gIdx].conditions.length <= 1) {
+                                  // Remove entire group
+                                  setForm({ ...form, conditionGroups: groups.filter((_, gi) => gi !== gIdx) });
+                                } else {
+                                  groups[gIdx] = {
+                                    ...groups[gIdx],
+                                    conditions: groups[gIdx].conditions.filter((_, ci) => ci !== cIdx),
+                                  };
+                                  setForm({ ...form, conditionGroups: groups });
+                                }
+                              }}
+                              disabled={group.conditions.length <= 1 && form.conditionGroups.length <= 1}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
                           </div>
-                        );
-                      })()}
 
-                      {/* Delete */}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => setForm({...form, conditions: form.conditions.filter((_, j) => j !== i)})}
-                        disabled={form.conditions.length <= 1}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-
-                    {/* Live preview of this condition */}
-                    {cond.field && (
-                      <div className="text-xs bg-muted/50 rounded-lg px-3 py-1.5 text-muted-foreground">
-                        💡 {(() => {
-                          const fLabel = fieldInfo?.label?.[lang] || fieldInfo?.label?.he || cond.field;
-                          const op = OPERATORS.find(o => o.value === cond.operator);
-                          const opLabel = op ? (lang === "he" ? op.label_he : op.label_en) : cond.operator;
-                          if (["is_true", "is_false"].includes(cond.operator)) {
-                            return `אם "${fLabel}" ${cond.operator === "is_true" ? "כן" : "לא"}`;
-                          }
-                          if (["is_null", "is_not_null"].includes(cond.operator)) {
-                            return `אם "${fLabel}" ${cond.operator === "is_null" ? "ריק" : "לא ריק"}`;
-                          }
-                          if (cond.operator === "between") {
-                            const parts = (cond.value || ",").split(",");
-                            return `אם "${fLabel}" בין ${parts[0] || "?"} ל-${parts[1] || "?"}`;
-                          }
-                          if (["in", "not_in"].includes(cond.operator)) {
-                            return `אם "${fLabel}" ${cond.operator === "in" ? "אחד מ" : "לא אחד מ"}: ${cond.value || "?"}`;
-                          }
-                          return `אם "${fLabel}" ${opLabel} ${cond.value || "?"}`;
-                        })()}
-                      </div>
-                    )}
+                          {/* Live preview */}
+                          {cond.field && (
+                            <div className="text-xs bg-muted/50 rounded-lg px-3 py-1.5 text-muted-foreground">
+                              💡 {(() => {
+                                const fLabel = fieldInfo?.label?.[lang] || fieldInfo?.label?.he || cond.field;
+                                const op = OPERATORS.find(o => o.value === cond.operator);
+                                const opLabel = op ? (lang === "he" ? op.label_he : op.label_en) : cond.operator;
+                                if (["is_true", "is_false"].includes(cond.operator)) {
+                                  return `אם "${fLabel}" ${cond.operator === "is_true" ? "כן" : "לא"}`;
+                                }
+                                if (["is_null", "is_not_null"].includes(cond.operator)) {
+                                  return `אם "${fLabel}" ${cond.operator === "is_null" ? "ריק" : "לא ריק"}`;
+                                }
+                                if (cond.operator === "between") {
+                                  const parts = (cond.value || ",").split(",");
+                                  return `אם "${fLabel}" בין ${parts[0] || "?"} ל-${parts[1] || "?"}`;
+                                }
+                                if (["in", "not_in"].includes(cond.operator)) {
+                                  return `אם "${fLabel}" ${cond.operator === "in" ? "אחד מ" : "לא אחד מ"}: ${cond.value || "?"}`;
+                                }
+                                return `אם "${fLabel}" ${opLabel} ${cond.value || "?"}`;
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
 
             {/* === Section 4: Action === */}
