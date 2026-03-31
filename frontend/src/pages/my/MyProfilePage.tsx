@@ -324,10 +324,29 @@ export default function MyProfilePage() {
             <>
               <div className="space-y-2">
                 <Label>שם מלא</Label>
-                <Input
-                  value={editForm.full_name}
-                  onChange={e => setEditForm({ ...editForm, full_name: e.target.value })}
-                />
+                {(() => {
+                  const userRole = profile?.user?.role_definition_id ? "admin" : "soldier";
+                  const isSoldier = !profile?.user?.role_definition_id || 
+                    profile?.role_name === "soldier" || 
+                    profile?.role_name === "חייל";
+                  return isSoldier ? (
+                    <div>
+                      <Input
+                        value={editForm.full_name}
+                        disabled
+                        className="bg-muted/50 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        🔒 שינוי שם מתבצע על ידי מנהל בלבד
+                      </p>
+                    </div>
+                  ) : (
+                    <Input
+                      value={editForm.full_name}
+                      onChange={e => setEditForm({ ...editForm, full_name: e.target.value })}
+                    />
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <Label>טלפון (WhatsApp)</Label>

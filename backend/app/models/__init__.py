@@ -1,7 +1,8 @@
 """SQLAlchemy models."""
 
 from app.models.base import Base, TenantBase  # noqa: F401
-from app.models.tenant import Tenant, Plan, TenantSetting, AuthMethodConfig  # noqa: F401
+from app.models.tenant import Tenant, Plan, TenantSetting, AuthMethodConfig, CommunicationChannelConfig  # noqa: F401
+from app.models.import_batch import UserImportBatch, UserImportRow  # noqa: F401
 from app.models.user import (  # noqa: F401
     User, UserSession, UserTOTP, UserWebAuthnCredential,
     MagicLinkToken, UserSSOConnection, Invitation,

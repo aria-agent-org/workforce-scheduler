@@ -774,6 +774,29 @@ export default function SchedulingPage() {
               <Button variant="outline" size="sm" onClick={() => navigate('/settings?tab=board-template')}>
                 <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
               </Button>
+              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={async () => {
+                try {
+                  toast("info", "מייצר לוח יומי מתבנית...");
+                  const tmplRes = await api.get(tenantApi("/daily-board-templates"));
+                  const boardTemplates = Array.isArray(tmplRes.data) ? tmplRes.data : [];
+                  if (boardTemplates.length === 0) {
+                    toast("warning", "אין תבניות לוח — עבור לעורך הלוח וצור תבנית");
+                    return;
+                  }
+                  const tmpl = boardTemplates[0];
+                  await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
+                    date_from: boardDate,
+                    date_to: boardDate,
+                  });
+                  toast("success", `לוח יומי נוצר בהצלחה ליום ${boardDate}`);
+                  if (selectedWindow) loadWindowData(selectedWindow.id);
+                } catch (err: any) {
+                  const detail = err?.response?.data?.detail || "שגיאה ביצירת לוח יומי";
+                  toast("error", detail);
+                }
+              }}>
+                <Wand2 className="me-1 h-4 w-4" />ייצור לוח יומי
+              </Button>
               <Button variant="outline" size="sm" onClick={autoAssign}>
                 <Wand2 className="me-1 h-4 w-4" />{t("autoAssign")}
               </Button>

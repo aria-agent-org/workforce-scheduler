@@ -32,9 +32,10 @@ import CommunicationChannelsPage from "./CommunicationChannelsPage";
 import RolePermissionsPage from "./RolePermissionsPage";
 import VisibilitySettingsPage from "./VisibilitySettingsPage";
 import SecuritySettingsPage from "./SecuritySettingsPage";
-import { KeyRound, Radio, Eye, Lock, Sliders } from "lucide-react";
+import TenantFeaturesPage from "./TenantFeaturesPage";
+import { KeyRound, Radio, Eye, Lock, Sliders, Zap } from "lucide-react";
 
-type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "scheduling-config" | "users" | "registration" | "channels" | "visibility" | "security";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "scheduling-config" | "users" | "registration" | "channels" | "visibility" | "security" | "features";
 
 function BrandingSection({ initialColor, initialLogo, initialFavicon, onSave }: {
   initialColor: string;
@@ -131,7 +132,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab && ["general","users","registration","work-roles","attendance-statuses","board-template","scheduling-config","channels","google-sheets","bot-config","visibility","role-definitions","security"].includes(tab)) {
+    if (tab && ["general","users","registration","work-roles","attendance-statuses","board-template","scheduling-config","channels","google-sheets","bot-config","visibility","role-definitions","security","features"].includes(tab)) {
       return tab as Tab;
     }
     return "general";
@@ -225,6 +226,7 @@ export default function SettingsPage() {
     { key: "visibility", label: "נראות חייל", icon: Eye },
     { key: "role-definitions", label: "הרשאות", icon: Shield },
     { key: "security", label: "אבטחה", icon: Lock },
+    { key: "features", label: "פיצ׳רים ומיתוג", icon: Zap },
   ];
 
   return (
@@ -476,6 +478,9 @@ export default function SettingsPage() {
 
       {/* Security — 2FA & Sessions */}
       {activeTab === "security" && <SecuritySettingsPage />}
+
+      {/* Tenant Features & Branding */}
+      {activeTab === "features" && <TenantFeaturesPage />}
 
       {/* Work Role Modal */}
       <Dialog open={showWRModal} onOpenChange={setShowWRModal}>

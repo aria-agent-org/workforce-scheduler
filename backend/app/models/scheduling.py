@@ -49,6 +49,7 @@ class ScheduleWindow(TenantBase):
         UUID(as_uuid=True), ForeignKey("google_sheets_configs.id"), nullable=True
     )
     settings_override: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    rules_override: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 

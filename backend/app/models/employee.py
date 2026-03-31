@@ -16,6 +16,8 @@ class Employee(TenantBase):
 
     employee_number: Mapped[str] = mapped_column(String(50), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     preferred_language: Mapped[str] = mapped_column(String(5), default="he", nullable=False)
     notification_channels: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     whatsapp_session_expires_at: Mapped[str | None] = mapped_column(nullable=True)

@@ -11,9 +11,10 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, X } from "lucide-react";
+import { UserPlus, Search, Download, Upload, Pencil, Trash2, X, FileSpreadsheet } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
+import UserImportWizard from "./UserImportWizard";
 
 interface AttendanceStatusDef {
   code: string;
@@ -56,6 +57,9 @@ export default function EmployeesPage() {
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  
+  // Import wizard
+  const [showImportWizard, setShowImportWizard] = useState(false);
 
   // Load attendance status definitions once
   useEffect(() => {
@@ -165,6 +169,10 @@ export default function EmployeesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowImportWizard(true)}>
+            <FileSpreadsheet className="me-1 h-4 w-4" />
+            ייבוא משתמשים
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="me-1 h-4 w-4" />
             {t("exportList")}
@@ -360,6 +368,13 @@ export default function EmployeesPage() {
         description={t("deleteConfirm")}
         confirmText={t("common:delete")}
         variant="destructive"
+      />
+
+      {/* User Import Wizard */}
+      <UserImportWizard
+        open={showImportWizard}
+        onClose={() => setShowImportWizard(false)}
+        onComplete={loadEmployees}
       />
     </div>
   );

@@ -37,6 +37,8 @@ from app.routers import board as board_router
 from app.routers import resources as resources_router
 from app.routers import integrations as integrations_router
 from app.routers import help_topics as help_topics_router
+from app.routers import import_wizard as import_wizard_router
+from app.routers import channels_admin as channels_admin_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
@@ -278,6 +280,20 @@ def create_app() -> FastAPI:
         board_router.router,
         prefix="/api/v1/{tenant_slug}/board",
         tags=["board"],
+    )
+
+    # Import Wizard
+    app.include_router(
+        import_wizard_router.router,
+        prefix="/api/v1/{tenant_slug}/import",
+        tags=["import-wizard"],
+    )
+
+    # Communication Channels Admin
+    app.include_router(
+        channels_admin_router.router,
+        prefix="/api/v1/{tenant_slug}/channels",
+        tags=["channels-admin"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)
