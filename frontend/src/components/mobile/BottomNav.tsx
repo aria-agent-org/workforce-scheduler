@@ -106,8 +106,8 @@ export default function BottomNav() {
       )}
 
       {/* Bottom nav bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-card/95 backdrop-blur-lg safe-area-bottom" aria-label="תפריט ניווט נייד">
-        <div className="flex items-center justify-around h-[68px] px-1">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t glass-surface shadow-elevation-3 safe-area-bottom" aria-label="תפריט ניווט נייד">
+        <div className="flex items-center justify-around h-[56px] px-1">
           {filteredPrimary.map(({ key, path, icon: Icon, label }) => (
             <NavLink
               key={key}
@@ -122,12 +122,13 @@ export default function BottomNav() {
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    "flex items-center justify-center h-8 w-8 rounded-full transition-colors",
-                    isActive ? "bg-primary-100 dark:bg-primary-900/40" : ""
+                    "flex items-center justify-center h-7 w-7 rounded-lg transition-all duration-200",
+                    isActive ? "bg-primary-100 dark:bg-primary-900/40 scale-110" : ""
                   )}>
-                    <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                    <Icon className="h-[22px] w-[22px]" strokeWidth={isActive ? 2.5 : 1.8} />
                   </div>
                   <span className="text-[10px] font-medium leading-tight">{label}</span>
+                  {isActive && <div className="h-0.5 w-4 rounded-full bg-primary-500 mt-0.5 transition-all duration-200" />}
                 </>
               )}
             </NavLink>

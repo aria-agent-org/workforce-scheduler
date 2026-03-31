@@ -146,7 +146,7 @@ export default function TopBar() {
 
   return (
     <>
-      <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
+      <header className="flex h-16 items-center justify-between border-b glass-surface px-4 md:px-6 shadow-elevation-1">
         <div className="flex items-center gap-3">
           <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? "סגור תפריט" : "פתח תפריט"} aria-expanded={mobileOpen}>
             {mobileOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
@@ -166,7 +166,7 @@ export default function TopBar() {
               )}
             </Button>
             {notifOpen && (
-              <div className="absolute end-0 top-full mt-2 w-80 rounded-xl border bg-card shadow-xl z-50 overflow-hidden">
+              <div className="absolute end-0 top-full mt-2 w-80 rounded-xl border bg-card shadow-elevation-4 z-50 overflow-hidden animate-scale-in">
                 <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                   <h3 className="text-sm font-bold">התראות</h3>
                   {unreadCount > 0 && (

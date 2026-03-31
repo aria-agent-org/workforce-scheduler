@@ -27,10 +27,24 @@ const icons = {
 };
 
 const colors = {
-  success: "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-200",
-  error: "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-200",
-  warning: "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-200",
-  info: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-200",
+  success: "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/40 dark:border-green-700 dark:text-green-200",
+  error: "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/40 dark:border-red-700 dark:text-red-200",
+  warning: "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/40 dark:border-yellow-700 dark:text-yellow-200",
+  info: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/40 dark:border-blue-700 dark:text-blue-200",
+};
+
+const progressColors = {
+  success: "bg-green-500",
+  error: "bg-red-500",
+  warning: "bg-yellow-500",
+  info: "bg-blue-500",
+};
+
+const iconColors = {
+  success: "text-green-500 dark:text-green-400",
+  error: "text-red-500 dark:text-red-400",
+  warning: "text-yellow-500 dark:text-yellow-400",
+  info: "text-blue-500 dark:text-blue-400",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -61,7 +75,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}
-      <div className="fixed bottom-4 start-4 z-50 flex flex-col gap-2" aria-live="polite">
+      {/* Toast container — top-right on desktop, top-center on mobile */}
+      <div className="fixed top-4 end-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none max-sm:end-0 max-sm:px-3" aria-live="polite">
         {toasts.map((t) => {
           const Icon = icons[t.type];
           return (
@@ -69,15 +84,29 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               key={t.id}
               role="alert"
               className={cn(
-                "flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg animate-in slide-in-from-bottom-2",
+                "flex items-start gap-3 rounded-xl border px-4 py-3.5 shadow-elevation-3 pointer-events-auto overflow-hidden relative",
                 colors[t.type]
               )}
+              style={{ animation: "slideInFromRight 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }}
             >
-              <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-              <span className="text-sm font-medium">{t.message}</span>
-              <button onClick={() => removeToast(t.id)} className="ms-2 flex-shrink-0" aria-label="סגור התראה">
+              <Icon className={cn("h-5 w-5 flex-shrink-0 mt-0.5", iconColors[t.type])} aria-hidden="true" />
+              <span className="text-sm font-medium flex-1 leading-relaxed">{t.message}</span>
+              <button 
+                onClick={() => removeToast(t.id)} 
+                className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity p-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5" 
+                aria-label="סגור התראה"
+              >
                 <X className="h-4 w-4" />
               </button>
+              {/* Progress bar */}
+              <div className="absolute bottom-0 inset-x-0 h-0.5 bg-black/5 dark:bg-white/5">
+                <div 
+                  className={cn("h-full rounded-full", progressColors[t.type])}
+                  style={{ 
+                    animation: `progressShrink ${(t.duration || 5000) / 1000}s linear forwards`,
+                  }} 
+                />
+              </div>
             </div>
           );
         })}

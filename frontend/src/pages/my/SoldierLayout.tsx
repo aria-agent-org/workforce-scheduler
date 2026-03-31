@@ -24,9 +24,9 @@ export default function SoldierLayout() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur-sm px-4 py-3 shadow-sm safe-area-pt">
+      <header className="sticky top-0 z-40 border-b glass-surface px-4 py-3 shadow-elevation-1 safe-area-pt">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h1 className="text-lg font-bold text-primary-500 flex items-center gap-2">
+          <h1 className="text-lg font-bold gradient-text flex items-center gap-2">
             🎯 שבצק
           </h1>
           <span className="text-xs text-muted-foreground">
@@ -41,7 +41,7 @@ export default function SoldierLayout() {
       </main>
 
       {/* Bottom Nav */}
-      <nav className="fixed bottom-0 inset-x-0 z-50 border-t bg-card/95 backdrop-blur-sm safe-area-pb">
+      <nav className="fixed bottom-0 inset-x-0 z-50 border-t glass-surface shadow-elevation-3 safe-area-pb">
         <div className="flex items-center justify-around py-1.5 max-w-lg mx-auto">
           {navItems.map(({ path, label, icon: Icon }) => (
             <NavLink
@@ -59,12 +59,13 @@ export default function SoldierLayout() {
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded-lg transition-colors",
-                    isActive ? "bg-primary-100 dark:bg-primary-900/30" : ""
+                    "flex items-center justify-center h-7 w-7 rounded-lg transition-all duration-200",
+                    isActive ? "bg-primary-100 dark:bg-primary-900/30 scale-110" : ""
                   )}>
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 1.8} />
                   </div>
                   <span>{label}</span>
+                  {isActive && <div className="h-0.5 w-4 rounded-full bg-primary-500 mt-0.5" />}
                 </>
               )}
             </NavLink>

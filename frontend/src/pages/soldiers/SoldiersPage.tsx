@@ -806,8 +806,15 @@ export default function SoldiersPage() {
                           <td className="px-3 py-3">
                             <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-4 w-4" />
                           </td>
-                          <td className="px-4 py-3 font-mono text-sm">{s.employee_number}</td>
-                          <td className="px-4 py-3 font-medium max-w-[200px] truncate" title={s.full_name}>{s.full_name}</td>
+                          <td className="px-4 py-3 font-mono text-sm text-muted-foreground">{s.employee_number}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="avatar-placeholder-sm" style={{ background: `hsl(${s.full_name.charCodeAt(0) * 7 % 360} 60% 55%)` }}>
+                                {s.full_name.charAt(0)}
+                              </div>
+                              <span className="font-medium max-w-[180px] truncate" title={s.full_name}>{s.full_name}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
                               {s.work_roles?.map((r) => (

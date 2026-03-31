@@ -94,9 +94,9 @@ export default function Sidebar() {
   }, [user]);
 
   return (
-    <aside className="hidden w-64 flex-shrink-0 border-e bg-card md:flex md:flex-col">
-      <div className="flex h-16 items-center justify-center border-b px-4">
-        <h1 className="text-xl font-bold text-primary-500">
+    <aside className="hidden w-[260px] flex-shrink-0 border-e glass-surface md:flex md:flex-col transition-all duration-300">
+      <div className="flex h-16 items-center justify-center border-b px-4 bg-gradient-to-br from-primary-50/30 to-transparent dark:from-primary-900/10">
+        <h1 className="text-xl font-bold gradient-text">
           🎯 {t("appName")}
         </h1>
       </div>
@@ -159,8 +159,8 @@ export default function Sidebar() {
           </>
         )}
       </nav>
-      <div className="border-t p-3">
-        <p className="text-[10px] text-muted-foreground text-center">שבצק v0.2.0</p>
+      <div className="border-t p-3 bg-gradient-to-t from-muted/30 to-transparent">
+        <p className="text-[10px] text-muted-foreground text-center opacity-60">שבצק v0.2.0</p>
       </div>
     </aside>
   );

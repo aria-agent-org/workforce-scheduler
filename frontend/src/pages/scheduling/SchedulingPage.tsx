@@ -751,12 +751,14 @@ export default function SchedulingPage() {
   );
 
   if (loadError && windows.length === 0) return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
-      <h2 className="text-xl font-bold mb-2">שגיאה בטעינת נתוני שיבוצים</h2>
-      <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
-      <Button onClick={loadAll} variant="outline">
-        <RefreshCw className="me-2 h-4 w-4" />נסה שוב
+    <div className="empty-state">
+      <div className="h-20 w-20 rounded-2xl bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center mb-6 shadow-elevation-1">
+        <AlertTriangle className="h-10 w-10 text-yellow-500" />
+      </div>
+      <p className="empty-state-title">שגיאה בטעינת נתוני שיבוצים</p>
+      <p className="empty-state-description mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
+      <Button onClick={loadAll} variant="outline" className="gap-2">
+        <RefreshCw className="h-4 w-4" />נסה שוב
       </Button>
     </div>
   );

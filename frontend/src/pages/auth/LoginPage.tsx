@@ -217,11 +217,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted p-4" dir="rtl">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-primary-500">שבצק</CardTitle>
-          <p className="text-sm text-muted-foreground">{viewTitle[view]}</p>
+    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(250 60% 95%), hsl(210 40% 96%))" }}>
+      {/* Animated background blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute -top-40 -end-40 h-80 w-80 rounded-full bg-primary-200/30 dark:bg-primary-800/10 blur-3xl animate-float" />
+        <div className="absolute -bottom-40 -start-40 h-96 w-96 rounded-full bg-purple-200/20 dark:bg-purple-800/10 blur-3xl animate-float" style={{ animationDelay: "1.5s" }} />
+      </div>
+      <Card className="w-full max-w-md shadow-elevation-4 relative animate-scale-in border-0 bg-card/95 backdrop-blur-sm">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto mb-3 h-16 w-16 rounded-2xl gradient-primary flex items-center justify-center shadow-elevation-2">
+            <span className="text-3xl">🎯</span>
+          </div>
+          <CardTitle className="text-2xl font-bold gradient-text">שבצק</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">{viewTitle[view]}</p>
         </CardHeader>
         <CardContent>
           {/* ── Standard Login Form ── */}

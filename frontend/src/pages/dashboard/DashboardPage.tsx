@@ -137,12 +137,14 @@ export default function DashboardPage() {
 
   if (error && !stats) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
-        <h2 className="text-xl font-bold mb-2">שגיאה בטעינת לוח בקרה</h2>
-        <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
-        <Button onClick={load} variant="outline">
-          <Clock className="me-2 h-4 w-4" />נסה שוב
+      <div className="empty-state">
+        <div className="h-20 w-20 rounded-2xl bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center mb-6 shadow-elevation-1">
+          <AlertTriangle className="h-10 w-10 text-yellow-500" />
+        </div>
+        <p className="empty-state-title">שגיאה בטעינת לוח בקרה</p>
+        <p className="empty-state-description mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
+        <Button onClick={load} variant="outline" className="gap-2">
+          <Clock className="h-4 w-4" />נסה שוב
         </Button>
       </div>
     );
@@ -167,28 +169,28 @@ export default function DashboardPage() {
       {/* Stat Cards + Pending Swaps */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {statCards.map(({ key, value, icon: Icon, color, link }) => (
-          <Card key={key} className="card-hover cursor-pointer shadow-elevation-1 hover:shadow-elevation-3" onClick={() => navigate(link)} role="link" aria-label={`${t(`stats.${key}`)}: ${value}`}>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className={`rounded-xl p-3 ${color} shadow-elevation-1`}>
+          <Card key={key} className="card-hover cursor-pointer stagger-item" onClick={() => navigate(link)} role="link" aria-label={`${t(`stats.${key}`)}: ${value}`}>
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className={`rounded-xl p-3 ${color} shadow-sm`}>
                 <Icon className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t(`stats.${key}`)}</p>
-                <p className="text-2xl font-bold">{value}</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t(`stats.${key}`)}</p>
+                <p className="text-2xl font-bold tracking-tight">{value}</p>
               </div>
             </CardContent>
           </Card>
         ))}
 
         {/* Pending Swaps Card */}
-        <Card className="hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]" onClick={() => navigate("/swaps")}>
-          <CardContent className="flex items-center gap-4 p-6">
-            <div className="rounded-full p-3 text-orange-500 bg-orange-50">
+        <Card className="card-hover cursor-pointer stagger-item" onClick={() => navigate("/swaps")}>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="rounded-xl p-3 text-orange-500 bg-orange-50 shadow-sm">
               <ArrowLeftRight className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">{t("pendingSwaps")}</p>
-              <p className="text-2xl font-bold">{pendingSwapsCount}</p>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t("pendingSwaps")}</p>
+              <p className="text-2xl font-bold tracking-tight">{pendingSwapsCount}</p>
             </div>
           </CardContent>
         </Card>

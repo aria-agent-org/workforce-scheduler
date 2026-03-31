@@ -116,7 +116,7 @@ export default function AppLayout() {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 scroll-smooth" role="main" tabIndex={-1}>
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 scroll-smooth page-transition" role="main" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
