@@ -646,23 +646,204 @@ async def webauthn_login_finish(
     }
 
 
-# ── Google OAuth (Stubs) ───────────────────────────────────────
+# ── Google OAuth ────────────────────────────────────────────────
+
+import httpx
+import urllib.parse
 
 
 @router.get("/google")
-async def google_oauth_redirect() -> dict:
+async def google_oauth_redirect() -> dict | JSONResponse:
     """Redirect to Google OAuth consent URL."""
-    return _NOT_CONFIGURED_RESPONSE
+    settings = get_settings()
+    if not settings.google_client_id or not settings.google_client_secret:
+        return {"status": "not_configured"}
+
+    state = secrets.token_urlsafe(32)
+    params = {
+        "client_id": settings.google_client_id,
+        "redirect_uri": settings.google_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "state": state,
+        "prompt": "consent",
+    }
+    url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+    return JSONResponse(
+        content={"redirect_url": url, "state": state},
+        status_code=200,
+    )
 
 
 @router.get("/google/callback")
 async def google_oauth_callback(
     code: str | None = None,
     state: str | None = None,
+    error: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Handle Google OAuth callback — create/link user and return JWT."""
-    return _NOT_CONFIGURED_RESPONSE
+    settings = get_settings()
+    if not settings.google_client_id or not settings.google_client_secret:
+        return {"status": "not_configured"}
+
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"שגיאת Google OAuth: {error}",
+        )
+
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="חסר קוד אישור מ-Google",
+        )
+
+    # Exchange code for tokens
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": settings.google_redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+
+    if token_response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="שגיאה בהחלפת קוד אישור לטוקן",
+        )
+
+    token_data = token_response.json()
+    access_token_google = token_data.get("access_token")
+
+    if not access_token_google:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="לא התקבל טוקן גישה מ-Google",
+        )
+
+    # Get user info from Google
+    async with httpx.AsyncClient() as client:
+        userinfo_response = await client.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token_google}"},
+        )
+
+    if userinfo_response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="שגיאה בקבלת פרטי משתמש מ-Google",
+        )
+
+    google_user = userinfo_response.json()
+    google_email = google_user.get("email", "").lower().strip()
+    google_id = google_user.get("id", "")
+    google_name = google_user.get("name", "")
+    google_picture = google_user.get("picture", "")
+
+    if not google_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="לא התקבל אימייל מ-Google",
+        )
+
+    # Check if user exists by email
+    result = await db.execute(
+        select(User).where(User.email == google_email, User.is_active.is_(True))
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # Check if there's an SSO connection for this Google ID
+        from app.models.user import UserSSOConnection
+        sso_result = await db.execute(
+            select(UserSSOConnection).where(
+                UserSSOConnection.provider == "google",
+                UserSSOConnection.provider_user_id == google_id,
+            )
+        )
+        sso_conn = sso_result.scalar_one_or_none()
+
+        if sso_conn:
+            user_result = await db.execute(
+                select(User).where(User.id == sso_conn.user_id, User.is_active.is_(True))
+            )
+            user = user_result.scalar_one_or_none()
+
+    if not user:
+        # Create new user (self-signup via Google)
+        user = User(
+            email=google_email,
+            password_hash=None,  # Google OAuth users don't have a password
+            is_active=True,
+            preferred_language="he",
+        )
+        db.add(user)
+        await db.flush()
+
+    # Upsert SSO connection
+    from app.models.user import UserSSOConnection
+    sso_result = await db.execute(
+        select(UserSSOConnection).where(
+            UserSSOConnection.user_id == user.id,
+            UserSSOConnection.provider == "google",
+        )
+    )
+    existing_sso = sso_result.scalar_one_or_none()
+
+    if not existing_sso:
+        sso_conn = UserSSOConnection(
+            user_id=user.id,
+            provider="google",
+            provider_user_id=google_id,
+            email=google_email,
+            name=google_name,
+            avatar_url=google_picture,
+            connected_at=datetime.now(timezone.utc),
+        )
+        db.add(sso_conn)
+    else:
+        existing_sso.email = google_email
+        existing_sso.name = google_name
+        existing_sso.avatar_url = google_picture
+        existing_sso.connected_at = datetime.now(timezone.utc)
+
+    # Create JWT tokens
+    service = AuthService(db)
+    access_token, expires_in = service.create_access_token(user.id)
+    refresh_token = secrets.token_urlsafe(32)
+
+    # Create session
+    from app.models.user import UserSession
+    session = UserSession(
+        user_id=user.id,
+        refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
+        auth_method="google",
+        last_active_at=datetime.now(timezone.utc),
+    )
+    db.add(session)
+
+    # Update last login
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+        "user": {
+            "email": google_email,
+            "name": google_name,
+            "picture": google_picture,
+        },
+    }
 
 
 # ── SAML (Stub) ────────────────────────────────────────────────
@@ -673,4 +854,4 @@ async def saml_assertion_consumer_service(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """SAML Assertion Consumer Service endpoint."""
-    return _NOT_CONFIGURED_RESPONSE
+    return {"status": "not_configured"}

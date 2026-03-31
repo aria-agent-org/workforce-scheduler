@@ -258,7 +258,11 @@ export default function SoldiersPage() {
   }, [formData, editingSoldier]);
 
   // Edit modal tab
-  const [editTab, setEditTab] = useState<"details" | "preferences">("details");
+  const [editTab, setEditTab] = useState<"details" | "preferences" | "overview">("details");
+  
+  // Employee detail data
+  const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Invitation modal
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -355,7 +359,7 @@ export default function SoldiersPage() {
 
   const openEdit = (s: Soldier) => {
     setEditingSoldier(s);
-    setEditTab("details");
+    setEditTab("overview");
     setFormErrors({});
     setFormData({
       employee_number: s.employee_number,
@@ -367,6 +371,12 @@ export default function SoldiersPage() {
       work_role_ids: s.work_roles?.map(r => r.id) || [],
     });
     setShowModal(true);
+    // Load recent assignments
+    setLoadingDetail(true);
+    api.get(tenantApi(`/employees/${s.id}/assignments`), { params: { page_size: 5 } })
+      .then(res => setRecentAssignments(res.data?.items || res.data || []))
+      .catch(() => setRecentAssignments([]))
+      .finally(() => setLoadingDetail(false));
   };
 
   // CSV/Excel import
@@ -777,10 +787,20 @@ export default function SoldiersPage() {
 
           {/* Tabs — only show in edit mode */}
           {editingSoldier && (
-            <div className="flex gap-1 border-b pb-0">
+            <div className="flex gap-1 border-b pb-0 overflow-x-auto">
+              <button
+                onClick={() => setEditTab("overview")}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  editTab === "overview"
+                    ? "border-primary-500 text-primary-600"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                סקירה
+              </button>
               <button
                 onClick={() => setEditTab("details")}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   editTab === "details"
                     ? "border-primary-500 text-primary-600"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -790,7 +810,7 @@ export default function SoldiersPage() {
               </button>
               <button
                 onClick={() => setEditTab("preferences")}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 whitespace-nowrap ${
                   editTab === "preferences"
                     ? "border-primary-500 text-primary-600"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -799,6 +819,144 @@ export default function SoldiersPage() {
                 <Heart className="h-3.5 w-3.5" />
                 העדפות שיבוץ
               </button>
+            </div>
+          )}
+
+          {/* Overview Tab */}
+          {editTab === "overview" && editingSoldier && (
+            <div className="py-4 space-y-5">
+              {/* Basic Info */}
+              <div className="flex items-start gap-4">
+                <div className="h-14 w-14 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-2xl font-bold text-primary-600">
+                  {editingSoldier.full_name?.charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold">{editingSoldier.full_name}</h3>
+                  <p className="text-sm text-muted-foreground font-mono">#{editingSoldier.employee_number}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={editingSoldier.is_active ? "success" : "destructive"}>
+                      {editingSoldier.is_active ? "פעיל" : "לא פעיל"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      נוצר: {new Date(editingSoldier.created_at).toLocaleDateString("he-IL")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Info */}
+              <div className="grid grid-cols-2 gap-3">
+                {formData.phone && (
+                  <div className="flex items-center gap-2 rounded-lg border p-3">
+                    <span className="text-lg">📱</span>
+                    <div>
+                      <p className="text-xs text-muted-foreground">טלפון</p>
+                      <p className="text-sm font-medium" dir="ltr">{formData.phone}</p>
+                    </div>
+                  </div>
+                )}
+                {formData.email && (
+                  <div className="flex items-center gap-2 rounded-lg border p-3">
+                    <span className="text-lg">✉️</span>
+                    <div>
+                      <p className="text-xs text-muted-foreground">אימייל</p>
+                      <p className="text-sm font-medium truncate" dir="ltr">{formData.email}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Work Roles */}
+              {editingSoldier.work_roles && editingSoldier.work_roles.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">תפקידי עבודה</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {editingSoldier.work_roles.map((r) => (
+                      <Badge key={r.id} className="text-sm px-3 py-1" style={{ backgroundColor: r.color + "20", color: r.color, border: `1px solid ${r.color}40` }}>
+                        {r.is_primary && "⭐ "}
+                        {r.name[lang] || r.name.he}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notification Channels Status */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                  <Bell className="h-4 w-4" />
+                  ערוצי התראות
+                </h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "phone_whatsapp", label: "WhatsApp", icon: "💬", value: editingSoldier.notification_channels?.phone_whatsapp },
+                    { key: "email", label: "אימייל", icon: "📧", value: editingSoldier.notification_channels?.email },
+                    { key: "push", label: "Push", icon: "🔔", value: editingSoldier.notification_channels?.push_enabled },
+                  ].map(ch => (
+                    <div key={ch.key} className={`rounded-lg border p-2 text-center transition-colors ${ch.value ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800" : "bg-muted/30 border-dashed"}`}>
+                      <span className="text-lg">{ch.icon}</span>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{ch.label}</p>
+                      <Badge className={`text-[9px] mt-1 ${ch.value ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
+                        {ch.value ? "מחובר" : "לא מוגדר"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent Assignments */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">שיבוצים אחרונים</h4>
+                {loadingDetail ? (
+                  <div className="text-sm text-muted-foreground py-3 text-center">
+                    <div className="inline-block h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin me-2" />
+                    טוען...
+                  </div>
+                ) : recentAssignments.length > 0 ? (
+                  <div className="space-y-1">
+                    {recentAssignments.slice(0, 5).map((a: any, idx: number) => (
+                      <div key={a.id || idx} className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">📅</span>
+                          <span className="font-medium">{a.mission_name || a.name || "משימה"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {a.date && <span className="text-xs text-muted-foreground">{a.date}</span>}
+                          {a.slot_id && <Badge className="text-[10px]">{a.slot_id}</Badge>}
+                          <Badge variant={a.status === "assigned" ? "success" : "default"} className="text-[10px]">{a.status || "שובץ"}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2 text-center">אין שיבוצים אחרונים</p>
+                )}
+              </div>
+
+              {/* Notes */}
+              {editingSoldier.notes && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold">הערות</h4>
+                  <p className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">{editingSoldier.notes}</p>
+                </div>
+              )}
+
+              {/* Custom Fields from notification_channels */}
+              {editingSoldier.notification_channels && Object.keys(editingSoldier.notification_channels).filter(k => !["phone_whatsapp", "email", "push_enabled", "telegram", "push_subscription"].includes(k)).length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">שדות נוספים</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(editingSoldier.notification_channels)
+                      .filter(([k]) => !["phone_whatsapp", "email", "push_enabled", "telegram", "push_subscription"].includes(k))
+                      .map(([key, value]) => (
+                        <div key={key} className="rounded-lg border p-2.5">
+                          <p className="text-xs text-muted-foreground">{key}</p>
+                          <p className="text-sm font-medium">{String(value)}</p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

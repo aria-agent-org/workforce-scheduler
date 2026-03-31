@@ -127,11 +127,14 @@ export default function AttendancePage() {
       setStatusDefs(statusRes.data || []);
       setWorkRoles(rolesRes.data || []);
     } catch (e) {
+      setLoadError(true);
       toast("error", "שגיאה בטעינת נוכחות");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const [loadError, setLoadError] = useState(false);
 
   // Load attendance data when dates change
   useEffect(() => {
@@ -272,7 +275,25 @@ export default function AttendancePage() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  if (loading) return <TableSkeleton rows={10} cols={8} />;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="h-8 w-32 bg-muted rounded animate-pulse" />
+      </div>
+      <TableSkeleton rows={10} cols={8} />
+    </div>
+  );
+
+  if (loadError && employees.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <CalendarDays className="h-16 w-16 text-yellow-500 mb-4" />
+      <h2 className="text-xl font-bold mb-2">שגיאה בטעינת נוכחות</h2>
+      <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
+      <button onClick={load} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 text-white px-4 py-2 text-sm hover:bg-primary-600 transition-colors">
+        נסה שוב
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-4">

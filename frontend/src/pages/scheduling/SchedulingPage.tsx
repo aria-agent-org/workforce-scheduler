@@ -80,6 +80,12 @@ export default function SchedulingPage() {
   const [autoAssignResults, setAutoAssignResults] = useState<any>(null);
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<any>(null);
   const [showImportWizard, setShowImportWizard] = useState(false);
+  const [importWizardStep, setImportWizardStep] = useState(1);
+  const [importMethod, setImportMethod] = useState<"list" | "previous" | "csv" | "">(""); 
+  const [importSelectedEmployees, setImportSelectedEmployees] = useState<Set<string>>(new Set());
+  const [importPreviousWindowId, setImportPreviousWindowId] = useState("");
+  const [importEmployeeSearch, setImportEmployeeSearch] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
 
   // Interactive board context menu
   const [contextMenu, setContextMenu] = useState<{
@@ -135,8 +141,11 @@ export default function SchedulingPage() {
   const [assignMissionId, setAssignMissionId] = useState("");
   const [generateForm, setGenerateForm] = useState({ template_id: "", start_date: "", end_date: "" });
 
+  const [loadError, setLoadError] = useState(false);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [winRes, mtRes, empRes, wrRes] = await Promise.all([
         api.get(tenantApi("/schedule-windows")),
@@ -149,6 +158,7 @@ export default function SchedulingPage() {
       setEmployees(empRes.data.items || []);
       setWorkRoles(wrRes.data);
     } catch (e) {
+      setLoadError(true);
       toast("error", "שגיאה בטעינת נתונים");
     } finally {
       setLoading(false);
@@ -653,7 +663,45 @@ export default function SchedulingPage() {
     { key: "templates", label: t("templates"), icon: Copy },
   ];
 
-  if (loading) return <TableSkeleton rows={6} cols={4} />;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="h-8 w-32 bg-muted rounded animate-pulse" />
+        <div className="flex gap-2">
+          <div className="h-9 w-24 bg-muted rounded animate-pulse" />
+          <div className="h-9 w-28 bg-muted rounded animate-pulse" />
+        </div>
+      </div>
+      <div className="flex gap-2 border-b pb-2">
+        {[1, 2, 3, 4].map(i => <div key={i} className="h-9 w-28 bg-muted rounded animate-pulse" />)}
+      </div>
+      <div className="grid gap-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="rounded-xl border p-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-6 w-48 bg-muted rounded animate-pulse" />
+              <div className="h-5 w-16 bg-muted rounded-full animate-pulse" />
+            </div>
+            <div className="flex gap-4">
+              <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+              <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (loadError && windows.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
+      <h2 className="text-xl font-bold mb-2">שגיאה בטעינת נתוני שיבוצים</h2>
+      <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
+      <Button onClick={loadAll} variant="outline">
+        <RefreshCw className="me-2 h-4 w-4" />נסה שוב
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -813,8 +861,15 @@ export default function SchedulingPage() {
               <ArrowLeft className="me-1 h-4 w-4" />חזרה ללוחות
             </Button>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
-            <Button variant="outline" size="sm" onClick={() => { fileInputRef.current?.click(); }}>
-              <Upload className="me-1 h-4 w-4" />ייבוא חיילים
+            <Button variant="outline" size="sm" onClick={() => { 
+              setImportWizardStep(1); 
+              setImportMethod(""); 
+              setImportSelectedEmployees(new Set()); 
+              setImportPreviousWindowId(""); 
+              setImportEmployeeSearch("");
+              setShowImportWizard(true); 
+            }}>
+              <UserPlus className="me-1 h-4 w-4" />הוסף חיילים
             </Button>
             <div className="flex gap-2">
               <button onClick={() => setBoardView("day")} className={`px-3 py-1 text-sm rounded ${boardView === "day" ? "bg-primary-500 text-white" : "bg-muted"}`}>יומי</button>
@@ -2052,39 +2107,261 @@ export default function SchedulingPage() {
         variant="destructive"
       />
 
-      {/* Import Soldiers Wizard */}
+      {/* Import Soldiers Wizard — Multi-Step */}
       <Dialog open={showImportWizard} onOpenChange={setShowImportWizard}>
-        <DialogContent className="max-w-[650px] max-h-[80vh] overflow-y-auto mobile-fullscreen">
-          <DialogHeader><DialogTitle>ייבוא חיילים ללוח עבודה</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex gap-4 text-sm">
-              <Badge variant="success">{importPreviewData.length} שורות תקינות</Badge>
-              {importFileErrors.length > 0 && <Badge variant="destructive">{importFileErrors.length} שגיאות</Badge>}
+        <DialogContent className="max-w-[650px] max-h-[85vh] overflow-y-auto mobile-fullscreen">
+          <DialogHeader>
+            <DialogTitle>הוסף חיילים ללוח עבודה</DialogTitle>
+            {/* Step indicator */}
+            <div className="flex items-center gap-2 pt-2">
+              {[1, 2, 3].map(step => (
+                <div key={step} className="flex items-center gap-1.5">
+                  <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                    importWizardStep === step ? "bg-primary-500 text-white" : importWizardStep > step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
+                  }`}>{importWizardStep > step ? "✓" : step}</div>
+                  <span className={`text-xs ${importWizardStep === step ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    {step === 1 ? "שיטה" : step === 2 ? "בחירה" : "אישור"}
+                  </span>
+                  {step < 3 && <div className={`w-8 h-0.5 ${importWizardStep > step ? "bg-green-500" : "bg-muted"}`} />}
+                </div>
+              ))}
             </div>
-            {importFileErrors.length > 0 && (
-              <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
-                {importFileErrors.map((err: any, i: number) => <div key={i}>שורה {err.row}: {err.error}</div>)}
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Step 1: Choose method */}
+            {importWizardStep === 1 && (
+              <div className="grid gap-3">
+                {[
+                  { key: "list" as const, icon: "👥", title: "מרשימת חיילים", desc: "בחר חיילים מהרשימה הקיימת" },
+                  { key: "previous" as const, icon: "📋", title: "מלוח קודם", desc: "העתק חיילים מלוח עבודה אחר" },
+                  { key: "csv" as const, icon: "📄", title: "ייבוא CSV", desc: "העלה קובץ CSV עם מספרי חיילים" },
+                ].map(m => (
+                  <button
+                    key={m.key}
+                    onClick={() => { setImportMethod(m.key); setImportWizardStep(2); }}
+                    className={`flex items-center gap-4 rounded-xl border-2 p-4 text-start transition-all hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/10 ${
+                      importMethod === m.key ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10" : "border-muted"
+                    }`}
+                  >
+                    <span className="text-3xl">{m.icon}</span>
+                    <div>
+                      <p className="font-semibold">{m.title}</p>
+                      <p className="text-sm text-muted-foreground">{m.desc}</p>
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
-            <div className="overflow-x-auto max-h-[300px]">
-              <table className="w-full text-sm">
-                <thead><tr className="border-b bg-muted/50">
-                  <th className="px-3 py-2 text-start">מספר אישי</th>
-                  <th className="px-3 py-2 text-start">שם</th>
-                </tr></thead>
-                <tbody>
-                  {importPreviewData.slice(0, 50).map((r: any, i: number) => (
-                    <tr key={i} className="border-b"><td className="px-3 py-2 font-mono">{r.employee_number}</td><td className="px-3 py-2">{r.full_name || "—"}</td></tr>
+
+            {/* Step 2a: From employee list */}
+            {importWizardStep === 2 && importMethod === "list" && (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="חיפוש חייל..."
+                    value={importEmployeeSearch}
+                    onChange={e => setImportEmployeeSearch(e.target.value)}
+                    className="ps-9"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>{importSelectedEmployees.size} נבחרו</span>
+                  <div className="flex gap-2">
+                    <button className="text-primary-600 hover:underline text-xs" onClick={() => {
+                      const all = new Set(employees.map((e: any) => e.id));
+                      setImportSelectedEmployees(all);
+                    }}>בחר הכל</button>
+                    <button className="text-xs hover:underline" onClick={() => setImportSelectedEmployees(new Set())}>נקה</button>
+                  </div>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto space-y-1 border rounded-lg p-2">
+                  {employees
+                    .filter((e: any) => {
+                      if (!importEmployeeSearch) return true;
+                      const q = importEmployeeSearch.toLowerCase();
+                      return e.full_name?.toLowerCase().includes(q) || e.employee_number?.toLowerCase().includes(q);
+                    })
+                    .map((emp: any) => {
+                      const checked = importSelectedEmployees.has(emp.id);
+                      return (
+                        <label key={emp.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors ${checked ? "bg-primary-50 dark:bg-primary-900/20" : "hover:bg-muted/50"}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = new Set(importSelectedEmployees);
+                              if (checked) next.delete(emp.id); else next.add(emp.id);
+                              setImportSelectedEmployees(next);
+                            }}
+                            className="rounded h-4 w-4"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium">{emp.full_name}</span>
+                            <span className="text-xs text-muted-foreground ms-2">({emp.employee_number})</span>
+                          </div>
+                          <div className="flex gap-1">
+                            {emp.work_roles?.map((r: any) => (
+                              <Badge key={r.id} className="text-[10px]" style={{ backgroundColor: r.color + "20", color: r.color }}>
+                                {r.name?.[lang] || r.name?.he}
+                              </Badge>
+                            ))}
+                          </div>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2b: From previous window */}
+            {importWizardStep === 2 && importMethod === "previous" && (
+              <div className="space-y-3">
+                <Label>בחר לוח עבודה קודם</Label>
+                <Select value={importPreviousWindowId} onChange={e => setImportPreviousWindowId(e.target.value)} className="min-h-[44px]">
+                  <option value="">בחר לוח...</option>
+                  {windows.filter(w => w.id !== selectedWindow?.id).map(w => (
+                    <option key={w.id} value={w.id}>{w.name} ({w.start_date} → {w.end_date})</option>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </Select>
+                {importPreviousWindowId && (
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-sm">
+                    <p className="text-blue-800 dark:text-blue-200">
+                      כל החיילים מהלוח "{windows.find(w => w.id === importPreviousWindowId)?.name}" יועתקו ללוח הנוכחי.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 2c: CSV upload */}
+            {importWizardStep === 2 && importMethod === "csv" && (
+              <div className="space-y-3">
+                <div className="rounded-xl border-2 border-dashed p-8 text-center">
+                  <Upload className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                  <p className="text-sm font-medium">העלה קובץ CSV</p>
+                  <p className="text-xs text-muted-foreground mt-1">הקובץ חייב לכלול עמודת "מספר אישי"</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="me-1 h-4 w-4" />בחר קובץ
+                  </Button>
+                </div>
+                {importPreviewData.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Badge variant="success">{importPreviewData.length} שורות תקינות</Badge>
+                      {importFileErrors.length > 0 && <Badge variant="destructive">{importFileErrors.length} שגיאות</Badge>}
+                    </div>
+                    {importFileErrors.length > 0 && (
+                      <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300">
+                        {importFileErrors.map((err: any, i: number) => <div key={i}>שורה {err.row}: {err.error}</div>)}
+                      </div>
+                    )}
+                    <div className="overflow-x-auto max-h-[200px] border rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b bg-muted/50">
+                          <th className="px-3 py-2 text-start">מספר אישי</th>
+                          <th className="px-3 py-2 text-start">שם</th>
+                        </tr></thead>
+                        <tbody>
+                          {importPreviewData.slice(0, 30).map((r: any, i: number) => (
+                            <tr key={i} className="border-b"><td className="px-3 py-2 font-mono">{r.employee_number}</td><td className="px-3 py-2">{r.full_name || "—"}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Preview & Confirm */}
+            {importWizardStep === 3 && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 text-center">
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                    {importMethod === "list" ? importSelectedEmployees.size : importMethod === "csv" ? importPreviewData.length : "כל"} חיילים
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">ייתווספו ללוח "{selectedWindow?.name}"</p>
+                </div>
+                {importMethod === "list" && (
+                  <div className="max-h-[250px] overflow-y-auto space-y-1">
+                    {employees.filter((e: any) => importSelectedEmployees.has(e.id)).map((emp: any) => (
+                      <div key={emp.id} className="flex items-center justify-between rounded bg-muted/30 px-3 py-2 text-sm">
+                        <span className="font-medium">{emp.full_name}</span>
+                        <span className="text-xs text-muted-foreground">{emp.employee_number}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {importMethod === "csv" && (
+                  <div className="text-sm text-muted-foreground text-center">
+                    {importPreviewData.length} חיילים מקובץ CSV
+                  </div>
+                )}
+                {importMethod === "previous" && (
+                  <div className="text-sm text-muted-foreground text-center">
+                    כל החיילים מלוח "{windows.find(w => w.id === importPreviousWindowId)?.name}"
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="gap-2">
+            {importWizardStep > 1 && (
+              <Button variant="outline" onClick={() => setImportWizardStep(s => s - 1)}>חזרה</Button>
+            )}
             <Button variant="outline" onClick={() => setShowImportWizard(false)}>ביטול</Button>
-            <Button onClick={executeWindowImport} disabled={importPreviewData.length === 0}>
-              ייבא {importPreviewData.length} חיילים
-            </Button>
+            {importWizardStep === 2 && (
+              <Button
+                onClick={() => setImportWizardStep(3)}
+                disabled={
+                  (importMethod === "list" && importSelectedEmployees.size === 0) ||
+                  (importMethod === "previous" && !importPreviousWindowId) ||
+                  (importMethod === "csv" && importPreviewData.length === 0)
+                }
+              >
+                הבא →
+              </Button>
+            )}
+            {importWizardStep === 3 && (
+              <Button
+                onClick={async () => {
+                  if (!selectedWindow) return;
+                  setImportLoading(true);
+                  try {
+                    if (importMethod === "list") {
+                      const ids = Array.from(importSelectedEmployees);
+                      await api.post(tenantApi(`/schedule-windows/${selectedWindow.id}/employees`), { employee_ids: ids });
+                      toast("success", `נוספו ${ids.length} חיילים ללוח`);
+                    } else if (importMethod === "previous") {
+                      const prevEmps = await api.get(tenantApi(`/schedule-windows/${importPreviousWindowId}/employees`));
+                      const ids = (prevEmps.data || []).map((e: any) => e.id || e.employee_id);
+                      if (ids.length > 0) {
+                        await api.post(tenantApi(`/schedule-windows/${selectedWindow.id}/employees`), { employee_ids: ids });
+                      }
+                      toast("success", `הועתקו ${ids.length} חיילים מהלוח הקודם`);
+                    } else if (importMethod === "csv") {
+                      await executeWindowImport();
+                    }
+                    setShowImportWizard(false);
+                    loadWindowData(selectedWindow.id);
+                  } catch (e: any) {
+                    toast("error", getErrorMessage(e, "שגיאה בייבוא חיילים"));
+                  } finally {
+                    setImportLoading(false);
+                  }
+                }}
+                disabled={importLoading}
+              >
+                {importLoading ? (
+                  <><div className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin me-2" />מייבא...</>
+                ) : (
+                  <>✓ אשר והוסף</>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

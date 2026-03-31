@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     webauthn_rp_name: str = "שבצק"
     webauthn_origin: str = "https://shavtzak.site"
 
+    # Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+
     # Google Sheets
     google_service_account_json: str | None = None
 

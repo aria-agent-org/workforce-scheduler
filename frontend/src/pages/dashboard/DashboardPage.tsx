@@ -41,10 +41,12 @@ export default function DashboardPage() {
   const [weeklyWorkload, setWeeklyWorkload] = useState<{ day: string; label: string; count: number }[]>([]);
   const [pendingSwapsCount, setPendingSwapsCount] = useState(0);
   const [autoAssigning, setAutoAssigning] = useState(false);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
+  const load = async () => {
+    setLoading(true);
+    setError(false);
+    try {
         const today = new Date().toISOString().split("T")[0];
         const in48h = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().split("T")[0];
 
@@ -95,15 +97,16 @@ export default function DashboardPage() {
         // Pending swaps
         const allSwaps = Array.isArray(swapsRes.data) ? swapsRes.data : swapsRes.data.items || [];
         setPendingSwapsCount(allSwaps.filter((s: any) => s.status === "pending").length);
-      } catch (e) {
-        console.error("Failed to load dashboard", e);
-        setStats({ total_employees: 0, present_today: 0, missions_today: 0, conflicts: 0, active_windows: 0 });
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []);
+    } catch (e) {
+      console.error("Failed to load dashboard", e);
+      setError(true);
+      setStats({ total_employees: 0, present_today: 0, missions_today: 0, conflicts: 0, active_windows: 0 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
 
   const handleAutoAssign = async () => {
     setAutoAssigning(true);
@@ -124,6 +127,23 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-24" />)}
         </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-64" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">שגיאה בטעינת לוח בקרה</h2>
+        <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
+        <Button onClick={load} variant="outline">
+          <Clock className="me-2 h-4 w-4" />נסה שוב
+        </Button>
       </div>
     );
   }
