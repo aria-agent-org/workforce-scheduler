@@ -7,11 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   LayoutTemplate, Plus, Save, Eye, Trash2,
   Clock, User, Minus, SplitSquareHorizontal,
   AlignRight, AlignCenter, AlignLeft, Bold, Square, ChevronDown,
   ChevronUp, Grid3X3, PanelRightOpen, PanelRightClose,
-  RotateCcw, Download, Upload, Table2,
+  RotateCcw, Download, Upload, Table2, Columns, Rows, LayoutGrid,
+  Wand2, Variable, Calendar,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -50,11 +54,14 @@ interface BoardSection {
   colWidths: number[];
 }
 
+type LayoutMode = "vertical" | "horizontal" | "grid";
+
 interface AdvancedBoardTemplate {
   id: string;
   _dbId?: string;
   name: string;
   scheduleWindowId?: string;
+  layoutMode: LayoutMode;
   sections: BoardSection[];
   globalStyles: {
     headerColor: string;
@@ -62,6 +69,66 @@ interface AdvancedBoardTemplate {
     borderColor: string;
     fontFamily: string;
   };
+}
+
+// ─── Variables System ────────────────────────────
+
+interface TemplateVariable {
+  key: string;
+  label: string;
+  example: string;
+  color: string;
+}
+
+const TEMPLATE_VARIABLES: TemplateVariable[] = [
+  { key: "{{mission_name}}", label: "שם משימה", example: "סיור", color: "#3b82f6" },
+  { key: "{{soldier_name}}", label: "שם חייל", example: "ישראל ישראלי", color: "#22c55e" },
+  { key: "{{time_start}}", label: "שעת התחלה", example: "07:00", color: "#f97316" },
+  { key: "{{time_end}}", label: "שעת סיום", example: "15:00", color: "#f97316" },
+  { key: "{{role}}", label: "תפקיד", example: "מפקד", color: "#8b5cf6" },
+  { key: "{{slot_label}}", label: "תווית משבצת", example: "לוחם 1", color: "#ec4899" },
+];
+
+const SAMPLE_SOLDIERS = ["ישראל ישראלי", "דוד כהן", "שרה לוי", "יוסף אברהם", "מיכל דוידוב", "אבי ברק", "נעמי גולן", "רון שמש"];
+const SAMPLE_MISSIONS = ["סיור", "שמירה", "אבטחה", "תצפית", "כוננות"];
+const SAMPLE_ROLES = ["מפקד", "נהג", "לוחם", "קשר"];
+
+function isVariable(value: string): boolean {
+  return /\{\{[a-z_]+\}\}/.test(value);
+}
+
+function resolveVariables(value: string, rowIdx: number, colIdx: number, timeRange?: { start: string; end: string }): string {
+  let result = value;
+  const soldierIdx = (rowIdx * 4 + colIdx) % SAMPLE_SOLDIERS.length;
+  const missionIdx = rowIdx % SAMPLE_MISSIONS.length;
+  const roleIdx = colIdx % SAMPLE_ROLES.length;
+  result = result.replace(/\{\{soldier_name\}\}/g, SAMPLE_SOLDIERS[soldierIdx]);
+  result = result.replace(/\{\{mission_name\}\}/g, SAMPLE_MISSIONS[missionIdx]);
+  result = result.replace(/\{\{time_start\}\}/g, timeRange?.start || "07:00");
+  result = result.replace(/\{\{time_end\}\}/g, timeRange?.end || "15:00");
+  result = result.replace(/\{\{role\}\}/g, SAMPLE_ROLES[roleIdx]);
+  result = result.replace(/\{\{slot_label\}\}/g, `${SAMPLE_ROLES[roleIdx]} ${(colIdx % 3) + 1}`);
+  return result;
+}
+
+function renderVariableChips(value: string) {
+  const parts = value.split(/(\{\{[a-z_]+\}\})/g);
+  return parts.map((part, i) => {
+    const variable = TEMPLATE_VARIABLES.find(v => v.key === part);
+    if (variable) {
+      return (
+        <span
+          key={i}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-white mx-0.5"
+          style={{ backgroundColor: variable.color }}
+          title={variable.label}
+        >
+          {variable.label}
+        </span>
+      );
+    }
+    return part ? <span key={i}>{part}</span> : null;
+  });
 }
 
 interface MissionType {
@@ -148,6 +215,7 @@ function createDefaultTemplate(): AdvancedBoardTemplate {
   return {
     id: uid(),
     name: "תבנית ברירת מחדל",
+    layoutMode: "vertical" as LayoutMode,
     sections: [section1],
     globalStyles: {
       headerColor: "#166534",
@@ -327,6 +395,10 @@ export default function BoardTemplateEditor() {
   const [sectionNameInput, setSectionNameInput] = useState("");
   const [undoStack, setUndoStack] = useState<AdvancedBoardTemplate[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [generateDateFrom, setGenerateDateFrom] = useState("");
+  const [generateDateTo, setGenerateDateTo] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   // Column resize
   const [resizingCol, setResizingCol] = useState<{ sectionId: string; colIndex: number; startX: number; startWidth: number } | null>(null);
@@ -378,6 +450,7 @@ export default function BoardTemplateEditor() {
               id: t.layout.id || t.id,
               _dbId: t.id,
               name: t.name,
+              layoutMode: (t.layout.layoutMode || "vertical") as LayoutMode,
               sections,
               globalStyles: t.layout.globalStyles || { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
               scheduleWindowId: t.layout.scheduleWindowId || null,
@@ -397,6 +470,7 @@ export default function BoardTemplateEditor() {
             id: t.id,
             _dbId: t.id,
             name: t.name,
+            layoutMode: "vertical" as LayoutMode,
             sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: defaultGrid, rows: defaultRows, cols: defaultCols, colWidths: Array(defaultCols).fill(120) }],
             globalStyles: { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
             scheduleWindowId: null,
@@ -470,6 +544,7 @@ export default function BoardTemplateEditor() {
           sections: activeTemplate.sections,
           globalStyles: activeTemplate.globalStyles,
           scheduleWindowId: activeTemplate.scheduleWindowId,
+          layoutMode: activeTemplate.layoutMode || "vertical",
         },
         columns: { version: "advanced_v2" },
       };
@@ -551,6 +626,37 @@ export default function BoardTemplateEditor() {
     };
     reader.readAsText(file);
     e.target.value = "";
+  };
+
+  // ─── Generate Board from Template ────────────────
+
+  const generateBoard = async () => {
+    if (!activeTemplate || !generateDateFrom || !generateDateTo) {
+      toast("error", "יש לבחור טווח תאריכים");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const dbId = activeTemplate._dbId || templates.find(t => t.id === activeTemplate.id)?._dbId;
+      if (!dbId) {
+        // Save first if no DB id
+        await saveTemplate();
+        toast("error", "התבנית נשמרה. לחץ שוב על יצירת לוח.");
+        setGenerating(false);
+        return;
+      }
+      await api.post(tenantApi(`/daily-board-templates/${dbId}/generate`), {
+        date_from: generateDateFrom,
+        date_to: generateDateTo,
+      });
+      toast("success", `לוחות יומיים נוצרו בהצלחה לתאריכים ${generateDateFrom} עד ${generateDateTo}`);
+      setShowGenerateDialog(false);
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || "שגיאה ביצירת לוחות יומיים";
+      toast("error", detail);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   // ─── Section Operations ────────────────────────
@@ -809,7 +915,17 @@ export default function BoardTemplateEditor() {
       const cell = grid[row]?.[col];
       if (!cell || cell.merged) return s;
 
-      if (dragItem.type === "missionType") {
+      if (dragItem.type === "variable") {
+        const varKey = dragItem.data.key;
+        if (cell.value && isVariable(cell.value)) {
+          cell.value = cell.value + " " + varKey;
+        } else if (cell.value) {
+          cell.value = cell.value + " " + varKey;
+        } else {
+          cell.value = varKey;
+        }
+        cell.type = cell.type === "empty" ? "soldier_slot" : cell.type;
+      } else if (dragItem.type === "missionType") {
         const n = dragItem.data.name;
         const newName = typeof n === 'object' ? (n.he || n.en || '') : String(n);
         // Multi-mission: if cell already has a value, append with pipe separator
@@ -973,6 +1089,12 @@ export default function BoardTemplateEditor() {
   // ─── Preview Mode ───────────────────────────────
 
   if (showPreview && activeTemplate) {
+    const layoutClass = activeTemplate.layoutMode === "horizontal"
+      ? "flex gap-4 overflow-x-auto"
+      : activeTemplate.layoutMode === "grid"
+        ? "grid grid-cols-2 gap-4"
+        : "space-y-4";
+
     return (
       <div className="space-y-4" dir="rtl">
         <div className="flex items-center justify-between">
@@ -980,56 +1102,80 @@ export default function BoardTemplateEditor() {
             <Eye className="w-5 h-5" />
             תצוגה מקדימה — {activeTemplate.name}
           </h2>
-          <Button variant="outline" onClick={() => setShowPreview(false)}>
-            חזרה לעריכה
-          </Button>
-        </div>
-        {activeTemplate.sections.map((section) => (
-          <div key={section.id} className="border rounded-lg overflow-hidden">
-            <div className="bg-gray-800 text-white px-4 py-2 font-bold text-center text-lg">
-              {section.name}
-            </div>
-            <div
-              className="overflow-x-auto"
-              style={{
-                display: "grid",
-                gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${w}px`).join(" "),
-                direction: "rtl",
-              }}
-            >
-              {(section.grid || []).flatMap((row, rIdx) =>
-                row.map((cell, cIdx) => {
-                  if (cell.merged) return null;
-                  return (
-                    <div
-                      key={cell.id}
-                      style={{
-                        gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
-                        gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
-                        backgroundColor: cell.backgroundColor,
-                        color: cell.textColor,
-                        fontWeight: cell.fontWeight,
-                        textAlign: cell.textAlign,
-                        borderTop: cell.borderTop ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                        borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                        borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                        borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                        padding: "6px 8px",
-                        minHeight: "32px",
-                        fontSize: "13px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
-                      }}
-                    >
-                      {cell.value}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+          <div className="flex gap-2">
+            <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              {activeTemplate.layoutMode === "horizontal" ? "פריסה אופקית" : activeTemplate.layoutMode === "grid" ? "רשת" : "פריסה אנכית"}
+            </Badge>
+            <Badge className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              משתנים מוצגים עם נתוני דוגמה
+            </Badge>
+            <Button variant="outline" onClick={() => setShowPreview(false)}>
+              חזרה לעריכה
+            </Button>
           </div>
-        ))}
+        </div>
+        <div className={layoutClass}>
+          {activeTemplate.sections.map((section) => (
+            <div key={section.id} className={cn(
+              "border rounded-lg overflow-hidden",
+              activeTemplate.layoutMode === "horizontal" && "min-w-[400px] flex-shrink-0"
+            )}>
+              <div className="bg-gray-800 text-white px-4 py-2 font-bold text-center text-lg">
+                {section.name}
+              </div>
+              <div
+                className="overflow-x-auto"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${w}px`).join(" "),
+                  direction: "rtl",
+                }}
+              >
+                {(section.grid || []).flatMap((row, rIdx) =>
+                  row.map((cell, cIdx) => {
+                    if (cell.merged) return null;
+                    // Find mission type for color overlay
+                    const mt = cell.missionTypeId ? missionTypes.find(m => m.id === cell.missionTypeId?.split("|")[0]) : null;
+                    const bgColor = mt?.color ? mt.color + "20" : cell.backgroundColor;
+                    // Resolve variables with sample data
+                    const displayValue = isVariable(cell.value)
+                      ? resolveVariables(cell.value, rIdx, cIdx, cell.timeRange)
+                      : cell.value;
+                    return (
+                      <div
+                        key={cell.id}
+                        style={{
+                          gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
+                          gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
+                          backgroundColor: bgColor,
+                          color: cell.textColor,
+                          fontWeight: cell.fontWeight,
+                          textAlign: cell.textAlign,
+                          borderTop: cell.borderTop ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                          borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                          borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                          borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                          padding: "6px 8px",
+                          minHeight: "32px",
+                          fontSize: "13px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
+                          position: "relative",
+                        }}
+                      >
+                        {displayValue}
+                        {mt && (
+                          <span className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: mt.color }} />
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1296,6 +1442,38 @@ export default function BoardTemplateEditor() {
           <RotateCcw className="w-3 h-3 ml-1" />
           ביטול
         </Button>
+        {/* Layout Mode Toggle */}
+        <div className="flex border rounded overflow-hidden h-7">
+          {([
+            { mode: "vertical" as LayoutMode, icon: Rows, label: "אנכי" },
+            { mode: "horizontal" as LayoutMode, icon: Columns, label: "אופקי" },
+            { mode: "grid" as LayoutMode, icon: LayoutGrid, label: "רשת" },
+          ]).map(({ mode, icon: Icon, label }) => (
+            <button
+              key={mode}
+              className={cn(
+                "px-1.5 text-xs border-l first:border-l-0",
+                activeTemplate.layoutMode === mode ? "bg-accent" : "hover:bg-muted/50"
+              )}
+              onClick={() => setActiveTemplate(prev => prev ? { ...prev, layoutMode: mode } : prev)}
+              title={`פריסת קטעים: ${label}`}
+            >
+              <Icon className="w-3 h-3" />
+            </button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          onClick={() => setShowGenerateDialog(true)}
+          title="יצירת לוחות יומיים מהתבנית"
+        >
+          <Wand2 className="w-3 h-3 ml-1" />
+          ייצור לוח
+        </Button>
+
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={exportTemplate}>
           <Download className="w-3 h-3 ml-1" />
           ייצוא
@@ -1389,12 +1567,18 @@ export default function BoardTemplateEditor() {
       {/* ─── Main Content ────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Grid Area */}
-        <div className="flex-1 overflow-auto p-4 bg-muted" ref={gridRef}>
+        <div className={cn(
+          "flex-1 overflow-auto p-4 bg-muted",
+          activeTemplate.layoutMode === "horizontal" && "flex gap-4",
+          activeTemplate.layoutMode === "grid" && "grid grid-cols-2 gap-4",
+        )} ref={gridRef}>
           {activeTemplate.sections.map((section) => (
             <div
               key={section.id}
               className={cn(
-                "mb-6 bg-card rounded-lg shadow-sm border",
+                "bg-card rounded-lg shadow-sm border",
+                activeTemplate.layoutMode === "vertical" && "mb-6",
+                activeTemplate.layoutMode === "horizontal" && "min-w-[400px] flex-shrink-0",
                 section.id === activeSectionId ? "ring-2 ring-blue-200" : ""
               )}
               onClick={() => setActiveSectionId(section.id)}
@@ -1500,6 +1684,10 @@ export default function BoardTemplateEditor() {
                               }}
                               autoFocus
                             />
+                          ) : isVariable(cell.value) ? (
+                            <div className="flex flex-wrap items-center gap-0.5 justify-center">
+                              {renderVariableChips(cell.value)}
+                            </div>
                           ) : cell.value?.includes(" | ") ? (
                             <div className="flex flex-wrap gap-0.5 justify-center">
                               {cell.value.split(" | ").map((v: string, vi: number) => (
@@ -1611,6 +1799,36 @@ export default function BoardTemplateEditor() {
               </div>
             </div>
 
+            {/* Template Variables */}
+            <div className="border-b p-3">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                <Variable className="w-4 h-4" />
+                משתני תבנית
+              </h3>
+              <p className="text-[10px] text-muted-foreground mb-2">
+                גרור משתנה לתא — בעת יצירת לוח יומי הוא יוחלף בנתונים אמיתיים
+              </p>
+              <div className="space-y-1">
+                {TEMPLATE_VARIABLES.map((v) => (
+                  <div
+                    key={v.key}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs"
+                    draggable
+                    onDragStart={() => handleDragStart("variable", v)}
+                  >
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: v.color }}
+                    />
+                    <span className="font-medium">{v.label}</span>
+                    <span className="text-muted-foreground mr-auto text-[10px] font-mono" dir="ltr">
+                      {v.key}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Cell Properties */}
             {selectedCell && (
               <div className="p-3">
@@ -1702,6 +1920,55 @@ export default function BoardTemplateEditor() {
           </div>
         )}
       </div>
+
+      {/* Generate Board Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5" />
+              יצירת לוחות יומיים מהתבנית
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              המערכת תיצור לוח יומי לכל יום בטווח שנבחר, תוך החלפת משתני התבנית בנתונים אמיתיים ממערכת השיבוצים.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>מתאריך</Label>
+                <Input
+                  type="date"
+                  value={generateDateFrom}
+                  onChange={(e) => setGenerateDateFrom(e.target.value)}
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>עד תאריך</Label>
+                <Input
+                  type="date"
+                  value={generateDateTo}
+                  onChange={(e) => setGenerateDateTo(e.target.value)}
+                  dir="ltr"
+                />
+              </div>
+            </div>
+            {generateDateFrom && generateDateTo && (
+              <div className="text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2">
+                📅 ייווצרו {Math.max(1, Math.ceil((new Date(generateDateTo).getTime() - new Date(generateDateFrom).getTime()) / 86400000) + 1)} לוחות יומיים
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateDialog(false)}>ביטול</Button>
+            <Button onClick={generateBoard} disabled={generating || !generateDateFrom || !generateDateTo}>
+              <Calendar className="w-4 h-4 ml-1" />
+              {generating ? "מייצר..." : "צור לוחות"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Context Menu */}
       {contextMenu && (
