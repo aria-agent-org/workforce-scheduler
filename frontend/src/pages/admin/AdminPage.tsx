@@ -661,13 +661,15 @@ export default function AdminPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">ניהול מערכת</h1>
 
-      <div className="flex gap-2 border-b pb-2">
+      <div className="flex gap-2 border-b pb-2 overflow-x-auto scrollbar-hide" role="tablist" aria-label="טאבים ניהול">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
+            role="tab"
+            aria-selected={activeTab === key}
             onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm transition-colors ${
-              activeTab === key ? "bg-primary-500 text-white" : "bg-muted text-muted-foreground hover:bg-accent"
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm transition-all whitespace-nowrap min-h-[44px] ${
+              activeTab === key ? "bg-primary-500 text-white shadow-elevation-2" : "bg-muted text-muted-foreground hover:bg-accent"
             }`}
           >
             <Icon className="h-4 w-4" />{label}
@@ -684,45 +686,80 @@ export default function AdminPage() {
             </Button>
           </div>
           {loading ? <TableSkeleton rows={5} cols={4} /> : (
-            <Card><CardContent className="p-0">
-              <table className="w-full">
-                <thead><tr className="border-b bg-muted/50 text-sm">
-                  <th className="px-4 py-3 text-start font-medium">שם</th>
-                  <th className="px-4 py-3 text-start font-medium">Slug</th>
-                  <th className="px-4 py-3 text-start font-medium">סטטוס</th>
-                  <th className="px-4 py-3 text-start font-medium">נוצר</th>
-                  <th className="px-4 py-3 text-start font-medium">פעולות</th>
-                </tr></thead>
-                <tbody>
-                  {tenants.map(t => (
-                    <tr key={t.id} className="border-b hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{t.name}</td>
-                      <td className="px-4 py-3 font-mono text-sm">{t.slug}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={t.is_active ? "success" : "destructive"}>{t.is_active ? "פעיל" : "מושבת"}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{t.created_at?.slice(0, 10)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => {
-                            setEditingTenant(t);
-                            // Load plan features if tenant has a plan
-                            const plan = plans.find((p: any) => p.id === t.plan_id);
-                            setTenantForm({ name: t.name, slug: t.slug, is_active: t.is_active, plan_id: t.plan_id || "", features: plan?.features || {} });
-                            setShowTenantModal(true);
-                          }}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => toggleTenant(t)}>
-                            {t.is_active ? <PowerOff className="h-4 w-4 text-red-500" /> : <Power className="h-4 w-4 text-green-500" />}
-                          </Button>
+            <>
+              {/* Desktop table */}
+              <Card className="hidden md:block shadow-elevation-1"><CardContent className="p-0">
+                <table className="w-full">
+                  <thead><tr className="border-b bg-muted/50 text-sm">
+                    <th className="px-4 py-3 text-start font-medium">שם</th>
+                    <th className="px-4 py-3 text-start font-medium">Slug</th>
+                    <th className="px-4 py-3 text-start font-medium">סטטוס</th>
+                    <th className="px-4 py-3 text-start font-medium">נוצר</th>
+                    <th className="px-4 py-3 text-start font-medium">פעולות</th>
+                  </tr></thead>
+                  <tbody>
+                    {tenants.map(t => (
+                      <tr key={t.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-medium">{t.name}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{t.slug}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={t.is_active ? "success" : "destructive"}>{t.is_active ? "פעיל" : "מושבת"}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{t.created_at?.slice(0, 10)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" onClick={() => {
+                              setEditingTenant(t);
+                              const plan = plans.find((p: any) => p.id === t.plan_id);
+                              setTenantForm({ name: t.name, slug: t.slug, is_active: t.is_active, plan_id: t.plan_id || "", features: plan?.features || {} });
+                              setShowTenantModal(true);
+                            }} aria-label="ערוך טננט">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" onClick={() => toggleTenant(t)} aria-label={t.is_active ? "השבת טננט" : "הפעל טננט"}>
+                              {t.is_active ? <PowerOff className="h-4 w-4 text-red-500" /> : <Power className="h-4 w-4 text-green-500" />}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent></Card>
+
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-3">
+                {tenants.map(t => (
+                  <Card key={t.id} className="shadow-elevation-1 card-hover">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-base truncate">{t.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">{t.slug}</p>
+                          <p className="text-xs text-muted-foreground mt-1">נוצר: {t.created_at?.slice(0, 10)}</p>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent></Card>
+                        <Badge variant={t.is_active ? "success" : "destructive"} className="flex-shrink-0">
+                          {t.is_active ? "פעיל" : "מושבת"}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-2 mt-3 pt-2 border-t">
+                        <Button variant="outline" size="sm" className="flex-1 min-h-[44px]" onClick={() => {
+                          setEditingTenant(t);
+                          const plan = plans.find((p: any) => p.id === t.plan_id);
+                          setTenantForm({ name: t.name, slug: t.slug, is_active: t.is_active, plan_id: t.plan_id || "", features: plan?.features || {} });
+                          setShowTenantModal(true);
+                        }}>
+                          <Pencil className="h-4 w-4 me-1" /> ערוך
+                        </Button>
+                        <Button variant={t.is_active ? "destructive" : "default"} size="sm" className="min-h-[44px]" onClick={() => toggleTenant(t)}>
+                          {t.is_active ? "השבת" : "הפעל"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -771,50 +808,85 @@ export default function AdminPage() {
             </Button>
           </div>
           {loading ? <TableSkeleton rows={6} cols={6} /> : (
-            <Card><CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr className="border-b bg-muted/50 text-sm">
-                    <th className="px-4 py-3 text-start font-medium">אימייל</th>
-                    <th className="px-4 py-3 text-start font-medium">טננט</th>
-                    <th className="px-4 py-3 text-start font-medium">תפקיד</th>
-                    <th className="px-4 py-3 text-start font-medium">סטטוס</th>
-                    <th className="px-4 py-3 text-start font-medium">כניסה אחרונה</th>
-                    <th className="px-4 py-3 text-start font-medium">פעולות</th>
-                  </tr></thead>
-                  <tbody>
-                    {users.map(u => (
-                      <tr key={u.id} className="border-b hover:bg-muted/30">
-                        <td className="px-4 py-3 text-sm">{u.email}</td>
-                        <td className="px-4 py-3 text-sm">{u.tenant_name || "—"}</td>
-                        <td className="px-4 py-3"><Badge className="bg-blue-100 text-blue-700">{u.role_name || "—"}</Badge></td>
-                        <td className="px-4 py-3">
+            <>
+              {/* Desktop table */}
+              <Card className="hidden md:block shadow-elevation-1"><CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead><tr className="border-b bg-muted/50 text-sm">
+                      <th className="px-4 py-3 text-start font-medium">אימייל</th>
+                      <th className="px-4 py-3 text-start font-medium">טננט</th>
+                      <th className="px-4 py-3 text-start font-medium">תפקיד</th>
+                      <th className="px-4 py-3 text-start font-medium">סטטוס</th>
+                      <th className="px-4 py-3 text-start font-medium">כניסה אחרונה</th>
+                      <th className="px-4 py-3 text-start font-medium">פעולות</th>
+                    </tr></thead>
+                    <tbody>
+                      {users.map(u => (
+                        <tr key={u.id} className="border-b hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 text-sm">{u.email}</td>
+                          <td className="px-4 py-3 text-sm">{u.tenant_name || "—"}</td>
+                          <td className="px-4 py-3"><Badge className="bg-blue-100 text-blue-700">{u.role_name || "—"}</Badge></td>
+                          <td className="px-4 py-3"><Badge className={u.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>{u.is_active ? "פעיל" : "מושבת"}</Badge></td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{u.last_login?.slice(0, 16) || "—"}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: "", tenant_id: u.tenant_id || "", role_definition_id: u.role_definition_id || "" }); setShowUserModal(true); }} aria-label="ערוך משתמש">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" onClick={() => { setMoveUserId(u.id); setMoveTenantId(""); setShowMoveModal(true); }} aria-label="העבר טננט">
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                              </Button>
+                              {u.is_active && (
+                                <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" onClick={() => deactivateUser(u.id)} aria-label="השבת משתמש">
+                                  <UserX className="h-3.5 w-3.5 text-red-500" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent></Card>
+
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-3">
+                {users.map(u => (
+                  <Card key={u.id} className="shadow-elevation-1">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate" dir="ltr">{u.email}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{u.tenant_name || "ללא טננט"}</p>
+                        </div>
+                        <div className="flex flex-col gap-1 items-end flex-shrink-0">
                           <Badge className={u.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>
                             {u.is_active ? "פעיל" : "מושבת"}
                           </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{u.last_login?.slice(0, 16) || "—"}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: "", tenant_id: u.tenant_id || "", role_definition_id: u.role_definition_id || "" }); setShowUserModal(true); }}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => { setMoveUserId(u.id); setMoveTenantId(""); setShowMoveModal(true); }} title="העבר טננט">
-                              <ArrowRightLeft className="h-3.5 w-3.5" />
-                            </Button>
-                            {u.is_active && (
-                              <Button variant="ghost" size="icon" onClick={() => deactivateUser(u.id)}>
-                                <UserX className="h-3.5 w-3.5 text-red-500" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <Badge className="bg-blue-100 text-blue-700 text-[10px]">{u.role_name || "—"}</Badge>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">כניסה אחרונה: {u.last_login?.slice(0, 16) || "אף פעם"}</p>
+                      <div className="flex gap-2 mt-3 pt-2 border-t">
+                        <Button variant="outline" size="sm" className="flex-1 min-h-[44px]" onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: "", tenant_id: u.tenant_id || "", role_definition_id: u.role_definition_id || "" }); setShowUserModal(true); }}>
+                          <Pencil className="h-3.5 w-3.5 me-1" /> ערוך
+                        </Button>
+                        <Button variant="outline" size="sm" className="min-h-[44px]" onClick={() => { setMoveUserId(u.id); setMoveTenantId(""); setShowMoveModal(true); }}>
+                          <ArrowRightLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        {u.is_active && (
+                          <Button variant="ghost" size="sm" className="min-h-[44px] text-red-500" onClick={() => deactivateUser(u.id)}>
+                            <UserX className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent></Card>
+            </>
           )}
           {usersTotal > 50 && (
             <div className="flex justify-center gap-2">

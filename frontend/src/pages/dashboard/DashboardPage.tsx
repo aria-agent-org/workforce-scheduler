@@ -167,9 +167,9 @@ export default function DashboardPage() {
       {/* Stat Cards + Pending Swaps */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {statCards.map(({ key, value, icon: Icon, color, link }) => (
-          <Card key={key} className="hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]" onClick={() => navigate(link)}>
+          <Card key={key} className="card-hover cursor-pointer shadow-elevation-1 hover:shadow-elevation-3" onClick={() => navigate(link)} role="link" aria-label={`${t(`stats.${key}`)}: ${value}`}>
             <CardContent className="flex items-center gap-4 p-6">
-              <div className={`rounded-full p-3 ${color}`}>
+              <div className={`rounded-xl p-3 ${color} shadow-elevation-1`}>
                 <Icon className="h-6 w-6" />
               </div>
               <div>

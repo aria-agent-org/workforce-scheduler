@@ -29,11 +29,15 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-[100dvh] bg-background">
+      {/* Accessibility: Skip to main content */}
+      <a href="#main-content" className="skip-to-main" tabIndex={0}>
+        דלג לתוכן הראשי
+      </a>
       <OfflineBanner />
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 scroll-smooth">
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 scroll-smooth" role="main" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
