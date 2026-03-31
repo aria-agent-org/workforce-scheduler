@@ -653,7 +653,7 @@ import urllib.parse
 
 
 @router.get("/google")
-async def google_oauth_redirect() -> dict | JSONResponse:
+async def google_oauth_redirect():
     """Redirect to Google OAuth consent URL."""
     settings = get_settings()
     if not settings.google_client_id or not settings.google_client_secret:
