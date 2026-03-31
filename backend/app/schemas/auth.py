@@ -1,9 +1,26 @@
 """Authentication schemas."""
 
+import re
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+def validate_password_complexity(password: str) -> str:
+    """Enforce password complexity: min 8 chars, 1 uppercase, 1 lowercase, 1 digit.
+
+    Enterprise/military-grade password requirements.
+    """
+    if len(password) < 8:
+        raise ValueError("הסיסמה חייבת להכיל לפחות 8 תווים")
+    if not re.search(r"[A-Z]", password):
+        raise ValueError("הסיסמה חייבת להכיל לפחות אות גדולה אחת באנגלית (A-Z)")
+    if not re.search(r"[a-z]", password):
+        raise ValueError("הסיסמה חייבת להכיל לפחות אות קטנה אחת באנגלית (a-z)")
+    if not re.search(r"[0-9]", password):
+        raise ValueError("הסיסמה חייבת להכיל לפחות ספרה אחת (0-9)")
+    return password
 
 
 class LoginRequest(BaseModel):
@@ -30,6 +47,11 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8, max_length=128)
 
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return validate_password_complexity(v)
+
 
 class ForgotPasswordRequest(BaseModel):
     """Forgot password — send reset email."""
@@ -39,6 +61,11 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     """Reset password with token."""
     new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return validate_password_complexity(v)
 
 
 class UserResponse(BaseModel):

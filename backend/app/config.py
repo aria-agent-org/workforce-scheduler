@@ -108,8 +108,25 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
-        """Parse CORS origins from comma-separated string."""
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        """Parse CORS origins from comma-separated string.
+
+        SECURITY: Never allow '*' as origin. Each origin must be explicit.
+        """
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        # Reject wildcard in production
+        if not self.debug and "*" in origins:
+            raise ValueError("CORS wildcard '*' is not allowed in production. Set explicit origins.")
+        return origins
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Whether cookies should be Secure (HTTPS only)."""
+        return not self.debug
+
+    @property
+    def cookie_samesite(self) -> str:
+        """Cookie SameSite attribute."""
+        return "Lax"
 
 
 @lru_cache

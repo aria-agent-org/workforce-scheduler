@@ -20,6 +20,7 @@ from app.core.exceptions import AppError
 from app.core.logging import setup_logging
 from app.database import engine
 from app.middleware.metrics import PrometheusMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, admin, health, employees, scheduling, attendance, rules, notifications, reports
@@ -116,6 +117,23 @@ def create_app() -> FastAPI:
     # Security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)
 
+    # Rate limiting middleware (Redis-backed)
+    redis_client = None
+    try:
+        import redis.asyncio as aioredis
+        redis_client = aioredis.from_url(
+            f"redis://{settings.redis_host}:{settings.redis_port}/{settings.redis_db}",
+            decode_responses=True,
+        )
+    except Exception:
+        logger.warning("redis_unavailable_for_rate_limiting", hint="Rate limiting disabled")
+    app.add_middleware(
+        RateLimitMiddleware,
+        redis_client=redis_client,
+        max_requests=100,
+        window_seconds=60,
+    )
+
     # Prometheus metrics middleware (outermost — captures all requests)
     app.add_middleware(PrometheusMiddleware)
 
@@ -135,6 +153,26 @@ def create_app() -> FastAPI:
                     "retryable": exc.is_retryable,
                 }
             },
+        )
+
+    @app.exception_handler(Exception)
+    async def generic_error_handler(request: FastAPIRequest, exc: Exception) -> JSONResponse:
+        """Catch-all handler: NEVER leak stack traces or internal details to the client."""
+        logger.error(
+            "unhandled_exception",
+            path=request.url.path,
+            method=request.method,
+            error=str(exc),
+            exc_info=True,
+        )
+        # In debug mode, show the error message; in production, hide it
+        if settings.debug:
+            detail = str(exc)
+        else:
+            detail = "שגיאה פנימית בשרת. נסה שוב מאוחר יותר."
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"code": "INTERNAL_ERROR", "message": detail}},
         )
 
     # Routers
