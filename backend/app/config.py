@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     # Telegram Bot
     telegram_bot_token: str | None = None
 
+    # WebAuthn / Passkey
+    webauthn_rp_id: str = "shavtzak.site"
+    webauthn_rp_name: str = "שבצק"
+    webauthn_origin: str = "https://shavtzak.site"
+
     # Google Sheets
     google_service_account_json: str | None = None
 

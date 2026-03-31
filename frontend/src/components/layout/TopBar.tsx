@@ -125,8 +125,8 @@ export default function TopBar() {
     <>
       <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
         <div className="flex items-center gap-3">
-          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
-            {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? "סגור תפריט" : "פתח תפריט"} aria-expanded={mobileOpen}>
+            {mobileOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
           </button>
           <span className="text-sm text-muted-foreground hidden sm:inline">{user?.email}</span>
         </div>
@@ -134,10 +134,10 @@ export default function TopBar() {
           <GlobalSearch />
           {/* Notifications Bell */}
           <div className="relative" ref={notifRef}>
-            <Button variant="ghost" size="sm" onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) loadNotifications(); }} className="relative">
-              {unreadCount > 0 ? <BellRing className="h-4 w-4 text-primary-500" /> : <Bell className="h-4 w-4" />}
+            <Button variant="ghost" size="sm" onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) loadNotifications(); }} className="relative" aria-label="התראות" aria-expanded={notifOpen}>
+              {unreadCount > 0 ? <BellRing className="h-4 w-4 text-primary-500" aria-hidden="true" /> : <Bell className="h-4 w-4" aria-hidden="true" />}
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -end-0.5 h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold px-1">
+                <span className="absolute -top-0.5 -end-0.5 h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold px-1" aria-live="polite" aria-label={`${unreadCount} התראות חדשות`}>
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
@@ -175,18 +175,18 @@ export default function TopBar() {
             )}
           </div>
           {/* Dark Mode Toggle */}
-          <Button variant="ghost" size="sm" onClick={cycleTheme} title={`Theme: ${theme}`}>
-            <ThemeIcon className="h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={cycleTheme} title={`Theme: ${theme}`} aria-label="החלף ערכת נושא">
+            <ThemeIcon className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={toggleLanguage}>
-            <Globe className="me-1 h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={toggleLanguage} aria-label="החלף שפה">
+            <Globe className="me-1 h-4 w-4" aria-hidden="true" />
             {i18n.language === "he" ? "EN" : "עב"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => window.location.href = "/profile"} title="הפרופיל שלי">
-            <Users className="h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={() => window.location.href = "/profile"} aria-label="הפרופיל שלי">
+            <Users className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            <LogOut className="me-1 h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={logout} aria-label="יציאה">
+            <LogOut className="me-1 h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{t("logout")}</span>
           </Button>
         </div>

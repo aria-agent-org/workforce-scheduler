@@ -106,7 +106,7 @@ export default function BottomNav() {
       )}
 
       {/* Bottom nav bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-card/95 backdrop-blur-lg safe-area-bottom">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-card/95 backdrop-blur-lg safe-area-bottom" aria-label="תפריט ניווט נייד">
         <div className="flex items-center justify-around h-[68px] px-1">
           {filteredPrimary.map(({ key, path, icon: Icon, label }) => (
             <NavLink
@@ -137,6 +137,8 @@ export default function BottomNav() {
           {hasMoreItems && (
             <button
               onClick={() => setShowMore(!showMore)}
+              aria-label="עוד אפשרויות"
+              aria-expanded={showMore}
               className={cn(
                 "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl min-w-[52px] transition-all active:scale-95",
                 showMore || isMoreActive ? "text-primary-600 dark:text-primary-400" : "text-muted-foreground"

@@ -8,9 +8,27 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import api from "@/lib/api";
 import { setTokens } from "@/lib/auth";
-import { ArrowRight, Mail, CheckCircle } from "lucide-react";
+import { ArrowRight, Mail, CheckCircle, Key, Fingerprint } from "lucide-react";
 
-type View = "login" | "2fa" | "forgot-password" | "forgot-success";
+type View = "login" | "2fa" | "forgot-password" | "forgot-success" | "magic-link-sent";
+
+const supportsWebAuthn = typeof window !== "undefined" && !!window.PublicKeyCredential;
+
+function base64urlToBuffer(base64url: string): ArrayBuffer {
+  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function bufferToBase64url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 export default function LoginPage() {
   const { t } = useTranslation("auth");
@@ -33,6 +51,11 @@ export default function LoginPage() {
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+
+  // Passkey / Magic link loading
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [magicLinkEmail, setMagicLinkEmail] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -64,7 +87,7 @@ export default function LoginPage() {
       if (setUser) setUser(data.user);
       navigate("/dashboard");
     } catch {
-      setError("קוד האימות שגוי. נסה שוב.");
+      setError(t("twoFactor.invalidCode", "קוד האימות שגוי. נסה שוב."));
       setTotpCode("");
       totpRef.current?.focus();
     } finally {
@@ -80,10 +103,100 @@ export default function LoginPage() {
       await api.post("/auth/forgot-password", { email: forgotEmail });
       setView("forgot-success");
     } catch {
-      // Show success anyway to prevent email enumeration
       setView("forgot-success");
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  // ── Passkey Login ──
+  const handlePasskeyLogin = async () => {
+    setError("");
+    setPasskeyLoading(true);
+    try {
+      // Step 1: Get authentication options
+      const { data: options } = await api.post("/auth/webauthn/login/begin", {
+        email: email || undefined,
+      });
+      const sessionKey = options.session_key;
+
+      // Step 2: Convert options for browser API
+      const publicKeyOptions: PublicKeyCredentialRequestOptions = {
+        challenge: base64urlToBuffer(options.challenge),
+        rpId: options.rpId,
+        timeout: options.timeout,
+        userVerification: options.userVerification || "preferred",
+        allowCredentials: (options.allowCredentials || []).map((c: any) => ({
+          id: base64urlToBuffer(c.id),
+          type: c.type,
+          transports: c.transports,
+        })),
+      };
+
+      // Step 3: Call browser WebAuthn API
+      const assertion = (await navigator.credentials.get({
+        publicKey: publicKeyOptions,
+      })) as PublicKeyCredential;
+
+      if (!assertion) {
+        setError(t("passkeyError", "הפעולה בוטלה"));
+        return;
+      }
+
+      const response = assertion.response as AuthenticatorAssertionResponse;
+
+      // Step 4: Send to server for verification
+      const { data: loginResult } = await api.post(
+        `/auth/webauthn/login/finish?session_key=${encodeURIComponent(sessionKey)}`,
+        {
+          id: assertion.id,
+          rawId: bufferToBase64url(assertion.rawId),
+          type: assertion.type,
+          response: {
+            authenticatorData: bufferToBase64url(response.authenticatorData),
+            clientDataJSON: bufferToBase64url(response.clientDataJSON),
+            signature: bufferToBase64url(response.signature),
+            userHandle: response.userHandle
+              ? bufferToBase64url(response.userHandle)
+              : undefined,
+          },
+        }
+      );
+
+      setTokens(loginResult.access_token, loginResult.refresh_token);
+      navigate("/dashboard");
+    } catch (err: any) {
+      if (err?.name === "NotAllowedError") {
+        setError(t("passkeyError", "הפעולה בוטלה או שלא נמצא מפתח אבטחה"));
+      } else {
+        setError(
+          err?.response?.data?.detail ||
+            t("passkeyError", "שגיאה בכניסה עם Passkey")
+        );
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
+  // ── Magic Link Login ──
+  const handleMagicLinkRequest = async () => {
+    const targetEmail = email || magicLinkEmail;
+    if (!targetEmail) {
+      setError(t("magicLinkEmailRequired", "הזן כתובת אימייל קודם"));
+      return;
+    }
+    setError("");
+    setMagicLinkLoading(true);
+    try {
+      await api.post("/auth/magic-link/request", { email: targetEmail });
+      setMagicLinkEmail(targetEmail);
+      setView("magic-link-sent");
+    } catch {
+      setMagicLinkEmail(targetEmail);
+      setView("magic-link-sent");
+    } finally {
+      setMagicLinkLoading(false);
     }
   };
 
@@ -97,9 +210,10 @@ export default function LoginPage() {
 
   const viewTitle: Record<View, string> = {
     login: t("loginTitle"),
-    "2fa": "אימות דו-שלבי",
-    "forgot-password": "שכחתי סיסמה",
-    "forgot-success": "נשלח בהצלחה",
+    "2fa": t("twoFactor.title", "אימות דו-שלבי"),
+    "forgot-password": t("forgotPassword", "שכחתי סיסמה"),
+    "forgot-success": t("forgotPasswordSent", "נשלח בהצלחה"),
+    "magic-link-sent": t("magicLinkSent", "קישור נשלח"),
   };
 
   return (
@@ -114,7 +228,7 @@ export default function LoginPage() {
           {view === "login" && (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   {error}
                 </div>
               )}
@@ -155,11 +269,29 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button variant="outline" type="button" className="w-full min-h-[44px]" disabled>
-                {t("loginWithPasskey")}
-              </Button>
-              <Button variant="outline" type="button" className="w-full min-h-[44px]" disabled>
-                {t("loginWithMagicLink")}
+              {supportsWebAuthn && (
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="w-full min-h-[44px]"
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                  aria-label={t("loginWithPasskey")}
+                >
+                  <Fingerprint className="me-2 h-4 w-4" />
+                  {passkeyLoading ? "..." : t("loginWithPasskey")}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                type="button"
+                className="w-full min-h-[44px]"
+                onClick={handleMagicLinkRequest}
+                disabled={magicLinkLoading}
+                aria-label={t("loginWithMagicLink")}
+              >
+                <Mail className="me-2 h-4 w-4" />
+                {magicLinkLoading ? "..." : t("loginWithMagicLink")}
               </Button>
               <Button variant="outline" type="button" className="w-full min-h-[44px]" disabled>
                 {t("loginWithGoogle")}
@@ -185,15 +317,15 @@ export default function LoginPage() {
           {view === "2fa" && (
             <form onSubmit={handle2FASubmit} className="space-y-4">
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   {error}
                 </div>
               )}
               <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-                הזן את הקוד מאפליקציית האימות שלך
+                {t("twoFactor.enterCode", "הזן את הקוד מאפליקציית האימות שלך")}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="totp-code">קוד אימות</Label>
+                <Label htmlFor="totp-code">{t("twoFactor.codeLabel", "קוד אימות")}</Label>
                 <Input
                   ref={totpRef}
                   id="totp-code"
@@ -210,11 +342,11 @@ export default function LoginPage() {
                   className="text-center text-2xl tracking-widest min-h-[44px]"
                 />
                 <p className="text-xs text-muted-foreground">
-                  ניתן גם להשתמש בקוד גיבוי
+                  {t("twoFactor.useBackupCode", "ניתן גם להשתמש בקוד גיבוי")}
                 </p>
               </div>
               <Button type="submit" className="w-full min-h-[44px]" disabled={is2FALoading}>
-                {is2FALoading ? "..." : "אימות"}
+                {is2FALoading ? "..." : t("twoFactor.verify", "אימות")}
               </Button>
               <Button
                 type="button"
@@ -223,7 +355,7 @@ export default function LoginPage() {
                 onClick={handleBackToLogin}
               >
                 <ArrowRight className="me-1 h-4 w-4" />
-                חזרה להתחברות
+                {t("backToLogin", "חזרה להתחברות")}
               </Button>
             </form>
           )}
@@ -232,16 +364,16 @@ export default function LoginPage() {
           {view === "forgot-password" && (
             <form onSubmit={handleForgotPassword} className="space-y-4">
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   {error}
                 </div>
               )}
               <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
                 <Mail className="inline-block me-1 h-4 w-4" />
-                הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס סיסמה
+                {t("forgotPasswordInstruction", "הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס סיסמה")}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="forgot-email">אימייל</Label>
+                <Label htmlFor="forgot-email">{t("email")}</Label>
                 <Input
                   id="forgot-email"
                   type="email"
@@ -254,7 +386,7 @@ export default function LoginPage() {
                 />
               </div>
               <Button type="submit" className="w-full min-h-[44px]" disabled={forgotLoading}>
-                {forgotLoading ? "..." : "שלח קישור איפוס"}
+                {forgotLoading ? "..." : t("sendResetLink", "שלח קישור איפוס")}
               </Button>
               <Button
                 type="button"
@@ -263,7 +395,7 @@ export default function LoginPage() {
                 onClick={handleBackToLogin}
               >
                 <ArrowRight className="me-1 h-4 w-4" />
-                חזרה להתחברות
+                {t("backToLogin", "חזרה להתחברות")}
               </Button>
             </form>
           )}
@@ -275,10 +407,13 @@ export default function LoginPage() {
                 <CheckCircle className="h-16 w-16 text-green-500" />
               </div>
               <p className="text-sm text-muted-foreground">
-                אם הכתובת <strong>{forgotEmail}</strong> קיימת במערכת, נשלח אליה קישור לאיפוס סיסמה.
+                {t("forgotPasswordSuccessMsg", {
+                  defaultValue: `אם הכתובת ${forgotEmail} קיימת במערכת, נשלח אליה קישור לאיפוס סיסמה.`,
+                  email: forgotEmail,
+                })}
               </p>
               <p className="text-xs text-muted-foreground">
-                בדוק גם בתיקיית הספאם. הקישור תקף ל-60 דקות.
+                {t("checkSpam", "בדוק גם בתיקיית הספאם. הקישור תקף ל-60 דקות.")}
               </p>
               <Button
                 type="button"
@@ -287,7 +422,34 @@ export default function LoginPage() {
                 onClick={handleBackToLogin}
               >
                 <ArrowRight className="me-1 h-4 w-4" />
-                חזרה להתחברות
+                {t("backToLogin", "חזרה להתחברות")}
+              </Button>
+            </div>
+          )}
+
+          {/* ── Magic Link Sent ── */}
+          {view === "magic-link-sent" && (
+            <div className="space-y-4 text-center">
+              <div className="flex justify-center">
+                <Mail className="h-16 w-16 text-blue-500" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {t("magicLinkSentMsg", {
+                  defaultValue: `אם הכתובת ${magicLinkEmail} קיימת במערכת, נשלח אליה קישור כניסה.`,
+                  email: magicLinkEmail,
+                })}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("magicLinkExpiry", "הקישור תקף ל-15 דקות. בדוק גם בתיקיית הספאם.")}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full min-h-[44px]"
+                onClick={handleBackToLogin}
+              >
+                <ArrowRight className="me-1 h-4 w-4" />
+                {t("backToLogin", "חזרה להתחברות")}
               </Button>
             </div>
           )}

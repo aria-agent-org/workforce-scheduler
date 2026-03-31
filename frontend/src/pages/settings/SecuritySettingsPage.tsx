@@ -12,6 +12,7 @@ import {
 import {
   Shield, ShieldCheck, ShieldOff, Smartphone, Monitor,
   Copy, RefreshCw, LogOut, CheckCircle, AlertTriangle,
+  Fingerprint, Plus, Trash2,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
@@ -25,7 +26,32 @@ interface Session {
   created_at: string;
 }
 
+interface PasskeyCredential {
+  id: string;
+  device_name: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 type TwoFAStep = "idle" | "setup-qr" | "verify-code" | "show-backup" | "disable-confirm" | "regenerate-confirm";
+
+const supportsWebAuthn = typeof window !== "undefined" && !!window.PublicKeyCredential;
+
+function base64urlToBuffer(base64url: string): ArrayBuffer {
+  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function bufferToBase64url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 export default function SecuritySettingsPage() {
   const { toast } = useToast();
@@ -46,6 +72,72 @@ export default function SecuritySettingsPage() {
   const [error, setError] = useState("");
 
   const is2FAEnabled = user?.two_factor_enabled ?? false;
+
+  // WebAuthn/Passkey state
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+
+  // ── WebAuthn: Register new passkey ──
+  const handleRegisterPasskey = async () => {
+    setPasskeyLoading(true);
+    try {
+      // Step 1: Get registration options from server
+      const { data: options } = await api.post("/auth/webauthn/register/begin");
+
+      // Step 2: Convert for browser API
+      const publicKeyOptions: PublicKeyCredentialCreationOptions = {
+        challenge: base64urlToBuffer(options.challenge),
+        rp: { id: options.rp.id, name: options.rp.name },
+        user: {
+          id: base64urlToBuffer(options.user.id),
+          name: options.user.name,
+          displayName: options.user.displayName,
+        },
+        pubKeyCredParams: options.pubKeyCredParams,
+        timeout: options.timeout,
+        excludeCredentials: (options.excludeCredentials || []).map((c: any) => ({
+          id: base64urlToBuffer(c.id),
+          type: c.type,
+          transports: c.transports,
+        })),
+        authenticatorSelection: options.authenticatorSelection,
+        attestation: options.attestation || "none",
+      };
+
+      // Step 3: Create credential via browser API
+      const credential = (await navigator.credentials.create({
+        publicKey: publicKeyOptions,
+      })) as PublicKeyCredential;
+
+      if (!credential) {
+        toast("error", "הפעולה בוטלה");
+        return;
+      }
+
+      const response = credential.response as AuthenticatorAttestationResponse;
+
+      // Step 4: Send to server for verification
+      await api.post("/auth/webauthn/register/finish", {
+        id: credential.id,
+        rawId: bufferToBase64url(credential.rawId),
+        type: credential.type,
+        response: {
+          attestationObject: bufferToBase64url(response.attestationObject),
+          clientDataJSON: bufferToBase64url(response.clientDataJSON),
+        },
+        device_name: navigator.userAgent.includes("Mobile") ? "טלפון נייד" : "מחשב",
+      });
+
+      toast("success", "מפתח האבטחה נרשם בהצלחה");
+    } catch (err: any) {
+      if (err?.name === "NotAllowedError") {
+        toast("error", "הפעולה בוטלה");
+      } else {
+        toast("error", err?.response?.data?.detail || "שגיאה ברישום מפתח אבטחה");
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
 
   const loadSessions = useCallback(async () => {
     try {
@@ -243,6 +335,33 @@ export default function SecuritySettingsPage() {
         </CardContent>
       </Card>
 
+      {/* ── WebAuthn / Passkeys ── */}
+      {supportsWebAuthn && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Fingerprint className="h-5 w-5" />
+              מפתחות אבטחה (Passkeys)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              מפתחות אבטחה מאפשרים כניסה מהירה ומאובטחת ללא סיסמה באמצעות טביעת אצבע, זיהוי פנים או מפתח USB.
+            </p>
+            <Button
+              size="sm"
+              className="min-h-[44px]"
+              onClick={handleRegisterPasskey}
+              disabled={passkeyLoading}
+              aria-label="הוסף מפתח אבטחה"
+            >
+              <Plus className="me-1 h-4 w-4" />
+              {passkeyLoading ? "..." : "הוסף מפתח אבטחה"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Active Sessions ── */}
       <Card>
         <CardHeader>
@@ -297,8 +416,9 @@ export default function SecuritySettingsPage() {
                       variant="ghost"
                       className="min-h-[44px] min-w-[44px] text-red-500 hover:text-red-700 shrink-0"
                       onClick={() => handleRevokeSession(session.id)}
+                      aria-label="נתק התחברות זו"
                     >
-                      <LogOut className="h-4 w-4" />
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
                     </Button>
                   )}
                 </div>
@@ -353,7 +473,7 @@ export default function SecuritySettingsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
@@ -432,7 +552,7 @@ export default function SecuritySettingsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
@@ -475,7 +595,7 @@ export default function SecuritySettingsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}

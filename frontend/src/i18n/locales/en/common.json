@@ -145,7 +145,15 @@
     "wrongCode": "Wrong code. Try again.",
     "wrongPassword": "Wrong password",
     "enter6Digits": "Enter a 6-digit code",
-    "enterPasswordRequired": "Enter password to confirm"
+    "enterPasswordRequired": "Enter password to confirm",
+    "passkeys": "Security Keys (Passkeys)",
+    "passkeysDescription": "Security keys allow fast, passwordless login using fingerprint, face recognition, or a USB key.",
+    "addPasskey": "Add security key",
+    "passkeyRegistered": "Security key registered successfully",
+    "passkeyError": "Error registering security key",
+    "passkeyCancelled": "Operation cancelled",
+    "systemAdmin": "System Administration",
+    "version": "Version"
   },
   "resetPassword": {
     "title": "Reset Password",

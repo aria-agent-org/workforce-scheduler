@@ -100,13 +100,13 @@ export default function Sidebar() {
           🎯 {t("appName")}
         </h1>
       </div>
-      <nav className="mt-2 flex-1 space-y-0.5 px-3 overflow-y-auto">
+      <nav className="mt-2 flex-1 space-y-0.5 px-3 overflow-y-auto" aria-label="תפריט ראשי">
         {navItems.map(({ key, path, icon: Icon }) => (
-          <NavLink key={key} to={path} className={linkClass}>
-            <Icon className="h-5 w-5 flex-shrink-0" />
+          <NavLink key={key} to={path} className={linkClass} aria-label={t(`nav.${key}`)}>
+            <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span className="flex-1">{t(`nav.${key}`)}</span>
             {counts[key] != null && counts[key] > 0 && (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary-500 px-1.5 text-[10px] font-bold text-white">
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary-500 px-1.5 text-[10px] font-bold text-white" aria-live="polite" aria-label={`${counts[key]} פריטים`}>
                 {counts[key]}
               </span>
             )}
@@ -116,11 +116,11 @@ export default function Sidebar() {
         {secondaryItems.length > 0 && <div className="my-3 border-t" />}
 
         {secondaryItems.map(({ key, path, icon: Icon }) => (
-          <NavLink key={key} to={path} className={linkClass}>
-            <Icon className="h-5 w-5 flex-shrink-0" />
+          <NavLink key={key} to={path} className={linkClass} aria-label={t(`nav.${key}`)}>
+            <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span className="flex-1">{t(`nav.${key}`)}</span>
             {counts[key] != null && counts[key] > 0 && (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white" aria-live="polite" aria-label={`${counts[key]} פריטים`}>
                 {counts[key]}
               </span>
             )}

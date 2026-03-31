@@ -147,7 +147,15 @@
     "wrongCode": "קוד שגוי. נסה שוב.",
     "wrongPassword": "סיסמה שגויה",
     "enter6Digits": "הזן קוד בן 6 ספרות",
-    "enterPasswordRequired": "הזן סיסמה לאישור"
+    "enterPasswordRequired": "הזן סיסמה לאישור",
+    "passkeys": "מפתחות אבטחה (Passkeys)",
+    "passkeysDescription": "מפתחות אבטחה מאפשרים כניסה מהירה ומאובטחת ללא סיסמה באמצעות טביעת אצבע, זיהוי פנים או מפתח USB.",
+    "addPasskey": "הוסף מפתח אבטחה",
+    "passkeyRegistered": "מפתח האבטחה נרשם בהצלחה",
+    "passkeyError": "שגיאה ברישום מפתח אבטחה",
+    "passkeyCancelled": "הפעולה בוטלה",
+    "systemAdmin": "ניהול מערכת",
+    "version": "גרסה"
   },
   "resetPassword": {
     "title": "איפוס סיסמה",

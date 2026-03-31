@@ -1,5 +1,6 @@
 """Authentication endpoints."""
 
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -9,9 +10,10 @@ from pydantic import BaseModel as PydanticBaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.dependencies import CurrentUser
-from app.models.user import MagicLinkToken, User
+from app.models.user import MagicLinkToken, User, UserWebAuthnCredential
 from app.schemas.auth import (
     BackupCodesResponse,
     ChangePasswordRequest,
@@ -358,15 +360,53 @@ async def verify_magic_link(
     }
 
 
-# ── WebAuthn (Stubs) ───────────────────────────────────────────
+# ── WebAuthn / Passkey ──────────────────────────────────────────
 
-_NOT_CONFIGURED_RESPONSE = {
-    "status": "not_configured",
-    "message": {
-        "he": "שיטת כניסה זו לא הוגדרה עדיין",
-        "en": "This authentication method is not configured yet",
-    },
-}
+import json
+import base64
+from webauthn import (
+    generate_registration_options,
+    verify_registration_response,
+    generate_authentication_options,
+    verify_authentication_response,
+    options_to_json,
+)
+from webauthn.helpers.structs import (
+    PublicKeyCredentialDescriptor,
+    AuthenticatorTransport,
+    UserVerificationRequirement,
+    RegistrationCredential,
+    AuthenticationCredential,
+)
+from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
+
+# In-memory challenge store (keyed by user_id or session).
+# In production, use Redis with TTL. This is safe for single-instance.
+_webauthn_challenges: dict[str, bytes] = {}
+
+_settings = get_settings()
+
+
+class WebAuthnRegisterFinishRequest(PydanticBaseModel):
+    """Body for /webauthn/register/finish."""
+    id: str
+    rawId: str
+    type: str
+    response: dict
+    device_name: str | None = None
+
+
+class WebAuthnLoginBeginRequest(PydanticBaseModel):
+    """Body for /webauthn/login/begin."""
+    email: EmailStr | None = None
+
+
+class WebAuthnLoginFinishRequest(PydanticBaseModel):
+    """Body for /webauthn/login/finish."""
+    id: str
+    rawId: str
+    type: str
+    response: dict
 
 
 @router.post("/webauthn/register/begin")
@@ -375,50 +415,235 @@ async def webauthn_register_begin(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Begin WebAuthn registration — returns registration options."""
-    from app.models.tenant import AuthMethodConfig
-    if user.tenant_id:
-        result = await db.execute(
-            select(AuthMethodConfig).where(
-                AuthMethodConfig.tenant_id == user.tenant_id,
-                AuthMethodConfig.method == "webauthn",
-                AuthMethodConfig.is_enabled.is_(True),
-            )
+    # Get existing credentials to exclude
+    result = await db.execute(
+        select(UserWebAuthnCredential).where(
+            UserWebAuthnCredential.user_id == user.id
         )
-        if result.scalar_one_or_none():
-            # TODO: implement actual WebAuthn registration ceremony
-            return {
-                "status": "not_implemented",
-                "message": {
-                    "he": "רישום WebAuthn בפיתוח",
-                    "en": "WebAuthn registration is under development",
-                },
-            }
-    return _NOT_CONFIGURED_RESPONSE
+    )
+    existing_creds = result.scalars().all()
+
+    exclude_credentials = [
+        PublicKeyCredentialDescriptor(
+            id=cred.credential_id,
+            transports=[AuthenticatorTransport(t) for t in (cred.transports or [])],
+        )
+        for cred in existing_creds
+    ]
+
+    options = generate_registration_options(
+        rp_id=_settings.webauthn_rp_id,
+        rp_name=_settings.webauthn_rp_name,
+        user_id=str(user.id).encode(),
+        user_name=user.email,
+        user_display_name=user.email.split("@")[0],
+        exclude_credentials=exclude_credentials,
+    )
+
+    # Store challenge for verification
+    _webauthn_challenges[f"reg_{user.id}"] = options.challenge
+
+    return json.loads(options_to_json(options))
 
 
 @router.post("/webauthn/register/finish")
 async def webauthn_register_finish(
+    data: WebAuthnRegisterFinishRequest,
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Finish WebAuthn registration — stores credential."""
-    return _NOT_CONFIGURED_RESPONSE
+    challenge = _webauthn_challenges.pop(f"reg_{user.id}", None)
+    if not challenge:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="לא נמצא אתגר רישום פעיל. התחל מחדש.",
+        )
+
+    try:
+        # Build the RegistrationCredential from the request body
+        credential = RegistrationCredential.parse_raw(json.dumps(data.model_dump()))
+
+        verification = verify_registration_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=_settings.webauthn_rp_id,
+            expected_origin=_settings.webauthn_origin,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"אימות הרישום נכשל: {str(e)}",
+        )
+
+    # Save credential to database
+    new_cred = UserWebAuthnCredential(
+        user_id=user.id,
+        credential_id=verification.credential_id,
+        public_key=verification.credential_public_key,
+        sign_count=verification.sign_count,
+        aaguid=str(verification.aaguid) if verification.aaguid else None,
+        device_name=data.device_name or "Passkey",
+        backed_up=getattr(verification, "credential_backed_up", False),
+    )
+    db.add(new_cred)
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "message": {
+            "he": "מפתח האבטחה נרשם בהצלחה",
+            "en": "Security key registered successfully",
+        },
+    }
 
 
 @router.post("/webauthn/login/begin")
 async def webauthn_login_begin(
+    data: WebAuthnLoginBeginRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Begin WebAuthn login — returns authentication options."""
-    return _NOT_CONFIGURED_RESPONSE
+    allow_credentials = []
+
+    # If email provided, scope to that user's credentials
+    if data and data.email:
+        user_result = await db.execute(
+            select(User).where(User.email == data.email, User.is_active.is_(True))
+        )
+        user = user_result.scalar_one_or_none()
+        if user:
+            cred_result = await db.execute(
+                select(UserWebAuthnCredential).where(
+                    UserWebAuthnCredential.user_id == user.id
+                )
+            )
+            creds = cred_result.scalars().all()
+            allow_credentials = [
+                PublicKeyCredentialDescriptor(
+                    id=c.credential_id,
+                    transports=[AuthenticatorTransport(t) for t in (c.transports or [])],
+                )
+                for c in creds
+            ]
+
+    options = generate_authentication_options(
+        rp_id=_settings.webauthn_rp_id,
+        allow_credentials=allow_credentials if allow_credentials else None,
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+
+    # Store challenge (use a random session key for unauthenticated flow)
+    session_key = secrets.token_urlsafe(16)
+    _webauthn_challenges[f"auth_{session_key}"] = options.challenge
+
+    response = json.loads(options_to_json(options))
+    response["session_key"] = session_key
+    return response
 
 
 @router.post("/webauthn/login/finish")
 async def webauthn_login_finish(
+    data: WebAuthnLoginFinishRequest,
+    session_key: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Finish WebAuthn login — verifies assertion and returns JWT."""
-    return _NOT_CONFIGURED_RESPONSE
+    # Find the credential in the database
+    try:
+        raw_id_bytes = base64url_to_bytes(data.rawId)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="מזהה credential לא תקין",
+        )
+
+    result = await db.execute(
+        select(UserWebAuthnCredential).where(
+            UserWebAuthnCredential.credential_id == raw_id_bytes
+        )
+    )
+    stored_cred = result.scalar_one_or_none()
+    if not stored_cred:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="מפתח האבטחה לא מוכר",
+        )
+
+    # Get user
+    user_result = await db.execute(
+        select(User).where(User.id == stored_cred.user_id, User.is_active.is_(True))
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="המשתמש לא פעיל",
+        )
+
+    # Find and validate challenge
+    challenge = None
+    if session_key:
+        challenge = _webauthn_challenges.pop(f"auth_{session_key}", None)
+    else:
+        # Try to find any matching challenge (fallback)
+        for key in list(_webauthn_challenges.keys()):
+            if key.startswith("auth_"):
+                challenge = _webauthn_challenges.pop(key, None)
+                break
+
+    if not challenge:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="אתגר האימות פג תוקף. נסה שוב.",
+        )
+
+    try:
+        credential = AuthenticationCredential.parse_raw(json.dumps(data.model_dump()))
+
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=_settings.webauthn_rp_id,
+            expected_origin=_settings.webauthn_origin,
+            credential_public_key=stored_cred.public_key,
+            credential_current_sign_count=stored_cred.sign_count,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"אימות נכשל: {str(e)}",
+        )
+
+    # Update sign count and last used
+    stored_cred.sign_count = verification.new_sign_count
+    stored_cred.last_used_at = datetime.now(timezone.utc)
+
+    # Create JWT tokens
+    service = AuthService(db)
+    access_token, expires_in = service.create_access_token(user.id)
+    refresh_token = secrets.token_urlsafe(32)
+
+    # Create session
+    from app.models.user import UserSession
+    session = UserSession(
+        user_id=user.id,
+        refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
+        auth_method="webauthn",
+        last_active_at=datetime.now(timezone.utc),
+    )
+    db.add(session)
+
+    # Update last login
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+    }
 
 
 # ── Google OAuth (Stubs) ───────────────────────────────────────
