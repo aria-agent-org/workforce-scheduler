@@ -916,29 +916,86 @@ export default function SchedulingPage() {
       {/* === WINDOW BOARD TAB === */}
       {activeTab === "board" && selectedWindow && (
         <div className="space-y-4">
+          {/* Board Header with Navigation */}
+          <div className="bg-card border rounded-lg p-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button variant="ghost" size="sm" onClick={() => { setActiveTab("windows"); setSelectedWindow(null); }}>
+                <ArrowLeft className="me-1 h-4 w-4" />חזרה ללוחות
+              </Button>
+              <div className="h-6 border-r border-border" />
+              <h2 className="text-lg font-bold">{selectedWindow.name}</h2>
+              <Badge className={statusColors[selectedWindow.status]}>{t(`status.${selectedWindow.status}`)}</Badge>
+              <span className="text-xs text-muted-foreground">
+                {selectedWindow.start_date} — {selectedWindow.end_date}
+              </span>
+              <div className="flex-1" />
+              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
+              <Button variant="outline" size="sm" onClick={() => { 
+                setImportWizardStep(1); 
+                setImportMethod(""); 
+                setImportSelectedEmployees(new Set()); 
+                setImportPreviousWindowId(""); 
+                setImportEmployeeSearch("");
+                setShowImportWizard(true); 
+              }}>
+                <UserPlus className="me-1 h-4 w-4" />הוסף חיילים
+              </Button>
+            </div>
+
+            {/* Board Dashboard — Quick Summary */}
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="text-center bg-muted/50 rounded-lg p-2">
+                <p className="text-xl font-bold">{windowEmployees.length}</p>
+                <p className="text-[10px] text-muted-foreground">חיילים בלוח</p>
+              </div>
+              <div className="text-center bg-muted/50 rounded-lg p-2">
+                <p className="text-xl font-bold">{missions.length}</p>
+                <p className="text-[10px] text-muted-foreground">סה״כ משימות</p>
+              </div>
+              <div className="text-center bg-muted/50 rounded-lg p-2">
+                <p className="text-xl font-bold">
+                  {(() => {
+                    let filled = 0, total = 0;
+                    missions.forEach(m => {
+                      const mt = missionTypes.find(t => t.id === m.mission_type_id);
+                      const slots = mt?.required_slots || [];
+                      total += slots.reduce((s: number, sl: any) => s + (sl.count || 1), 0);
+                      filled += (m.assignments || []).filter((a: any) => a.status !== "replaced").length;
+                    });
+                    return total > 0 ? `${Math.round((filled / total) * 100)}%` : "—";
+                  })()}
+                </p>
+                <p className="text-[10px] text-muted-foreground">אחוז איוש</p>
+              </div>
+              <div className="text-center bg-muted/50 rounded-lg p-2">
+                <p className="text-xl font-bold">
+                  {missions.filter(m => {
+                    const mt = missionTypes.find(t => t.id === m.mission_type_id);
+                    const slots = mt?.required_slots || [];
+                    const needed = slots.reduce((s: number, sl: any) => s + (sl.count || 1), 0);
+                    const filled = (m.assignments || []).filter((a: any) => a.status !== "replaced").length;
+                    return filled < needed;
+                  }).length}
+                </p>
+                <p className="text-[10px] text-muted-foreground">משבצות חסרות</p>
+              </div>
+              <div className="text-center bg-muted/50 rounded-lg p-2">
+                <p className="text-xl font-bold">
+                  {new Set(missions.flatMap(m => (m.assignments || []).filter((a: any) => a.status !== "replaced").map((a: any) => a.employee_id))).size}
+                </p>
+                <p className="text-[10px] text-muted-foreground">חיילים משובצים</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Board View Controls */}
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => { setActiveTab("windows"); setSelectedWindow(null); }}>
-              <ArrowLeft className="me-1 h-4 w-4" />חזרה ללוחות
-            </Button>
-            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
-            <Button variant="outline" size="sm" onClick={() => { 
-              setImportWizardStep(1); 
-              setImportMethod(""); 
-              setImportSelectedEmployees(new Set()); 
-              setImportPreviousWindowId(""); 
-              setImportEmployeeSearch("");
-              setShowImportWizard(true); 
-            }}>
-              <UserPlus className="me-1 h-4 w-4" />הוסף חיילים
-            </Button>
             <div className="flex gap-2">
               <button onClick={() => setBoardView("day")} className={`px-3 py-1 text-sm rounded ${boardView === "day" ? "bg-primary-500 text-white" : "bg-muted"}`}>יומי</button>
               <button onClick={() => setBoardView("week")} className={`px-3 py-1 text-sm rounded ${boardView === "week" ? "bg-primary-500 text-white" : "bg-muted"}`}>שבועי</button>
               <button onClick={() => setBoardView("calendar")} className={`px-3 py-1 text-sm rounded ${boardView === "calendar" ? "bg-primary-500 text-white" : "bg-muted"}`}>לוח שנה</button>
             </div>
             <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="w-40" />
-            <Badge className={statusColors[selectedWindow.status]}>{t(`status.${selectedWindow.status}`)}</Badge>
-            <span className="text-sm text-muted-foreground">{windowEmployees.length} חיילים · {missions.length} משימות</span>
           </div>
 
           {/* Window Statistics Card */}
