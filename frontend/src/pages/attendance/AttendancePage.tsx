@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select";
 // Badge available for future use
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { Save, Download, Search, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { Save, Download, Search, ChevronLeft, ChevronRight, CalendarDays, Printer } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import * as XLSX from "xlsx";
 
@@ -280,6 +280,9 @@ export default function AttendancePage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{t("nav.attendance")}</h1>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="no-print hidden sm:flex min-h-[44px]" onClick={() => window.print()}>
+            <Printer className="me-1 h-4 w-4" />הדפס
+          </Button>
           <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={exportToCSV}>
             <Download className="me-1 h-4 w-4" />CSV
           </Button>

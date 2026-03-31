@@ -29,6 +29,7 @@
     "present": "נוכחים",
     "onLeave": "בחופשה",
     "missionsToday": "משימות היום",
-    "conflicts": "התנגשויות"
+    "conflicts": "התנגשויות",
+    "unfilledSlots": "סלוטים לא מאוישים"
   }
 }

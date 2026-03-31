@@ -17,7 +17,7 @@ import {
   Calendar, Plus, Wand2, Send, Play, Pause, Archive, Copy,
   ChevronDown, ChevronUp, Users, Clock, Trash2, UserPlus,
   Pencil, Download, Upload, ArrowLeft, Eye, AlertTriangle, Check, LayoutTemplate,
-  MoreVertical, RefreshCw, X, ArrowRightLeft, Search,
+  MoreVertical, RefreshCw, X, ArrowRightLeft, Search, Printer,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
@@ -662,6 +662,9 @@ export default function SchedulingPage() {
         <div className="flex gap-2">
           {activeTab === "board" && selectedWindow && (
             <>
+              <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
+                <Printer className="me-1 h-4 w-4" />הדפס
+              </Button>
               <Button variant="outline" size="sm" onClick={() => navigate('/settings?tab=board-template')}>
                 <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
               </Button>
@@ -769,7 +772,7 @@ export default function SchedulingPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     {w.status === "draft" && (
                       <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "activate")} title="הפעל">
                         <Play className="h-3.5 w-3.5 me-1" />הפעל
@@ -781,16 +784,18 @@ export default function SchedulingPage() {
                       </Button>
                     )}
                     {w.status === "paused" && (
-                      <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "resume")} title="חדש">
-                        <Play className="h-3.5 w-3.5 me-1" />חדש
+                      <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "resume")} title="המשך">
+                        <Play className="h-3.5 w-3.5 me-1" />המשך
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="min-h-[40px] border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => navigate('/settings?tab=board-template')} title="עורך לוח">
-                      <LayoutTemplate className="h-3.5 w-3.5 me-1" />עורך לוח
+                    <Button size="sm" variant="outline" className="min-h-[40px] border-purple-300 text-purple-700 hover:bg-purple-50" onClick={() => windowAction(w.id, "copy")} title="העתק">
+                      <Copy className="h-3.5 w-3.5 me-1" />העתק
                     </Button>
-                    <Button size="sm" variant="ghost" className="min-h-[40px] text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
-                      <Archive className="h-3.5 w-3.5" />
-                    </Button>
+                    {w.status !== "archived" && (
+                      <Button size="sm" variant="ghost" className="min-h-[40px] text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
+                        <Archive className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>

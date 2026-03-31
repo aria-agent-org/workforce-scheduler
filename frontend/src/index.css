@@ -210,8 +210,14 @@
 
 /* Print styles */
 @media print {
-  .md\:hidden, nav, header, .fixed { display: none !important; }
-  main { padding: 0 !important; overflow: visible !important; }
+  .no-print, .md\:hidden, nav, header, .fixed, aside, [role="navigation"], [data-sidebar], footer { display: none !important; }
+  body { font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  main { padding: 0 !important; overflow: visible !important; margin: 0 !important; }
+  .space-y-6 > * + * { margin-top: 0.5rem !important; }
+  button { display: none !important; }
+  .print-show { display: block !important; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
 }
 
 /* Ensure touch events work well */

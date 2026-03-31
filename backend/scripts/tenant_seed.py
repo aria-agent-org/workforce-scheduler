@@ -126,42 +126,72 @@ DEFAULT_EVENT_TYPES = [
 
 DEFAULT_TEMPLATES = [
     {
-        "name": "שובץ למשימה — Push",
+        "name": "שובץ למשימה",
         "event_type_code": "mission_assigned",
         "channels": {
             "push": {
                 "title": "שובצת למשימה",
-                "body": "שובצת למשימה {{mission_name}} בתאריך {{date}} בשעה {{start_time}}",
+                "body": "שובצת למשימה: {{mission_name}} בתאריך {{date}}",
+            },
+            "email": {
+                "subject": "שובצת למשימה: {{mission_name}}",
+                "body": "שובצת למשימה: {{mission_name}} בתאריך {{date}} בשעה {{start_time}}.\nפרטים נוספים זמינים במערכת.",
             },
         },
     },
     {
-        "name": "משימה בוטלה — Push",
+        "name": "משימה בוטלה",
         "event_type_code": "mission_cancelled",
         "channels": {
             "push": {
                 "title": "משימה בוטלה",
-                "body": "המשימה {{mission_name}} בתאריך {{date}} בוטלה",
+                "body": "המשימה {{mission_name}} בוטלה",
+            },
+            "email": {
+                "subject": "משימה בוטלה: {{mission_name}}",
+                "body": "המשימה {{mission_name}} בתאריך {{date}} בוטלה.\nאין צורך להתייצב.",
             },
         },
     },
     {
-        "name": "בקשת החלפה — Push",
-        "event_type_code": "swap_requested",
-        "channels": {
-            "push": {
-                "title": "בקשת החלפה חדשה",
-                "body": "{{requester_name}} מבקש להחליף איתך משימה",
-            },
-        },
-    },
-    {
-        "name": "תזכורת — Push",
+        "name": "תזכורת משימה",
         "event_type_code": "reminder",
         "channels": {
             "push": {
                 "title": "תזכורת משימה",
-                "body": "תזכורת: משימה {{mission_name}} מתחילה בעוד {{minutes}} דקות",
+                "body": "תזכורת: {{mission_name}} מתחילה בעוד 30 דקות",
+            },
+            "email": {
+                "subject": "תזכורת: {{mission_name}} מתחילה בקרוב",
+                "body": "תזכורת: {{mission_name}} מתחילה בעוד 30 דקות.\nנא להתייצב בזמן.",
+            },
+        },
+    },
+    {
+        "name": "בקשת החלפה התקבלה",
+        "event_type_code": "swap_requested",
+        "channels": {
+            "push": {
+                "title": "בקשת החלפה חדשה",
+                "body": "התקבלה בקשת החלפה",
+            },
+            "email": {
+                "subject": "התקבלה בקשת החלפה",
+                "body": "התקבלה בקשת החלפה ממשתמש {{requester_name}}.\nנא להיכנס למערכת כדי לאשר או לדחות.",
+            },
+        },
+    },
+    {
+        "name": "בקשת החלפה אושרה",
+        "event_type_code": "swap_approved",
+        "channels": {
+            "push": {
+                "title": "החלפה אושרה",
+                "body": "בקשת ההחלפה אושרה",
+            },
+            "email": {
+                "subject": "בקשת ההחלפה אושרה",
+                "body": "בקשת ההחלפה שלך אושרה.\nנא לבדוק את לוח השיבוצים המעודכן במערכת.",
             },
         },
     },

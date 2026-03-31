@@ -57,7 +57,7 @@ export default function DashboardPage() {
         const [statsRes, missionsRes, activityRes, upcoming48hRes, weekMissionsRes, swapsRes] = await Promise.all([
           api.get(tenantApi("/reports/dashboard")),
           api.get(tenantApi("/missions"), { params: { date_from: today, date_to: today } }),
-          api.get(tenantApi("/audit-logs"), { params: { page_size: 10 } }).catch(() => ({ data: { items: [] } })),
+          api.get(tenantApi("/audit-logs"), { params: { page_size: 5 } }).catch(() => ({ data: { items: [] } })),
           api.get(tenantApi("/missions"), { params: { date_from: today, date_to: in48h } }).catch(() => ({ data: [] })),
           api.get(tenantApi("/missions"), {
             params: { date_from: weekStart.toISOString().split("T")[0], date_to: weekEnd.toISOString().split("T")[0] },
@@ -130,11 +130,14 @@ export default function DashboardPage() {
 
   const maxWorkload = Math.max(...weeklyWorkload.map(w => w.count), 1);
 
+  // Calculate unfilled slots from today's missions
+  const unfilledSlots = missions.reduce((sum: number, m: any) => sum + (m.unfilled_slots || 0), 0);
+
   const statCards = [
+    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, color: "text-purple-500 bg-purple-50", link: "/scheduling" },
+    { key: "unfilledSlots", value: unfilledSlots, icon: AlertTriangle, color: unfilledSlots > 0 ? "text-red-500 bg-red-50" : "text-green-500 bg-green-50", link: "/scheduling" },
     { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, color: "text-blue-500 bg-blue-50", link: "/soldiers" },
     { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, color: "text-green-500 bg-green-50", link: "/attendance" },
-    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, color: "text-purple-500 bg-purple-50", link: "/scheduling" },
-    { key: "conflicts", value: stats?.conflicts ?? 0, icon: AlertTriangle, color: "text-red-500 bg-red-50", link: "/scheduling" },
   ];
 
   return (
@@ -330,14 +333,16 @@ export default function DashboardPage() {
       </div>
 
       {/* Activity Feed */}
-      {recentActivity.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">📋 {t("recentActivity")}</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">📋 {t("recentActivity")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentActivity.length === 0 ? (
+            <p className="text-muted-foreground text-sm">אין פעילות אחרונה</p>
+          ) : (
             <div className="space-y-2">
-              {recentActivity.slice(0, 10).map((a: any, i: number) => {
+              {recentActivity.slice(0, 5).map((a: any, i: number) => {
                 const actionLabels: Record<string, string> = {
                   create: "יצר", update: "עדכן", delete: "מחק", assign: "שיבץ",
                   deactivate: "השבית", reset_password: "איפס סיסמה", force_logout: "ניתק",
@@ -367,9 +372,9 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Active Schedule Windows */}
       {(stats?.active_windows ?? 0) > 0 && (

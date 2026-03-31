@@ -29,6 +29,7 @@
     "present": "Present",
     "onLeave": "On Leave",
     "missionsToday": "Missions Today",
-    "conflicts": "Conflicts"
+    "conflicts": "Conflicts",
+    "unfilledSlots": "Unfilled Slots"
   }
 }
