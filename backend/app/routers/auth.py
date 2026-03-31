@@ -846,12 +846,147 @@ async def google_oauth_callback(
     }
 
 
-# ── SAML (Stub) ────────────────────────────────────────────────
+# ── SAML SSO ────────────────────────────────────────────────────
+
+import xml.etree.ElementTree as ET
+from fastapi import Request
 
 
 @router.post("/saml/acs")
 async def saml_assertion_consumer_service(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """SAML Assertion Consumer Service endpoint."""
-    return {"status": "not_configured"}
+    """SAML Assertion Consumer Service endpoint.
+
+    Parses a base64-encoded SAML response, extracts the NameID (email),
+    looks up the user, and creates a JWT session.
+    """
+    settings = get_settings()
+
+    # Check if SAML is configured
+    if not settings.saml_idp_entity_id or not settings.saml_idp_certificate:
+        return {"status": "not_configured"}
+
+    # Get the SAMLResponse from the form POST
+    form_data = await request.form()
+    saml_response_b64 = form_data.get("SAMLResponse")
+    if not saml_response_b64:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="חסר SAMLResponse בבקשה",
+        )
+
+    # Decode the base64 SAML response
+    try:
+        saml_xml = base64.b64decode(saml_response_b64)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SAMLResponse לא תקין — שגיאה בפענוח base64",
+        )
+
+    # Parse the SAML XML
+    try:
+        root = ET.fromstring(saml_xml)
+    except ET.ParseError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SAMLResponse לא תקין — שגיאת XML",
+        )
+
+    # Define SAML namespaces
+    ns = {
+        "saml2p": "urn:oasis:names:tc:SAML:2.0:protocol",
+        "saml2": "urn:oasis:names:tc:SAML:2.0:assertion",
+        "saml": "urn:oasis:names:tc:SAML:2.0:assertion",
+    }
+
+    # Verify the Issuer matches expected IDP entity ID
+    issuer_el = root.find(".//saml2:Issuer", ns) or root.find(".//saml:Issuer", ns)
+    if issuer_el is not None and issuer_el.text:
+        if issuer_el.text.strip() != settings.saml_idp_entity_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="SAML Issuer לא תואם את ה-IDP המוגדר",
+            )
+
+    # Extract NameID (email) from the assertion
+    name_id_el = (
+        root.find(".//saml2:Assertion/saml2:Subject/saml2:NameID", ns)
+        or root.find(".//saml:Assertion/saml:Subject/saml:NameID", ns)
+    )
+    if name_id_el is None or not name_id_el.text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="לא נמצא NameID בתגובת SAML",
+        )
+
+    email = name_id_el.text.strip().lower()
+
+    # Extract optional attributes (first_name, last_name, etc.)
+    attributes: dict[str, str] = {}
+    attr_statements = (
+        root.findall(".//saml2:Assertion/saml2:AttributeStatement/saml2:Attribute", ns)
+        or root.findall(".//saml:Assertion/saml:AttributeStatement/saml:Attribute", ns)
+    )
+    for attr_el in attr_statements:
+        attr_name = attr_el.get("Name", "")
+        value_el = attr_el.find("saml2:AttributeValue", ns) or attr_el.find("saml:AttributeValue", ns)
+        if value_el is not None and value_el.text:
+            attributes[attr_name] = value_el.text.strip()
+
+    # Look up user by email
+    result = await db.execute(
+        select(User).where(User.email == email, User.is_active.is_(True))
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="משתמש לא נמצא במערכת",
+        )
+
+    # Create JWT tokens
+    service = AuthService(db)
+    access_token, expires_in = service.create_access_token(user.id)
+    refresh_token = secrets.token_urlsafe(32)
+
+    # Create session
+    from app.models.user import UserSession
+    session = UserSession(
+        user_id=user.id,
+        refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
+        auth_method="saml",
+        last_active_at=datetime.now(timezone.utc),
+    )
+    db.add(session)
+
+    # Update last login
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+        "user": {
+            "email": email,
+            "attributes": attributes,
+        },
+    }
+
+
+@router.get("/saml/metadata")
+async def saml_metadata() -> dict:
+    """Return SAML SP metadata/config status."""
+    settings = get_settings()
+    if not settings.saml_idp_entity_id:
+        return {"status": "not_configured"}
+    return {
+        "status": "configured",
+        "idp_entity_id": settings.saml_idp_entity_id,
+        "idp_sso_url": settings.saml_idp_sso_url,
+    }

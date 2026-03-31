@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = ""
 
+    # SAML SSO
+    saml_idp_entity_id: str = ""
+    saml_idp_sso_url: str = ""
+    saml_idp_certificate: str = ""
+
     # Google Sheets
     google_service_account_json: str | None = None
 

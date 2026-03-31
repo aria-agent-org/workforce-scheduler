@@ -937,6 +937,85 @@ export default function SchedulingPage() {
             <span className="text-sm text-muted-foreground">{windowEmployees.length} חיילים · {missions.length} משימות</span>
           </div>
 
+          {/* Window Statistics Card */}
+          {selectedWindow && missions.length > 0 && (() => {
+            const totalMissions = missions.length;
+            const byStatus: Record<string, number> = {};
+            missions.forEach(m => { byStatus[m.status] = (byStatus[m.status] || 0) + 1; });
+            
+            let totalSlots = 0;
+            let filledSlots = 0;
+            const empCounts: Record<string, { name: string; count: number }> = {};
+            const assignedEmpIds = new Set<string>();
+            
+            missions.forEach(m => {
+              const mt = missionTypes.find(t => t.id === m.mission_type_id);
+              const slots = mt?.required_slots || [];
+              totalSlots += slots.reduce((sum: number, s: any) => sum + (s.count || 1), 0);
+              
+              (m.assignments || []).forEach((a: any) => {
+                if (a.status !== "replaced") {
+                  filledSlots++;
+                  assignedEmpIds.add(a.employee_id);
+                  if (!empCounts[a.employee_id]) {
+                    empCounts[a.employee_id] = { name: a.employee_name || "—", count: 0 };
+                  }
+                  empCounts[a.employee_id].count++;
+                }
+              });
+            });
+            
+            const fillRate = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+            const topEmployees = Object.values(empCounts)
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 3);
+            const totalEmployees = windowEmployees.length || employees.length;
+            
+            return (
+              <Card className="border-primary-200 dark:border-primary-800 bg-gradient-to-br from-primary-50/50 to-transparent dark:from-primary-900/10">
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-bold text-muted-foreground mb-3 flex items-center gap-1.5">📊 סטטיסטיקת לוח</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold">{totalMissions}</p>
+                      <p className="text-xs text-muted-foreground">סה״כ משימות</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold" style={{ color: fillRate === 100 ? "#22c55e" : fillRate > 50 ? "#eab308" : "#ef4444" }}>{fillRate}%</p>
+                      <p className="text-xs text-muted-foreground">אחוז איוש ({filledSlots}/{totalSlots})</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold">{assignedEmpIds.size}/{totalEmployees}</p>
+                      <p className="text-xs text-muted-foreground">חיילים משובצים</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {Object.entries(byStatus).map(([st, count]) => (
+                          <Badge key={st} className={`${statusColors[st] || ""} text-[10px]`}>
+                            {t(`status.${st}`)}: {count}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">לפי סטטוס</p>
+                    </div>
+                  </div>
+                  {topEmployees.length > 0 && (
+                    <div className="border-t pt-2">
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">🏆 חיילים פעילים ביותר:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {topEmployees.map((emp, i) => (
+                          <Badge key={i} className="bg-muted text-foreground text-xs">
+                            {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"} {emp.name} ({emp.count} שיבוצים)
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Missions list */}
           {boardMissions.length === 0 ? (
             <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">

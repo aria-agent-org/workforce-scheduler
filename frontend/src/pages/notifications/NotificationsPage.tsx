@@ -226,7 +226,7 @@ export default function NotificationsPage() {
 
   // Known event types with Hebrew labels and variables
   const KNOWN_EVENT_TYPES = [
-    { code: "assignment.created", label: "שיבוץ חדש", vars: ["{employee.name}", "{mission.name}", "{mission.date}", "{mission.start_time}"] },
+    { code: "assignment.created", label: "שיבוץ חדש", vars: ["{employee.name}", "{mission.name}", "{mission.date}", "{mission.start_time}", "{mission.role}"] },
     { code: "assignment.updated", label: "שיבוץ עודכן", vars: ["{employee.name}", "{mission.name}", "{change_type}"] },
     { code: "assignment.cancelled", label: "שיבוץ בוטל", vars: ["{employee.name}", "{mission.name}", "{reason}"] },
     { code: "mission.reminder", label: "תזכורת משימה", vars: ["{employee.name}", "{mission.name}", "{mission.date}", "{minutes_until}"] },
@@ -269,17 +269,18 @@ export default function NotificationsPage() {
     {
       category: "חייל",
       vars: [
-        { code: "{employee.name}", label: "שם החייל" },
+        { code: "{employee.name}", label: "שם חייל" },
         { code: "{employee.number}", label: "מספר אישי" },
       ],
     },
     {
       category: "משימה",
       vars: [
-        { code: "{mission.name}", label: "שם המשימה" },
-        { code: "{mission.date}", label: "תאריך משימה" },
+        { code: "{mission.name}", label: "שם משימה" },
+        { code: "{mission.date}", label: "תאריך" },
         { code: "{mission.start_time}", label: "שעת התחלה" },
         { code: "{mission.end_time}", label: "שעת סיום" },
+        { code: "{mission.role}", label: "תפקיד" },
         { code: "{change_type}", label: "סוג שינוי" },
         { code: "{reason}", label: "סיבה" },
         { code: "{minutes_until}", label: "דקות עד" },
@@ -315,6 +316,8 @@ export default function NotificationsPage() {
       "{mission.name}": "שמירה צפונית",
       "{mission.date}": "2026-04-01",
       "{mission.start_time}": "08:00",
+      "{mission.end_time}": "16:00",
+      "{mission.role}": "שומר",
       "{minutes_until}": "30",
       "{requester.name}": "דני לוי",
       "{target.name}": "רון אברהם",

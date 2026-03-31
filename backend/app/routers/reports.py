@@ -78,12 +78,27 @@ async def workload_report(
     window_id: UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    period: str | None = None,
 ) -> dict:
-    """Employee workload distribution."""
-    if not date_from:
-        date_from = date.today() - timedelta(days=7)
-    if not date_to:
-        date_to = date.today()
+    """Employee workload distribution with overtime and night shift tracking.
+
+    Args:
+        period: "week" or "month" — overrides date_from/date_to to current week/month.
+    """
+    today = date.today()
+
+    if period == "week":
+        # Current week (Monday-based)
+        date_from = today - timedelta(days=today.weekday())
+        date_to = today
+    elif period == "month":
+        date_from = today.replace(day=1)
+        date_to = today
+    else:
+        if not date_from:
+            date_from = today - timedelta(days=7)
+        if not date_to:
+            date_to = today
 
     # Get all employees
     emp_result = await db.execute(
@@ -95,7 +110,7 @@ async def workload_report(
     items = []
     total_hours = 0
     for emp in employees:
-        # Count assignments
+        # Count assignments and get hours
         query = (
             select(func.count(), func.sum(
                 func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
@@ -118,12 +133,116 @@ async def workload_report(
         hours = float(row[1] or 0)
         total_hours += hours
 
+        # Get per-day hours for overtime calculation
+        day_query = (
+            select(
+                Mission.date,
+                func.sum(
+                    func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
+                ),
+            )
+            .select_from(MissionAssignment)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == emp.id,
+                MissionAssignment.status != "replaced",
+                Mission.date >= date_from,
+                Mission.date <= date_to,
+            )
+            .group_by(Mission.date)
+        )
+        if window_id:
+            day_query = day_query.where(Mission.schedule_window_id == window_id)
+
+        day_result = await db.execute(day_query)
+        day_rows = day_result.all()
+
+        overtime_hours = 0.0
+        overtime_days = 0
+        last_mission_date = None
+        for d_date, d_hours in day_rows:
+            dh = float(d_hours or 0)
+            if dh > 8:
+                overtime_hours += dh - 8
+                overtime_days += 1
+            last_mission_date = d_date
+
+        # Night shift hours (missions starting between 22:00-06:00)
+        night_query = (
+            select(func.sum(
+                func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
+            ))
+            .select_from(MissionAssignment)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == emp.id,
+                MissionAssignment.status != "replaced",
+                Mission.date >= date_from,
+                Mission.date <= date_to,
+                func.extract("hour", Mission.start_time) >= 22,
+            )
+        )
+        # Also include missions starting before 06:00
+        night_query2 = (
+            select(func.sum(
+                func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
+            ))
+            .select_from(MissionAssignment)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == emp.id,
+                MissionAssignment.status != "replaced",
+                Mission.date >= date_from,
+                Mission.date <= date_to,
+                func.extract("hour", Mission.start_time) < 6,
+            )
+        )
+        if window_id:
+            night_query = night_query.where(Mission.schedule_window_id == window_id)
+            night_query2 = night_query2.where(Mission.schedule_window_id == window_id)
+
+        night_result = await db.execute(night_query)
+        night_hours_late = float(night_result.scalar() or 0)
+        night_result2 = await db.execute(night_query2)
+        night_hours_early = float(night_result2.scalar() or 0)
+        night_hours = night_hours_late + night_hours_early
+
+        # Days since last rest (day with no assignments)
+        worked_dates = set(d_date for d_date, _ in day_rows)
+        days_since_rest = 0
+        check_date = today
+        while check_date >= date_from:
+            if check_date not in worked_dates:
+                break
+            days_since_rest += 1
+            check_date -= timedelta(days=1)
+
+        # Weekly / monthly hours
+        week_start = today - timedelta(days=today.weekday())
+        month_start = today.replace(day=1)
+        weekly_hours = sum(
+            float(dh or 0)
+            for d_date, dh in day_rows
+            if d_date >= week_start
+        )
+        monthly_hours = sum(
+            float(dh or 0)
+            for d_date, dh in day_rows
+            if d_date >= month_start
+        )
+
         items.append({
             "employee_id": str(emp.id),
             "employee_name": emp.full_name,
             "employee_number": emp.employee_number,
             "assignments_count": count,
-            "total_hours": hours,
+            "total_hours": round(hours, 1),
+            "weekly_hours": round(weekly_hours, 1),
+            "monthly_hours": round(monthly_hours, 1),
+            "overtime_hours": round(overtime_hours, 1),
+            "overtime_days": overtime_days,
+            "night_shift_hours": round(night_hours, 1),
+            "days_since_rest": days_since_rest,
         })
 
     avg_hours = total_hours / len(items) if items else 0

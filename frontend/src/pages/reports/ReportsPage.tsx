@@ -213,28 +213,54 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
 
-              {/* Heatmap-like table */}
+              {/* Detailed Workload Table with Overtime & Night Shifts */}
               <Card>
-                <CardHeader><CardTitle className="text-lg">מפת חום — עומסים</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-lg">פירוט שעות עבודה</CardTitle></CardHeader>
                 <CardContent className="p-0 overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50 text-sm">
                         <th className="px-4 py-3 text-start">עובד</th>
                         <th className="px-4 py-3 text-center">שיבוצים</th>
-                        <th className="px-4 py-3 text-center">שעות</th>
+                        <th className="px-4 py-3 text-center">שעות שבועיות</th>
+                        <th className="px-4 py-3 text-center">שעות חודשיות</th>
+                        <th className="px-4 py-3 text-center">שעות נוספות</th>
+                        <th className="px-4 py-3 text-center">שעות לילה</th>
+                        <th className="px-4 py-3 text-center">ימים ללא מנוחה</th>
                         <th className="px-4 py-3 text-start">עומס</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.employees?.map((emp: any) => {
                         const ratio = data.average_hours > 0 ? emp.total_hours / (data.average_hours * 2) : 0;
-                        const hue = ratio > 0.7 ? 0 : ratio > 0.4 ? 40 : 120; // red → yellow → green
+                        const hue = ratio > 0.7 ? 0 : ratio > 0.4 ? 40 : 120;
                         return (
                           <tr key={emp.employee_id} className="border-b">
-                            <td className="px-4 py-3">{emp.employee_name}</td>
+                            <td className="px-4 py-3 font-medium">{emp.employee_name}</td>
                             <td className="px-4 py-3 text-center">{emp.assignments_count}</td>
-                            <td className="px-4 py-3 text-center font-bold">{emp.total_hours}</td>
+                            <td className="px-4 py-3 text-center">{emp.weekly_hours ?? emp.total_hours}</td>
+                            <td className="px-4 py-3 text-center font-bold">{emp.monthly_hours ?? emp.total_hours}</td>
+                            <td className="px-4 py-3 text-center">
+                              {(emp.overtime_hours ?? 0) > 0 ? (
+                                <span className="text-red-600 font-bold">{emp.overtime_hours}</span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {(emp.night_shift_hours ?? 0) > 0 ? (
+                                <span className="text-purple-600 font-medium">🌙 {emp.night_shift_hours}</span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {(emp.days_since_rest ?? 0) >= 6 ? (
+                                <span className="text-red-600 font-bold">⚠️ {emp.days_since_rest}</span>
+                              ) : (
+                                <span>{emp.days_since_rest ?? 0}</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               <div className="h-4 rounded-full bg-muted overflow-hidden">
                                 <div
@@ -253,6 +279,30 @@ export default function ReportsPage() {
                   </table>
                 </CardContent>
               </Card>
+
+              {/* Overtime Bar Chart */}
+              {data.employees?.some((e: any) => (e.overtime_hours ?? 0) > 0 || (e.night_shift_hours ?? 0) > 0) && (
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">שעות נוספות ולילה</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart
+                        data={data.employees?.filter((e: any) => (e.overtime_hours ?? 0) > 0 || (e.night_shift_hours ?? 0) > 0).slice(0, 15) || []}
+                        layout="vertical"
+                        margin={{ left: 100 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" label={{ value: "שעות", position: "insideBottom", offset: -5 }} />
+                        <YAxis dataKey="employee_name" type="category" width={100} tick={{ fontSize: 12 }} />
+                        <RechartsTooltip />
+                        <Legend />
+                        <Bar dataKey="overtime_hours" fill="#ef4444" name="שעות נוספות (>8/יום)" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="night_shift_hours" fill="#8b5cf6" name="שעות לילה" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 

@@ -1,5 +1,10 @@
-const CACHE_NAME = 'shavtzak-v3';
-const API_CACHE = 'shavtzak-api-v3';
+// Auto-bump: cache version derived from build timestamp injected by build tool,
+// or falls back to a date-based version. When new JS files are deployed, the SW
+// will detect changed files and update the cache automatically.
+const BUILD_TS = self.__BUILD_TIMESTAMP || Date.now();
+const CACHE_VERSION = `v4-${BUILD_TS}`;
+const CACHE_NAME = `shavtzak-${CACHE_VERSION}`;
+const API_CACHE = `shavtzak-api-${CACHE_VERSION}`;
 const OFFLINE_QUEUE_KEY = 'shavtzak-offline-queue';
 
 // App shell files to precache
@@ -18,7 +23,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: clean old caches
+// Activate: clean old caches (any cache not matching current version)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -36,12 +41,14 @@ self.addEventListener('fetch', (event) => {
 
   // API requests: Network first, cache fallback
   if (url.pathname.startsWith('/api/')) {
-    // Don't cache mutations
+    // Non-GET mutations: queue when offline and sync when back online
     if (event.request.method !== 'GET') {
       event.respondWith(
         fetch(event.request).catch(() => {
           // Queue for later sync
           return queueOfflineAction(event.request).then(() => {
+            // Notify clients about the queued action
+            notifyClients({ type: 'OFFLINE_QUEUED', url: event.request.url, method: event.request.method });
             return new Response(JSON.stringify({ queued: true, message: 'פעולה תבוצע כשתחזור לאינטרנט' }), {
               headers: { 'Content-Type': 'application/json' },
               status: 202,
@@ -76,7 +83,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: Network first (ensures new deploys are picked up immediately)
+  // Static assets: Network first with cache update (ensures new deploys are picked up)
   if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|gif|woff2?|ttf|ico)$/)) {
     event.respondWith(
       fetch(event.request).then((response) => {
@@ -86,7 +93,7 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => {
-        // Fallback to cache only when offline
+        // Fallback to cache only when offline — show last cached version
         return caches.match(event.request);
       })
     );
@@ -102,18 +109,21 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put('/', cloned));
           return response;
         })
-        .catch(() => caches.match('/index.html') || caches.match('/'))
+        .catch(() => {
+          // Show last cached version when offline
+          return caches.match('/index.html').then(r => r || caches.match('/'));
+        })
     );
     return;
   }
 
-  // Default: network first
+  // Default: network first with cache fallback
   event.respondWith(
     fetch(event.request).catch(() => caches.match(event.request))
   );
 });
 
-// Queue offline mutations
+// Queue offline mutations for sync when back online
 async function queueOfflineAction(request) {
   try {
     const body = await request.clone().text();
@@ -126,15 +136,27 @@ async function queueOfflineAction(request) {
       timestamp: Date.now(),
     });
     await putToIDB(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+
+    // Register for background sync if available
+    if (self.registration.sync) {
+      await self.registration.sync.register('shavtzak-sync');
+    }
   } catch (e) {
     console.error('Failed to queue offline action:', e);
   }
 }
 
-// Background sync
+// Background sync — process queued form submissions when back online
 self.addEventListener('sync', (event) => {
   if (event.tag === 'shavtzak-sync') {
     event.waitUntil(processOfflineQueue());
+  }
+});
+
+// Also process queue when connectivity is restored (fallback for browsers without sync API)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'ONLINE_RESTORED') {
+    processOfflineQueue();
   }
 });
 
@@ -143,6 +165,8 @@ async function processOfflineQueue() {
   if (!queueStr) return;
 
   const queue = JSON.parse(queueStr);
+  if (queue.length === 0) return;
+
   const remaining = [];
 
   for (const item of queue) {
@@ -159,14 +183,19 @@ async function processOfflineQueue() {
 
   await putToIDB(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
 
-  // Notify clients
-  const clients = await self.clients.matchAll();
+  // Notify all clients about sync completion
+  notifyClients({
+    type: 'SYNC_COMPLETE',
+    synced: queue.length - remaining.length,
+    remaining: remaining.length,
+  });
+}
+
+// Helper to notify all clients
+async function notifyClients(message) {
+  const clients = await self.clients.matchAll({ type: 'window' });
   for (const client of clients) {
-    client.postMessage({
-      type: 'SYNC_COMPLETE',
-      synced: queue.length - remaining.length,
-      remaining: remaining.length,
-    });
+    client.postMessage(message);
   }
 }
 

@@ -20,6 +20,7 @@ import HelpTooltip from "@/components/common/HelpTooltip";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import BilingualRoleName from "@/components/common/BilingualRoleName";
+import DataRetentionSection from "./DataRetentionSection";
 import AttendanceStatusesPage from "./AttendanceStatusesPage";
 import GoogleSheetsPage from "./GoogleSheetsPage";
 import BotConfigPage from "./BotConfigPage";
@@ -353,6 +354,9 @@ export default function SettingsPage() {
                       }
                     }}
                   />
+
+                  {/* Data Retention */}
+                  <DataRetentionSection />
 
                   {/* Advanced Settings - Expandable */}
                   {advancedGroups.length > 0 && (
