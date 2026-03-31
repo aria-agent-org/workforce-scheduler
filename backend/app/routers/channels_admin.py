@@ -153,8 +153,8 @@ def _mask_secrets(config: dict) -> dict:
 async def upsert_channel_config(
     channel: str,
     req: ChannelUpsertRequest,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create or update a channel configuration."""
@@ -204,8 +204,8 @@ async def upsert_channel_config(
 @router.post("/{channel}/test", dependencies=[Depends(require_permission("settings", "write"))])
 async def test_channel(
     channel: str,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Test a channel configuration by sending a test message."""
@@ -230,8 +230,8 @@ async def test_channel(
 @router.delete("/{channel}", dependencies=[Depends(require_permission("settings", "write"))])
 async def delete_channel_config(
     channel: str,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Delete a channel configuration."""
@@ -267,8 +267,8 @@ async def get_tenant_features(
 @router.put("/features", dependencies=[Depends(require_permission("settings", "write"))])
 async def update_tenant_features(
     req: TenantFeaturesUpdate,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Update feature flags for this tenant."""
@@ -283,8 +283,8 @@ async def update_tenant_features(
 @router.put("/branding", dependencies=[Depends(require_permission("settings", "write"))])
 async def update_tenant_branding(
     req: TenantBrandingUpdate,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Update branding for this tenant."""
@@ -301,8 +301,8 @@ async def update_tenant_branding(
 @router.put("/custom-domain", dependencies=[Depends(require_permission("settings", "write"))])
 async def update_custom_domain(
     data: dict,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Set custom domain for this tenant."""

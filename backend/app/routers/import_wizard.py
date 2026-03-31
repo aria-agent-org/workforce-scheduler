@@ -115,10 +115,10 @@ def validate_email(email: str) -> bool:
 
 @router.post("/upload", dependencies=[Depends(require_permission("employees", "write"))])
 async def upload_import_file(
-    file: UploadFile = File(...),
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
 ) -> dict:
     """Upload CSV/Excel file and parse rows. Returns batch_id and preview."""
     content = await file.read()
@@ -208,8 +208,8 @@ async def upload_import_file(
 @router.post("/validate", dependencies=[Depends(require_permission("employees", "write"))])
 async def validate_import(
     req: ValidateRequest,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Validate imported rows: phone, email, duplicates, roles."""
@@ -365,8 +365,8 @@ async def validate_import(
 @router.post("/resolve-roles", dependencies=[Depends(require_permission("employees", "write"))])
 async def resolve_roles(
     req: ResolveRolesRequest,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create or map new roles found during import."""
@@ -391,8 +391,8 @@ async def resolve_roles(
 @router.post("/resolve-conflicts", dependencies=[Depends(require_permission("employees", "write"))])
 async def resolve_conflicts(
     req: ResolveConflictsRequest,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Set resolution for conflicting rows (skip, update, create)."""
@@ -413,8 +413,8 @@ async def resolve_conflicts(
 @router.post("/execute", dependencies=[Depends(require_permission("employees", "write"))])
 async def execute_import(
     req: ExecuteImportRequest,
-    tenant: CurrentTenant = Depends(),
-    user: CurrentUser = Depends(),
+    tenant: CurrentTenant,
+    user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Execute the import: create employees, users, and optionally send invitations."""
