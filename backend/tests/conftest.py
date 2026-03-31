@@ -17,8 +17,8 @@ from app.models.base import Base
 
 settings = get_settings()
 
-# Use a separate test database or in-memory
-TEST_DATABASE_URL = settings.database_url.replace("/shavtzak", "/shavtzak_test")
+# Use the configured database directly (CI provides the test DB via env vars)
+TEST_DATABASE_URL = settings.database_url
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
