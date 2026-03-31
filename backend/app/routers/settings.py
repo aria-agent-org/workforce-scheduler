@@ -793,10 +793,12 @@ async def update_branding(
     )
     setting = result.scalar_one_or_none()
     if setting:
-        # Merge with existing
-        existing = setting.value or {}
+        # Merge with existing — create NEW dict so SQLAlchemy detects the change
+        existing = dict(setting.value or {})
         existing.update(branding_data)
         setting.value = existing
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(setting, "value")
     else:
         db.add(TenantSetting(
             tenant_id=tenant.id,
