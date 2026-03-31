@@ -81,7 +81,7 @@ class CommunicationChannelConfig(Base):
     provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     tenant = relationship("Tenant", back_populates="channel_configs")
 

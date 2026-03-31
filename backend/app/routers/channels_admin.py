@@ -123,7 +123,7 @@ async def list_channel_configs(
                 "provider": c.provider,
                 "is_enabled": c.is_enabled,
                 "config": _mask_secrets(c.config) if c.config else None,
-                "verified": c.verified,
+                "verified": c.is_verified,
             })
         else:
             response.append({
@@ -184,7 +184,7 @@ async def upsert_channel_config(
             # Remove any masked values
             merged = {k: v for k, v in merged.items() if not (isinstance(v, str) and "****" in v)}
             existing.config = merged
-        existing.verified = False  # Reset verification on config change
+        existing.is_verified = False  # Reset verification on config change
     else:
         new_config = CommunicationChannelConfig(
             id=uuid.uuid4(),
@@ -221,7 +221,7 @@ async def test_channel(
 
     # TODO: Actually send test message via the configured provider
     # For now, mark as verified
-    config.verified = True
+    config.is_verified = True
     await db.commit()
 
     return {"status": "test_sent", "channel": channel, "verified": True}
