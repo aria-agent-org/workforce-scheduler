@@ -234,15 +234,15 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">{t("nav.settings")}</h1>
 
       {/* Tab Navigation - horizontal scroll on mobile */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
+      <div className="settings-tabs flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
         {tabs.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-all active:scale-95 min-h-[44px] ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-all active:scale-95 min-h-[44px] flex-shrink-0 ${
               activeTab === key
                 ? "bg-primary-500 text-white shadow-md"
                 : "bg-muted text-muted-foreground hover:bg-accent"
             }`}>
-            <Icon className="h-4 w-4" />{label}
+            <Icon className="h-4 w-4 flex-shrink-0" />{label}
           </button>
         ))}
       </div>

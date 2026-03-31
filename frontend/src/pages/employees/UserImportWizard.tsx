@@ -63,11 +63,14 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
   // Step 3: Validation results
   const [validRows, setValidRows] = useState<ImportRow[]>([]);
   const [invalidRows, setInvalidRows] = useState<ImportRow[]>([]);
+  const [warningRows, setWarningRows] = useState<ImportRow[]>([]);
   const [duplicateRows, setDuplicateRows] = useState<ImportRow[]>([]);
   const [newRoles, setNewRoles] = useState<string[]>([]);
   const [validCount, setValidCount] = useState(0);
   const [invalidCount, setInvalidCount] = useState(0);
+  const [warningCount, setWarningCount] = useState(0);
   const [duplicateCount, setDuplicateCount] = useState(0);
+  const [skippedRowIds, setSkippedRowIds] = useState<Set<string>>(new Set());
 
   // Step 4: Role resolution
   const [roleResolutions, setRoleResolutions] = useState<Array<{
@@ -94,10 +97,12 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
     setMapping({ full_name: "", phone: "", email: "", roles: "", employee_number: "" });
     setValidRows([]);
     setInvalidRows([]);
+    setWarningRows([]);
     setDuplicateRows([]);
     setNewRoles([]);
     setRoleResolutions([]);
     setConflictResolutions({});
+    setSkippedRowIds(new Set());
     setInvitationMethod("none");
     setImportResults(null);
   };
@@ -144,12 +149,19 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
       });
 
       const allRows = res.data.rows as ImportRow[];
-      setValidRows(allRows.filter(r => r.status === "valid"));
-      setInvalidRows(allRows.filter(r => r.status === "invalid"));
-      setDuplicateRows(allRows.filter(r => r.status === "duplicate"));
+      const valid = allRows.filter(r => r.status === "valid");
+      const invalid = allRows.filter(r => r.status === "invalid");
+      const dupes = allRows.filter(r => r.status === "duplicate");
+      // Rows with only warnings (severity=warning) but status=valid
+      const withWarnings = valid.filter(r => r.errors && r.errors.length > 0);
+      setValidRows(valid);
+      setInvalidRows(invalid);
+      setWarningRows(withWarnings);
+      setDuplicateRows(dupes);
       setNewRoles(res.data.new_roles);
       setValidCount(res.data.valid_count);
       setInvalidCount(res.data.invalid_count);
+      setWarningCount(withWarnings.length);
       setDuplicateCount(res.data.duplicate_count);
 
       // Prepare role resolutions
@@ -160,8 +172,10 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
       })));
 
       // Determine next step
-      if (res.data.new_roles.length > 0) {
-        setStep(3); // Role resolution
+      if (invalid.length > 0 || withWarnings.length > 0) {
+        setStep(3); // Review errors/warnings first
+      } else if (res.data.new_roles.length > 0) {
+        setStep(3); // Role resolution (will show if no errors)
       } else if (res.data.duplicate_count > 0) {
         setStep(4); // Conflict resolution
       } else {
@@ -179,10 +193,13 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
   const handleResolveRoles = async () => {
     setLoading(true);
     try {
-      await api.post(tenantApi("/import/resolve-roles"), {
-        batch_id: batchId,
-        role_resolutions: roleResolutions,
-      });
+      // Only call resolve-roles if there are new roles to create
+      if (newRoles.length > 0) {
+        await api.post(tenantApi("/import/resolve-roles"), {
+          batch_id: batchId,
+          role_resolutions: roleResolutions,
+        });
+      }
 
       if (duplicateCount > 0) {
         setStep(4);
@@ -235,7 +252,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
     }
   };
 
-  const stepLabels = ["העלאה", "מיפוי עמודות", "תפקידים חדשים", "כפילויות", "הזמנות", "סיכום"];
+  const stepLabels = ["העלאה", "מיפוי עמודות", "בדיקה ותפקידים", "כפילויות", "הזמנות", "סיכום"];
   const currentStepLabel = stepLabels[step - 1] || "";
 
   return (
@@ -363,55 +380,144 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
             </div>
           )}
 
-          {/* ─── Step 3: Role Resolution ─── */}
+          {/* ─── Step 3: Validation Review + Role Resolution ─── */}
           {step === 3 && (
             <div className="space-y-4">
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-sm">
-                <p className="font-medium text-yellow-800 dark:text-yellow-200">
-                  ⚠️ נמצאו {newRoles.length} תפקידים שלא קיימים במערכת
-                </p>
-                <p className="text-yellow-600 dark:text-yellow-300">
-                  בחר האם ליצור אותם או לדלג
-                </p>
+              {/* Summary counts */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Card><CardContent className="p-3 text-center">
+                  <p className="text-xl font-bold text-green-600">{validCount}</p>
+                  <p className="text-xs text-muted-foreground">תקינים</p>
+                </CardContent></Card>
+                {warningCount > 0 && (
+                  <Card><CardContent className="p-3 text-center">
+                    <p className="text-xl font-bold text-orange-500">{warningCount}</p>
+                    <p className="text-xs text-muted-foreground">אזהרות</p>
+                  </CardContent></Card>
+                )}
+                {invalidCount > 0 && (
+                  <Card><CardContent className="p-3 text-center">
+                    <p className="text-xl font-bold text-red-600">{invalidCount}</p>
+                    <p className="text-xs text-muted-foreground">שגויים</p>
+                  </CardContent></Card>
+                )}
+                {duplicateCount > 0 && (
+                  <Card><CardContent className="p-3 text-center">
+                    <p className="text-xl font-bold text-yellow-600">{duplicateCount}</p>
+                    <p className="text-xs text-muted-foreground">כפולים</p>
+                  </CardContent></Card>
+                )}
               </div>
 
-              {roleResolutions.map((res, i) => (
-                <Card key={res.role_name}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-purple-100 text-purple-700">{res.role_name}</Badge>
+              {/* Invalid rows — option to fix or skip */}
+              {invalidRows.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-red-600 flex items-center gap-1">
+                    <X className="h-4 w-4" /> שורות עם שגיאות ({invalidRows.length})
+                  </h3>
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                    {invalidRows.map(row => (
+                      <Card key={row.id} className="border-red-200">
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-sm truncate">#{row.row_number} {row.full_name || "ללא שם"}</p>
+                              {row.errors.map((err, i) => (
+                                <p key={i} className="text-xs text-red-600">❌ {err.message}</p>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => {
+                                const next = new Set(skippedRowIds);
+                                if (next.has(row.id)) next.delete(row.id);
+                                else next.add(row.id);
+                                setSkippedRowIds(next);
+                              }}
+                              className={`text-xs px-2 py-1 rounded flex-shrink-0 min-h-[32px] ${
+                                skippedRowIds.has(row.id) ? "bg-gray-200 text-gray-600" : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {skippedRowIds.has(row.id) ? "✓ ידלג" : "דלג"}
+                            </button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Warning rows (valid but with warnings) */}
+              {warningRows.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-orange-600 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" /> אזהרות ({warningRows.length})
+                  </h3>
+                  <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                    {warningRows.map(row => (
+                      <div key={row.id} className="flex items-center gap-2 text-xs p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
+                        <span className="font-medium">#{row.row_number} {row.full_name}</span>
+                        {row.errors.filter(e => e.severity === "warning").map((err, i) => (
+                          <span key={i} className="text-orange-600">⚠️ {err.message}</span>
+                        ))}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={res.action}
-                          onChange={(e) => {
-                            const updated = [...roleResolutions];
-                            updated[i].action = e.target.value;
-                            setRoleResolutions(updated);
-                          }}
-                          className="w-36"
-                        >
-                          <option value="create">✅ צור תפקיד</option>
-                          <option value="skip">❌ דלג</option>
-                        </Select>
-                        {res.action === "create" && (
-                          <Input
-                            type="color"
-                            value={res.color}
-                            onChange={(e) => {
-                              const updated = [...roleResolutions];
-                              updated[i].color = e.target.value;
-                              setRoleResolutions(updated);
-                            }}
-                            className="w-10 h-8 p-0.5"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">שורות עם אזהרות ייובאו בכל מקרה</p>
+                </div>
+              )}
+
+              {/* New roles resolution */}
+              {newRoles.length > 0 && (
+                <>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 text-sm">
+                    <p className="font-medium text-purple-800 dark:text-purple-200">
+                      🏷️ נמצאו {newRoles.length} תפקידים שלא קיימים במערכת
+                    </p>
+                    <p className="text-purple-600 dark:text-purple-300">
+                      בחר האם ליצור אותם או לדלג
+                    </p>
+                  </div>
+
+                  {roleResolutions.map((res, i) => (
+                    <Card key={res.role_name}>
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-purple-100 text-purple-700">{res.role_name}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={res.action}
+                              onChange={(e) => {
+                                const updated = [...roleResolutions];
+                                updated[i].action = e.target.value;
+                                setRoleResolutions(updated);
+                              }}
+                              className="w-36"
+                            >
+                              <option value="create">✅ צור תפקיד</option>
+                              <option value="skip">❌ דלג</option>
+                            </Select>
+                            {res.action === "create" && (
+                              <Input
+                                type="color"
+                                value={res.color}
+                                onChange={(e) => {
+                                  const updated = [...roleResolutions];
+                                  updated[i].color = e.target.value;
+                                  setRoleResolutions(updated);
+                                }}
+                                className="w-10 h-8 p-0.5"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              )}
             </div>
           )}
 

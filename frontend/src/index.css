@@ -399,6 +399,12 @@
     to { transform: translateY(0); }
   }
 
+  /* Prevent horizontal overflow globally */
+  html, body {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+
   /* Reduce spacing on mobile */
   .space-y-6 > * + * { margin-top: 1rem !important; }
   .space-y-4 > * + * { margin-top: 0.75rem !important; }
@@ -414,20 +420,30 @@
   /* Ensure smooth scrolling */
   .overflow-x-auto { -webkit-overflow-scrolling: touch; }
 
-  /* Tab scrolling */
+  /* Settings tab scrolling — horizontal scroll, no wrap */
+  .settings-tabs,
+  .flex.gap-2.overflow-x-auto,
   .flex.gap-2.border-b {
-    overflow-x: auto;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
+    padding-bottom: 4px;
   }
+  .settings-tabs::-webkit-scrollbar,
+  .flex.gap-2.overflow-x-auto::-webkit-scrollbar,
   .flex.gap-2.border-b::-webkit-scrollbar { display: none; }
+  .settings-tabs > button,
+  .flex.gap-2.overflow-x-auto > button,
   .flex.gap-2.border-b > button {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
     scroll-snap-align: start;
+    white-space: nowrap !important;
   }
 
-  /* Ensure all buttons/inputs are touch-friendly */
+  /* Ensure all buttons/inputs are touch-friendly (44px min) */
   button, [role="button"], a, input, select, textarea {
     min-height: 44px;
   }
@@ -435,6 +451,37 @@
     min-height: 44px;
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  /* Toggle switches must keep their size on mobile */
+  button[class*="rounded-full"][class*="w-10"],
+  .feature-toggle {
+    min-height: 24px !important;
+    min-width: 40px !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Forms single-column on mobile */
+  .grid.grid-cols-2,
+  .grid.grid-cols-3 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Ensure cards don't overflow */
+  .card, [class*="CardContent"], [class*="Card"] {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Truncate long text */
+  .max-w-\[250px\], .max-w-\[200px\] {
+    max-width: 120px !important;
+  }
+
+  /* Ensure content fits within padding for bottom nav */
+  main {
+    padding-bottom: 80px !important;
   }
 
   /* Typography scaling */

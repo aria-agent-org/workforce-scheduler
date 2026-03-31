@@ -2220,6 +2220,143 @@ async def export_daily_board_template(
     }
 
 
+class BoardGenerateRequest(PydanticBaseModel):
+    date_from: date
+    date_to: date
+
+
+@router.post("/daily-board-templates/{template_id}/generate", dependencies=[Depends(require_permission("settings", "write"))])
+async def generate_daily_boards_from_template(
+    template_id: UUID,
+    data: BoardGenerateRequest,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Generate daily boards (missions) from a board template for a date range.
+
+    Uses the template's mission type slots to create missions for each date
+    in the range [date_from, date_to].
+    """
+    # Validate template exists
+    result = await db.execute(
+        select(DailyBoardTemplate).where(
+            DailyBoardTemplate.id == template_id,
+            DailyBoardTemplate.tenant_id == tenant.id,
+        )
+    )
+    tmpl = result.scalar_one_or_none()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="תבנית לוח יומי לא נמצאה")
+
+    if data.date_from > data.date_to:
+        raise HTTPException(status_code=400, detail="תאריך התחלה חייב להיות לפני תאריך סיום")
+
+    max_days = 90
+    delta_days = (data.date_to - data.date_from).days + 1
+    if delta_days > max_days:
+        raise HTTPException(status_code=400, detail=f"מקסימום {max_days} ימים בפעם אחת")
+
+    # Get all mission types for the tenant (for creating missions from template slots)
+    mt_result = await db.execute(
+        select(MissionType).where(MissionType.tenant_id == tenant.id)
+    )
+    mission_types = {str(mt.id): mt for mt in mt_result.scalars().all()}
+
+    # We also need a fallback schedule window
+    sw_result = await db.execute(
+        select(ScheduleWindow).where(
+            ScheduleWindow.tenant_id == tenant.id,
+            ScheduleWindow.status == "active",
+        ).order_by(ScheduleWindow.start_date.desc()).limit(1)
+    )
+    schedule_window = sw_result.scalar_one_or_none()
+
+    created_count = 0
+    skipped_count = 0
+    import uuid as _uuid
+
+    current_date = data.date_from
+    while current_date <= data.date_to:
+        # Check if missions already exist for this date (avoid duplicates)
+        existing = await db.execute(
+            select(func.count()).select_from(Mission).where(
+                Mission.tenant_id == tenant.id,
+                Mission.date == current_date,
+                Mission.status != "cancelled",
+            )
+        )
+        existing_count = existing.scalar() or 0
+
+        if existing_count > 0:
+            skipped_count += 1
+            current_date += timedelta(days=1)
+            continue
+
+        # Parse template columns to create missions
+        # Template columns contain mission type references; layout has the structure
+        columns = tmpl.columns or []
+        layout = tmpl.layout or {}
+
+        # If the template has structured sections with mission_type_ids, use those
+        # Otherwise create a generic "daily board" mission for the date
+        sections = layout.get("sections", [])
+        missions_created_for_date = False
+
+        for section in sections:
+            cells = section.get("cells", [])
+            for cell in cells:
+                mt_id = cell.get("missionTypeId") or cell.get("mission_type_id")
+                if mt_id and mt_id in mission_types:
+                    mt = mission_types[mt_id]
+                    time_range = cell.get("timeRange") or cell.get("time_range", {})
+                    start_t = time_range.get("start", "08:00")
+                    end_t = time_range.get("end", "16:00")
+
+                    try:
+                        s_parts = start_t.split(":")
+                        e_parts = end_t.split(":")
+                        start_time = time(int(s_parts[0]), int(s_parts[1]))
+                        end_time = time(int(e_parts[0]), int(e_parts[1]))
+                    except (ValueError, IndexError):
+                        start_time = time(8, 0)
+                        end_time = time(16, 0)
+
+                    new_mission = Mission(
+                        id=_uuid.uuid4(),
+                        tenant_id=tenant.id,
+                        name=f"{mt.name} - {current_date.isoformat()}",
+                        mission_type_id=mt.id,
+                        schedule_window_id=schedule_window.id if schedule_window else None,
+                        date=current_date,
+                        start_time=start_time,
+                        end_time=end_time,
+                        status="planned",
+                        slots=mt.default_slots if hasattr(mt, 'default_slots') and mt.default_slots else [],
+                    )
+                    db.add(new_mission)
+                    created_count += 1
+                    missions_created_for_date = True
+
+        # If no structured sections found, still count the date
+        if not missions_created_for_date:
+            skipped_count += 1
+
+        current_date += timedelta(days=1)
+
+    await db.commit()
+
+    return {
+        "template_id": str(tmpl.id),
+        "template_name": tmpl.name,
+        "date_from": str(data.date_from),
+        "date_to": str(data.date_to),
+        "days_processed": delta_days,
+        "missions_created": created_count,
+        "days_skipped": skipped_count,
+    }
+
+
 # ═══════════════════════════════════════════
 # Swap Request Validation (Spec 3.18)
 # ═══════════════════════════════════════════

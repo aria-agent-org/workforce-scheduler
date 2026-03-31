@@ -94,6 +94,71 @@ class TenantBrandingUpdate(BaseModel):
     pwa_name: str | None = None
 
 
+# ─── Tenant Features (must be before /{channel} to avoid path conflicts) ──
+
+@router.get("/features", dependencies=[Depends(require_permission("settings", "read"))])
+async def get_tenant_features(
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get feature flags for this tenant."""
+    return {
+        "features": tenant.features or {},
+        "custom_domain": tenant.custom_domain,
+        "branding": tenant.branding or {},
+    }
+
+
+@router.put("/features", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_tenant_features(
+    req: TenantFeaturesUpdate,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update feature flags for this tenant."""
+    t_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
+    t = t_result.scalar_one()
+    t.features = {**(t.features or {}), **req.features}
+    await db.commit()
+    return {"features": t.features}
+
+
+@router.put("/branding", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_tenant_branding(
+    req: TenantBrandingUpdate,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update branding for this tenant."""
+    t_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
+    t = t_result.scalar_one()
+    branding = t.branding or {}
+    update_data = req.model_dump(exclude_none=True)
+    branding.update(update_data)
+    t.branding = branding
+    await db.commit()
+    return {"branding": t.branding}
+
+
+@router.put("/custom-domain", dependencies=[Depends(require_permission("settings", "write"))])
+async def update_custom_domain(
+    data: dict,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Set custom domain for this tenant."""
+    domain = data.get("domain", "").strip()
+    t_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
+    t = t_result.scalar_one()
+    t.custom_domain = domain if domain else None
+    await db.commit()
+    return {"custom_domain": t.custom_domain}
+
+
 # ─── Channel CRUD ─────────────────────────────
 
 @router.get("/", dependencies=[Depends(require_permission("settings", "read"))])
@@ -193,7 +258,7 @@ async def upsert_channel_config(
             provider=req.provider,
             is_enabled=req.is_enabled,
             config=req.config,
-            verified=False,
+            is_verified=False,
         )
         db.add(new_config)
 
@@ -248,67 +313,5 @@ async def delete_channel_config(
     return {"status": "deleted", "channel": channel}
 
 
-# ─── Tenant Features ──────────────────────────
 
-@router.get("/features", dependencies=[Depends(require_permission("settings", "read"))])
-async def get_tenant_features(
-    tenant: CurrentTenant,
-    user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Get feature flags for this tenant."""
-    return {
-        "features": tenant.features or {},
-        "custom_domain": tenant.custom_domain,
-        "branding": tenant.branding or {},
-    }
-
-
-@router.put("/features", dependencies=[Depends(require_permission("settings", "write"))])
-async def update_tenant_features(
-    req: TenantFeaturesUpdate,
-    tenant: CurrentTenant,
-    user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Update feature flags for this tenant."""
-    # Refresh tenant
-    t_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
-    t = t_result.scalar_one()
-    t.features = {**(t.features or {}), **req.features}
-    await db.commit()
-    return {"features": t.features}
-
-
-@router.put("/branding", dependencies=[Depends(require_permission("settings", "write"))])
-async def update_tenant_branding(
-    req: TenantBrandingUpdate,
-    tenant: CurrentTenant,
-    user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Update branding for this tenant."""
-    t_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
-    t = t_result.scalar_one()
-    branding = t.branding or {}
-    update_data = req.model_dump(exclude_none=True)
-    branding.update(update_data)
-    t.branding = branding
-    await db.commit()
-    return {"branding": t.branding}
-
-
-@router.put("/custom-domain", dependencies=[Depends(require_permission("settings", "write"))])
-async def update_custom_domain(
-    data: dict,
-    tenant: CurrentTenant,
-    user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Set custom domain for this tenant."""
-    domain = data.get("domain", "").strip()
-    t_result = await db.execute(select(Tenant).where(Tenant.id == tenant.id))
-    t = t_result.scalar_one()
-    t.custom_domain = domain if domain else None
-    await db.commit()
-    return {"custom_domain": t.custom_domain}
+# (Features/branding/custom-domain routes are defined above /{channel} to avoid path conflicts)

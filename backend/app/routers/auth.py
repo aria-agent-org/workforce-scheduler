@@ -499,9 +499,12 @@ async def webauthn_register_finish(
         f"Registering credential: id_hex={cred_id_bytes.hex()}, "
         f"rawId_hex={raw_id_bytes.hex()}, match={cred_id_bytes == raw_id_bytes}"
     )
+    # CRITICAL: Store raw_id_bytes (from browser) because that's what the browser
+    # sends during login. verification.credential_id may be encoded differently.
+    store_id = raw_id_bytes if raw_id_bytes else cred_id_bytes
     new_cred = UserWebAuthnCredential(
         user_id=user.id,
-        credential_id=cred_id_bytes,
+        credential_id=store_id,
         public_key=verification.credential_public_key,
         sign_count=verification.sign_count,
         aaguid=str(verification.aaguid) if verification.aaguid else None,

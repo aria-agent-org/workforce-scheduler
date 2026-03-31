@@ -143,21 +143,23 @@ export default function TenantFeaturesPage() {
             >
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{f.icon}</span>
-                    <div>
-                      <p className="font-medium text-sm">{f.label}</p>
-                      <p className="text-xs text-muted-foreground">{f.description}</p>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-xl flex-shrink-0">{f.icon}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{f.label}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{f.description}</p>
                     </div>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleFeature(f.key); }}
-                    className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
+                    aria-label={`${f.label} ${f.enabled ? 'פעיל' : 'כבוי'}`}
+                    className={`feature-toggle relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
                       f.enabled ? "bg-green-500" : "bg-muted"
                     }`}
+                    style={{ minWidth: '44px', minHeight: '28px' }}
                   >
                     <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                      f.enabled ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0.5 rtl:-translate-x-0.5"
+                      f.enabled ? "translate-x-[18px] rtl:-translate-x-[18px]" : "translate-x-0.5 rtl:-translate-x-0.5"
                     }`} />
                   </button>
                 </div>
@@ -206,7 +208,7 @@ export default function TenantFeaturesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>שם האפליקציה</Label>
                 <Input
@@ -225,7 +227,7 @@ export default function TenantFeaturesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>צבע ראשי</Label>
                 <div className="flex gap-2">
@@ -279,7 +281,7 @@ export default function TenantFeaturesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>URL לוגו</Label>
                 <Input
