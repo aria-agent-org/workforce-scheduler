@@ -339,9 +339,14 @@ export default function AttendancePage() {
       <div className="flex items-center gap-2 md:gap-3 flex-wrap overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         <div className="space-y-1">
           <Label className="text-xs">לוח עבודה</Label>
-          <Select value={selectedWindow} onChange={e => setSelectedWindow(e.target.value)} className="w-40">
+          <Select value={selectedWindow} onChange={e => setSelectedWindow(e.target.value)} className="w-44">
             {windows.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </Select>
+          {selectedWindow && (
+            <p className="text-[10px] text-muted-foreground">
+              📋 נוכחות עבור: {windows.find((w: any) => w.id === selectedWindow)?.name}
+            </p>
+          )}
         </div>
 
         {/* View Toggle */}
