@@ -15,6 +15,13 @@ import { UserPlus, Search, Download, Upload, Pencil, Trash2, X } from "lucide-re
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 
+interface AttendanceStatusDef {
+  code: string;
+  name: { he: string; en: string };
+  color: string;
+  icon: string;
+}
+
 interface Employee {
   id: string;
   employee_number: string;
@@ -36,6 +43,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusDefs, setStatusDefs] = useState<AttendanceStatusDef[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
 
@@ -48,6 +56,33 @@ export default function EmployeesPage() {
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+
+  // Load attendance status definitions once
+  useEffect(() => {
+    api.get(tenantApi("/attendance/statuses")).then(res => {
+      setStatusDefs(Array.isArray(res.data) ? res.data : []);
+    }).catch(() => {});
+  }, []);
+
+  const getStatusDisplay = (statusCode: string) => {
+    const def = statusDefs.find(s => s.code === statusCode);
+    if (def) {
+      return {
+        label: `${def.icon || ""} ${def.name?.he || statusCode}`.trim(),
+        color: def.color || "#6b7280",
+      };
+    }
+    // Fallback Hebrew labels for common statuses
+    const fallbacks: Record<string, { label: string; color: string }> = {
+      present: { label: "✅ נוכח", color: "#22c55e" },
+      home: { label: "🏠 בית", color: "#3b82f6" },
+      sick: { label: "🤒 חולה", color: "#ef4444" },
+      vacation: { label: "🏖️ חופשה", color: "#eab308" },
+      reserve: { label: "🎖️ מילואים", color: "#a855f7" },
+      training: { label: "📚 הדרכה", color: "#f97316" },
+    };
+    return fallbacks[statusCode] || { label: statusCode || "—", color: "#6b7280" };
+  };
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -209,9 +244,27 @@ export default function EmployeesPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant={emp.is_active ? "success" : "destructive"}>
-                            {emp.is_active ? t("active") : t("inactive")}
-                          </Badge>
+                          {(() => {
+                            const sd = getStatusDisplay(emp.status);
+                            return (
+                              <Badge
+                                className="text-xs font-medium pointer-events-none select-none"
+                                style={{
+                                  backgroundColor: sd.color + "18",
+                                  color: sd.color,
+                                  borderColor: sd.color + "40",
+                                  border: "1px solid",
+                                }}
+                              >
+                                {sd.label}
+                              </Badge>
+                            );
+                          })()}
+                          {!emp.is_active && (
+                            <Badge className="text-xs mr-1 bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                              לא פעיל
+                            </Badge>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
