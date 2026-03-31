@@ -75,6 +75,30 @@ export default function SecuritySettingsPage() {
 
   // WebAuthn/Passkey state
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [passkeys, setPasskeys] = useState<PasskeyCredential[]>([]);
+  const [passkeysLoading, setPasskeysLoading] = useState(false);
+
+  const loadPasskeys = useCallback(async () => {
+    setPasskeysLoading(true);
+    try {
+      const { data } = await api.get("/auth/webauthn/credentials");
+      setPasskeys(Array.isArray(data) ? data : []);
+    } catch {
+      setPasskeys([]);
+    } finally {
+      setPasskeysLoading(false);
+    }
+  }, []);
+
+  const deletePasskey = async (id: string) => {
+    try {
+      await api.delete(`/auth/webauthn/credentials/${id}`);
+      toast("success", "מפתח האבטחה נמחק");
+      loadPasskeys();
+    } catch {
+      toast("error", "שגיאה במחיקת מפתח אבטחה");
+    }
+  };
 
   // ── WebAuthn: Register new passkey ──
   const handleRegisterPasskey = async () => {
@@ -151,8 +175,8 @@ export default function SecuritySettingsPage() {
 
   useEffect(() => {
     setLoading(true);
-    loadSessions().finally(() => setLoading(false));
-  }, [loadSessions]);
+    Promise.all([loadSessions(), loadPasskeys()]).finally(() => setLoading(false));
+  }, [loadSessions, loadPasskeys]);
 
   // ── 2FA: Enable ──
   const handleEnable2FA = async () => {
@@ -348,16 +372,60 @@ export default function SecuritySettingsPage() {
             <p className="text-sm text-muted-foreground">
               מפתחות אבטחה מאפשרים כניסה מהירה ומאובטחת ללא סיסמה באמצעות טביעת אצבע, זיהוי פנים או מפתח USB.
             </p>
+
+            {/* Existing keys list */}
+            {passkeys.length > 0 && (
+              <div className="space-y-2">
+                {passkeys.map((pk) => (
+                  <div key={pk.id} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Fingerprint className="h-5 w-5 text-primary shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{pk.device_name || "מפתח אבטחה"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          נוצר: {pk.created_at ? formatDate(pk.created_at) : "—"}
+                          {pk.last_used_at && ` • שימוש אחרון: ${formatDate(pk.last_used_at)}`}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-[44px] min-w-[44px] text-red-500 hover:text-red-700 shrink-0"
+                      onClick={() => deletePasskey(pk.id)}
+                      aria-label="מחק מפתח אבטחה"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {passkeys.length === 0 && !passkeysLoading && (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                אין מפתחות אבטחה רשומים
+              </p>
+            )}
+
             <Button
               size="sm"
               className="min-h-[44px]"
-              onClick={handleRegisterPasskey}
-              disabled={passkeyLoading}
+              onClick={async () => {
+                await handleRegisterPasskey();
+                loadPasskeys();
+              }}
+              disabled={passkeyLoading || passkeys.length >= 5}
               aria-label="הוסף מפתח אבטחה"
             >
               <Plus className="me-1 h-4 w-4" />
               {passkeyLoading ? "..." : "הוסף מפתח אבטחה"}
             </Button>
+            {passkeys.length >= 5 && (
+              <p className="text-xs text-muted-foreground">
+                הגעת למקסימום 5 מפתחות אבטחה. מחק מפתח קיים כדי להוסיף חדש.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

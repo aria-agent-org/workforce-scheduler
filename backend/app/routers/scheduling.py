@@ -118,7 +118,7 @@ async def create_schedule_window(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="schedule_window", entity_id=window.id,
         after_state={"name": window.name, "status": window.status},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return {
@@ -183,7 +183,7 @@ async def update_schedule_window(
         tenant_id=tenant.id, user_id=user.id, action="update",
         entity_type="schedule_window", entity_id=w.id,
         before_state=before, after_state={"name": w.name, "status": w.status},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return {"id": str(w.id), "name": w.name, "status": w.status,
@@ -306,7 +306,7 @@ async def reset_window(
             "deleted_missions": deleted_count,
             "note": data.note,
         },
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
 
     await db.commit()
@@ -511,7 +511,7 @@ async def create_mission_type(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="mission_type", entity_id=mt.id,
         after_state={"name": mt.name},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return MissionTypeResponse.model_validate(mt).model_dump()
@@ -834,7 +834,7 @@ async def create_mission(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="mission", entity_id=mission.id,
         after_state={"name": mission.name, "date": str(mission.date)},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     result = {
@@ -1251,7 +1251,7 @@ async def create_assignment(
         tenant_id=tenant.id, user_id=user.id, action="assign",
         entity_type="mission_assignment", entity_id=assignment.id,
         after_state={"employee": emp.full_name if emp else str(data.employee_id), "mission": mission.name},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -1813,7 +1813,7 @@ async def import_window_template(
         tenant_id=tenant.id, user_id=user.id, action="import_template",
         entity_type="schedule_window", entity_id=window.id,
         after_state={"name": window.name, "source": "template_import"},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -1852,7 +1852,7 @@ async def mark_mission_activated(
         tenant_id=tenant.id, user_id=user.id, action="mark_activated",
         entity_type="mission", entity_id=m.id,
         after_state={"is_activated": True, "name": m.name},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return {"id": str(m.id), "name": m.name, "is_activated": True, "version": m.version}
@@ -1902,7 +1902,7 @@ async def override_assignment_conflict(
         tenant_id=tenant.id, user_id=user.id, action="override_conflict",
         entity_type="mission_assignment", entity_id=assignment_id,
         after_state={"justification": data.justification, "mission_id": str(mission_id)},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return {
@@ -1981,7 +1981,7 @@ async def create_daily_board_template(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="daily_board_template", entity_id=tmpl.id,
         after_state={"name": tmpl.name},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return {
@@ -2605,7 +2605,7 @@ async def import_employees(
             tenant_id=tenant.id, user_id=user.id, action="import_employees",
             entity_type="schedule_window", entity_id=window_id,
             after_state={"added": added, "skipped": skipped},
-            ip_address=request.client.host if request.client else None,
+            ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
         ))
         await db.commit()
 

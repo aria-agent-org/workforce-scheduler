@@ -166,8 +166,8 @@ class MissionAssignment(Base):
     employee_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("employees.id"), nullable=False
     )
-    work_role_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("work_roles.id"), nullable=False
+    work_role_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_roles.id"), nullable=True
     )
     slot_id: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="assigned", nullable=False)

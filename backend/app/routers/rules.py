@@ -73,7 +73,7 @@ async def create_rule(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="rule", entity_id=rule.id,
         after_state={"name": rule.name, "category": rule.category},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return RuleResponse.model_validate(rule).model_dump()

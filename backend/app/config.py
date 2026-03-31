@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     saml_idp_sso_url: str = ""
     saml_idp_certificate: str = ""
 
+    # Default timezone (Israel)
+    default_timezone: str = "Asia/Jerusalem"
+
     # Google Sheets
     google_service_account_json: str | None = None
 

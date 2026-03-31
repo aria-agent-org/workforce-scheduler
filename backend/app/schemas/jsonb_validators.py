@@ -37,13 +37,28 @@ class MissionSlot(BaseModel):
 class Condition(BaseModel):
     """A single rule condition."""
     field: str
-    op: Literal[
-        "less_than", "greater_than", "equals", "not_equals",
-        "in", "not_in", "between",
-        "is_null", "is_not_null", "is_true", "is_false",
-        "contains", "starts_with",
-    ]
-    value: Any
+    # Accept both short ("gt", "eq") and long ("greater_than", "equals") operator forms
+    op: str | None = None
+    operator: str | None = None  # Alias — frontend sometimes sends "operator" instead of "op"
+    value: Any = None
+
+    @model_validator(mode='after')
+    def normalize_op(self):
+        # Accept "operator" as alias for "op"
+        resolved = self.op or self.operator or "eq"
+        # Normalize short forms to long forms for storage consistency
+        VALID_OPS = {
+            "gt", "gte", "lt", "lte", "eq", "neq",
+            "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal",
+            "equals", "not_equals",
+            "in", "not_in", "between",
+            "is_null", "is_not_null", "is_true", "is_false",
+            "contains", "starts_with",
+        }
+        if resolved not in VALID_OPS:
+            raise ValueError(f"operator '{resolved}' is not valid. Use one of: {', '.join(sorted(VALID_OPS))}")
+        self.op = resolved
+        return self
 
 
 class ConditionGroup(BaseModel):
@@ -51,11 +66,19 @@ class ConditionGroup(BaseModel):
     operator: str  # Accept any case: "AND", "and", "And", "OR", "or", "NOT", "not"
     conditions: list[Union["ConditionGroup", Condition]] = []
 
+    @model_validator(mode='before')
+    @classmethod
+    def check_is_group(cls, values):
+        """Ensure this is actually a group (operator is AND/OR/NOT), not a leaf condition."""
+        if isinstance(values, dict):
+            op = (values.get("operator") or "").upper()
+            if op not in ("AND", "OR", "NOT"):
+                raise ValueError(f"Not a condition group: operator '{op}' is not AND/OR/NOT")
+        return values
+
     @model_validator(mode='after')
     def normalize_operator(self):
         self.operator = self.operator.upper()
-        if self.operator not in ("AND", "OR", "NOT"):
-            raise ValueError(f"operator must be AND, OR, or NOT — got '{self.operator}'")
         return self
 
 

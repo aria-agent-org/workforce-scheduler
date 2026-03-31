@@ -492,9 +492,16 @@ async def webauthn_register_finish(
         )
 
     # Save credential to database
+    # Ensure credential_id is stored as raw bytes consistently
+    cred_id_bytes = bytes(verification.credential_id) if not isinstance(verification.credential_id, bytes) else verification.credential_id
+    import logging
+    logging.getLogger("webauthn").info(
+        f"Registering credential: id_hex={cred_id_bytes.hex()}, "
+        f"rawId_hex={raw_id_bytes.hex()}, match={cred_id_bytes == raw_id_bytes}"
+    )
     new_cred = UserWebAuthnCredential(
         user_id=user.id,
-        credential_id=verification.credential_id,
+        credential_id=cred_id_bytes,
         public_key=verification.credential_public_key,
         sign_count=verification.sign_count,
         aaguid=str(verification.aaguid) if verification.aaguid else None,
@@ -565,6 +572,9 @@ async def webauthn_login_finish(
 ) -> dict:
     """Finish WebAuthn login — verifies assertion and returns JWT."""
     # Find the credential in the database
+    import logging
+    _log = logging.getLogger("webauthn")
+
     try:
         raw_id_bytes = base64url_to_bytes(data.rawId)
     except Exception:
@@ -573,12 +583,45 @@ async def webauthn_login_finish(
             detail="מזהה credential לא תקין",
         )
 
+    _log.info(f"Login attempt: rawId_hex={raw_id_bytes.hex()}, rawId_b64={data.rawId}")
+
+    # Primary lookup: exact bytes match
     result = await db.execute(
         select(UserWebAuthnCredential).where(
             UserWebAuthnCredential.credential_id == raw_id_bytes
         )
     )
     stored_cred = result.scalar_one_or_none()
+
+    # Fallback: try matching by the base64url-decoded `id` field (some clients use this)
+    if not stored_cred:
+        try:
+            id_bytes = base64url_to_bytes(data.id)
+            if id_bytes != raw_id_bytes:
+                _log.info(f"Trying fallback with id_hex={id_bytes.hex()}")
+                result2 = await db.execute(
+                    select(UserWebAuthnCredential).where(
+                        UserWebAuthnCredential.credential_id == id_bytes
+                    )
+                )
+                stored_cred = result2.scalar_one_or_none()
+        except Exception:
+            pass
+
+    # Final fallback: load ALL credentials and compare hex
+    if not stored_cred:
+        _log.warning(f"No credential found for rawId. Loading all credentials for comparison.")
+        all_creds = await db.execute(select(UserWebAuthnCredential))
+        for cred in all_creds.scalars().all():
+            _log.info(f"  DB credential: hex={cred.credential_id.hex() if isinstance(cred.credential_id, bytes) else 'N/A'}")
+            if isinstance(cred.credential_id, bytes) and cred.credential_id == raw_id_bytes:
+                stored_cred = cred
+                break
+            # Some PostgreSQL drivers return memoryview instead of bytes
+            if isinstance(cred.credential_id, memoryview) and bytes(cred.credential_id) == raw_id_bytes:
+                stored_cred = cred
+                break
+
     if not stored_cred:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -673,6 +716,61 @@ async def webauthn_login_finish(
         "token_type": "bearer",
         "expires_in": expires_in,
     }
+
+
+# ── WebAuthn Credential Management ──────────────────────────────
+
+@router.get("/webauthn/credentials")
+async def list_webauthn_credentials(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List all WebAuthn credentials for the current user."""
+    result = await db.execute(
+        select(UserWebAuthnCredential).where(
+            UserWebAuthnCredential.user_id == user.id
+        ).order_by(UserWebAuthnCredential.created_at.desc())
+    )
+    creds = result.scalars().all()
+    return [
+        {
+            "id": str(c.id),
+            "device_name": c.device_name or "מפתח אבטחה",
+            "created_at": str(c.created_at) if c.created_at else None,
+            "last_used_at": str(c.last_used_at) if c.last_used_at else None,
+            "backed_up": c.backed_up,
+            "aaguid": c.aaguid,
+        }
+        for c in creds
+    ]
+
+
+@router.delete("/webauthn/credentials/{credential_id}")
+async def delete_webauthn_credential(
+    credential_id: str,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a WebAuthn credential."""
+    from uuid import UUID as _UUID
+    try:
+        cred_uuid = _UUID(credential_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="מזהה credential לא תקין")
+
+    result = await db.execute(
+        select(UserWebAuthnCredential).where(
+            UserWebAuthnCredential.id == cred_uuid,
+            UserWebAuthnCredential.user_id == user.id,
+        )
+    )
+    cred = result.scalar_one_or_none()
+    if not cred:
+        raise HTTPException(status_code=404, detail="מפתח אבטחה לא נמצא")
+
+    await db.delete(cred)
+    await db.commit()
+    return {"status": "ok", "message": {"he": "מפתח האבטחה נמחק", "en": "Security key deleted"}}
 
 
 # ── Google OAuth ────────────────────────────────────────────────

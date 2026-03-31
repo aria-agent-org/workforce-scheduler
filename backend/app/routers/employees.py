@@ -239,7 +239,7 @@ async def create_employee(
         entity_type="employee",
         entity_id=employee.id,
         after_state={"full_name": employee.full_name, "employee_number": employee.employee_number},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -322,7 +322,7 @@ async def update_employee(
         entity_id=employee.id,
         before_state=before,
         after_state={"full_name": employee.full_name, "status": employee.status},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -355,7 +355,7 @@ async def delete_employee(
         entity_id=employee.id,
         before_state={"is_active": True},
         after_state={"is_active": False},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -398,7 +398,7 @@ async def bulk_import_employees(
             entity_type="employee",
             entity_id=employee.id,
             after_state={"full_name": employee.full_name},
-            ip_address=request.client.host if request.client else None,
+            ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
         ))
     await db.commit()
     return {"created": len(created), "errors": errors, "employees": created}
@@ -531,7 +531,7 @@ async def update_employee_preferences(
         entity_id=employee_id,
         before_state=before,
         after_state=data.model_dump(),
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -580,7 +580,7 @@ async def delete_personal_data(
         entity_id=employee.id,
         before_state={"full_name": before["full_name"]},
         after_state={"full_name": "Deleted User", "anonymized": True},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 

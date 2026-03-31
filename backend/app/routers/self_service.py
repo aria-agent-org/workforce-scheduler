@@ -417,10 +417,12 @@ async def get_my_notifications(
         .order_by(NotificationLog.created_at.desc())
     )
 
-    total_q = await db.execute(
-        select(func.count()).select_from(query.subquery())
+    # Separate count query to avoid subquery nesting issues
+    count_q = select(func.count(NotificationLog.id)).where(
+        NotificationLog.tenant_id == tenant.id,
+        NotificationLog.employee_id == user.employee_id,
     )
-    total = total_q.scalar() or 0
+    total = (await db.execute(count_q)).scalar() or 0
 
     result = await db.execute(query.offset(offset).limit(page_size))
     items = [
@@ -601,3 +603,35 @@ async def get_avatar_presigned_url(
 
 # Need this import for count
 from sqlalchemy import func
+
+
+# ═══════════════════════════════════════════
+# My Teammates (lightweight employee list for partner preferences)
+# ═══════════════════════════════════════════
+
+@router.get("/teammates")
+async def get_my_teammates(
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    search: str | None = None,
+) -> list[dict]:
+    """Get list of active employees in the same tenant (for partner preferences).
+
+    Returns only id, employee_number, full_name — no sensitive data.
+    Accessible by any authenticated user without special permissions.
+    """
+    query = (
+        select(Employee)
+        .where(Employee.tenant_id == tenant.id, Employee.is_active.is_(True))
+        .order_by(Employee.full_name)
+        .limit(200)
+    )
+    if search:
+        query = query.where(
+            Employee.full_name.ilike(f"%{search}%") | Employee.employee_number.ilike(f"%{search}%")
+        )
+    result = await db.execute(query)
+    return [
+        {"id": str(e.id), "employee_number": e.employee_number, "full_name": e.full_name}
+        for e in result.scalars().all()
+    ]

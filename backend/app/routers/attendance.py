@@ -109,7 +109,7 @@ async def create_attendance(
         tenant_id=tenant.id, user_id=user.id, action="set_attendance",
         entity_type="attendance", entity_id=record.id,
         after_state={"employee_id": str(data.employee_id), "date": str(data.date), "status": data.status_code},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return AttendanceResponse.model_validate(record).model_dump()
@@ -179,7 +179,7 @@ async def update_attendance(
         tenant_id=tenant.id, user_id=user.id, action="update_attendance",
         entity_type="attendance", entity_id=record.id,
         before_state=before, after_state={"status_code": record.status_code},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -339,7 +339,7 @@ async def update_status_definition(
         tenant_id=tenant.id, user_id=user.id, action="update",
         entity_type="attendance_status_definition", entity_id=status_def.id,
         before_state=before, after_state={"code": status_def.code, "name": status_def.name},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return AttendanceStatusDefinitionResponse.model_validate(status_def).model_dump()

@@ -222,7 +222,7 @@ async def create_setting(
         tenant_id=tenant.id, user_id=user.id, action="create_setting",
         entity_type="setting", entity_id=setting.id,
         after_state={"key": data.key},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return TenantSettingResponse.model_validate(setting).model_dump()
@@ -364,7 +364,7 @@ async def update_setting(
         tenant_id=tenant.id, user_id=user.id, action="update_setting",
         entity_type="setting", entity_id=setting.id,
         after_state={"key": key, "value": str(data.value)},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return TenantSettingResponse.model_validate(setting).model_dump()
@@ -442,7 +442,7 @@ async def update_visibility_settings(
         tenant_id=tenant.id, user_id=user.id, action="update_setting",
         entity_type="setting", entity_id=setting.id,
         after_state={"key": VISIBILITY_KEY, "value": value},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return value
@@ -518,7 +518,7 @@ async def update_notification_preference_defaults(
         tenant_id=tenant.id, user_id=user.id, action="update_setting",
         entity_type="setting", entity_id=setting.id,
         after_state={"key": NOTIF_DEFAULTS_KEY, "value": value},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return value
@@ -602,7 +602,7 @@ async def update_data_retention(
         tenant_id=tenant.id, user_id=user.id, action="update_data_retention",
         entity_type="data_retention_config", entity_id=tenant.id,
         after_state={"count": len(results)},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return results
@@ -679,7 +679,7 @@ async def update_locked_events(
         tenant_id=tenant.id, user_id=user.id, action="update_locked_events",
         entity_type="notification_locked_events", entity_id=tenant.id,
         after_state={"count": len(items)},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return items
@@ -815,7 +815,67 @@ async def update_branding(
         entity_type="tenant_branding",
         entity_id=tenant.id,
         after_state=branding_data,
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return branding_data
+
+
+# ═══════════════════════════════════════════
+# Dynamic PWA Manifest
+# ═══════════════════════════════════════════
+
+from fastapi.responses import JSONResponse as _JSONResponse
+
+
+@router.get("/manifest.json")
+async def get_pwa_manifest(
+    tenant: CurrentTenant,
+    db: AsyncSession = Depends(get_db),
+) -> _JSONResponse:
+    """Generate a dynamic PWA manifest.json based on tenant branding."""
+    # Load branding
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "branding",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    branding = setting.value if setting and setting.value else {}
+
+    app_name = branding.get("app_name", "שבצק")
+    primary_color = branding.get("primary_color", "#2563eb")
+    icon_url = branding.get("pwa_icon_url")
+
+    icons = []
+    if icon_url:
+        icons = [
+            {"src": icon_url, "sizes": "192x192", "type": "image/png"},
+            {"src": icon_url, "sizes": "512x512", "type": "image/png"},
+        ]
+    else:
+        icons = [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ]
+
+    manifest = {
+        "name": app_name,
+        "short_name": app_name[:12],
+        "description": f"{app_name} — מערכת שיבוץ עובדים חכמה",
+        "start_url": "/",
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": "#ffffff",
+        "theme_color": primary_color,
+        "dir": "rtl",
+        "lang": "he",
+        "icons": icons,
+        "categories": ["business", "productivity"],
+    }
+
+    return _JSONResponse(content=manifest, headers={
+        "Content-Type": "application/manifest+json",
+        "Cache-Control": "public, max-age=3600",
+    })

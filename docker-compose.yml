@@ -52,7 +52,7 @@ services:
       REDIS_DB: 0
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod-abcdef123456}
       CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,https://shavtzak.site"
-      DEBUG: "true"
+      DEBUG: "false"
       LOG_LEVEL: INFO
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2

@@ -212,7 +212,15 @@ class AutoScheduler:
                     assign_role_id = work_role_id
                     if not assign_role_id:
                         emp_roles = employee_roles.get(str(best_emp.id), set())
-                        assign_role_id = list(emp_roles)[0] if emp_roles else best_emp.id
+                        assign_role_id = list(emp_roles)[0] if emp_roles else None
+
+                    # Convert string role ID to UUID if needed
+                    from uuid import UUID as _UUID
+                    if assign_role_id and isinstance(assign_role_id, str):
+                        try:
+                            assign_role_id = _UUID(assign_role_id)
+                        except ValueError:
+                            assign_role_id = None
 
                     assignment = MissionAssignment(
                         mission_id=mission.id,
@@ -358,7 +366,7 @@ class AutoScheduler:
             select(Mission).where(
                 Mission.tenant_id == self.tenant_id,
                 Mission.schedule_window_id == window_id,
-                Mission.status.in_(["draft", "proposed"]),
+                Mission.status.in_(["draft", "proposed", "active", "published"]),
                 Mission.date >= date_from,
                 Mission.date <= date_to,
             ).order_by(Mission.date, Mission.start_time)

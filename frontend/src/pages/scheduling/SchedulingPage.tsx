@@ -1546,16 +1546,50 @@ export default function SchedulingPage() {
                 <Label className="text-sm font-semibold">סוג משימה <span className="text-red-500">*</span></Label>
                 <Select 
                   value={missionForm.mission_type_id} 
-                  onChange={e => setMissionForm({...missionForm, mission_type_id: e.target.value})}
+                  onChange={e => {
+                    const mtId = e.target.value;
+                    const mt = missionTypes.find((t: any) => t.id === mtId);
+                    // Auto-populate name and duration from mission type
+                    const updates: any = { mission_type_id: mtId };
+                    if (mt) {
+                      if (!missionForm.name) {
+                        updates.name = mt.name?.[lang] || mt.name?.he || "";
+                      }
+                      if (mt.duration_hours) {
+                        const startHour = parseInt(missionForm.start_time?.split(":")[0] || "8");
+                        const endHour = (startHour + Math.floor(mt.duration_hours)) % 24;
+                        const endMin = Math.round((mt.duration_hours % 1) * 60);
+                        updates.end_time = `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`;
+                      }
+                    }
+                    setMissionForm({...missionForm, ...updates});
+                  }}
                   className="min-h-[44px]"
                 >
                   <option value="">בחר סוג משימה...</option>
-                  {missionTypes.map(mt => (
+                  {missionTypes.map((mt: any) => (
                     <option key={mt.id} value={mt.id}>
                       {mt.icon || "📋"} {mt.name[lang] || mt.name.he}
+                      {mt.duration_hours ? ` (${mt.duration_hours} שעות)` : ""}
                     </option>
                   ))}
                 </Select>
+                {(() => {
+                  const selectedMt = missionTypes.find((t: any) => t.id === missionForm.mission_type_id);
+                  if (!selectedMt?.required_slots?.length) return null;
+                  return (
+                    <div className="mt-2 text-xs bg-muted/50 rounded-lg px-3 py-2 space-y-1">
+                      <p className="font-medium text-muted-foreground">📋 סלוטים שיוגדרו אוטומטית:</p>
+                      {selectedMt.required_slots.map((s: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-primary">•</span>
+                          <span>{s.label?.[lang] || s.label?.he || s.slot_id}</span>
+                          <span className="text-muted-foreground">×{s.count || 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             <div className="space-y-2">
@@ -2369,7 +2403,21 @@ export default function SchedulingPage() {
                 <div className="space-y-1 max-h-60 overflow-y-auto">
                   {autoAssignResults.assignments.map((a: any, i: number) => (
                     <div key={i} className="flex items-center justify-between rounded bg-muted/50 px-3 py-2 text-sm">
-                      <span>{a.employee_name} → {a.mission_name} ({a.slot_id})</span>
+                      <span>
+                        {a.employee_name
+                          ? `${a.employee_name} → ${a.mission_name}`
+                          : `⚠️ ${a.mission_name} — ${a.reason || "לא שובץ"}`}
+                        {a.slot_id && (() => {
+                          // Resolve slot label from mission type
+                          const mt = missionTypes.find((t: any) => {
+                            const m = missions.find((m2: any) => m2.id === a.mission_id);
+                            return m && t.id === m.mission_type_id;
+                          });
+                          const sl = mt?.required_slots?.find((s: any) => s.slot_id === a.slot_id);
+                          const label = sl?.label?.[lang] || sl?.label?.he || a.slot_id;
+                          return ` (${label})`;
+                        })()}
+                      </span>
                       <div className="flex items-center gap-1">
                         <Badge className="text-xs">ציון: {a.score}</Badge>
                         {a.soft_warnings?.length > 0 && (

@@ -21,25 +21,62 @@ export default function AppLayout() {
     (async () => {
       try {
         const { data } = await api.get(tenantApi("/settings/branding"));
-        if (data?.primary_color) {
-          document.documentElement.style.setProperty("--color-primary-500", data.primary_color);
+        if (!data || Object.keys(data).length === 0) return;
+
+        // Helper: convert hex color to HSL values string for CSS variables
+        const hexToHSL = (hex: string): string | null => {
+          if (!hex) return null;
+          hex = hex.replace("#", "");
+          const r = parseInt(hex.substring(0, 2), 16) / 255;
+          const g = parseInt(hex.substring(2, 4), 16) / 255;
+          const b = parseInt(hex.substring(4, 6), 16) / 255;
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          let h = 0, s = 0;
+          const l = (max + min) / 2;
+          if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+            else if (max === g) h = ((b - r) / d + 2) / 6;
+            else h = ((r - g) / d + 4) / 6;
+          }
+          return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+        };
+
+        // Apply primary color as the main theme color (overrides Tailwind --primary)
+        if (data.primary_color) {
+          const hsl = hexToHSL(data.primary_color);
+          if (hsl) {
+            document.documentElement.style.setProperty("--primary", hsl);
+            document.documentElement.style.setProperty("--ring", hsl);
+          }
         }
-        if (data?.secondary_color) {
-          document.documentElement.style.setProperty("--color-secondary-500", data.secondary_color);
+        if (data.secondary_color) {
+          const hsl = hexToHSL(data.secondary_color);
+          if (hsl) document.documentElement.style.setProperty("--secondary", hsl);
         }
-        if (data?.accent_color) {
-          document.documentElement.style.setProperty("--color-accent-500", data.accent_color);
+        if (data.accent_color) {
+          const hsl = hexToHSL(data.accent_color);
+          if (hsl) document.documentElement.style.setProperty("--accent", hsl);
         }
-        if (data?.favicon_url) {
+
+        // Update favicon
+        if (data.favicon_url) {
           const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
           if (link) link.href = data.favicon_url;
         }
-        if (data?.custom_css) {
+
+        // Update page title
+        if (data.app_name) {
+          document.title = data.app_name;
+        }
+
+        // Apply custom CSS
+        if (data.custom_css) {
+          document.getElementById("tenant-branding-css")?.remove();
           const style = document.createElement("style");
           style.id = "tenant-branding-css";
           style.textContent = data.custom_css;
-          // Remove old one if exists
-          document.getElementById("tenant-branding-css")?.remove();
           document.head.appendChild(style);
         }
       } catch {
@@ -50,6 +87,13 @@ export default function AppLayout() {
 
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // Check if first-time user needs onboarding
+  const onboardingDone = localStorage.getItem("shavtzak_onboarding_done");
+  if (!onboardingDone && user?.role_name && ["tenant_admin", "super_admin"].includes(user.role_name)) {
+    // Only redirect admins to onboarding — soldiers don't need it
+    // Check localStorage so we only show it once
+  }
 
   // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal
   // BUT only if they have an employee_id (otherwise they can't use /my/)

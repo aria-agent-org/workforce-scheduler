@@ -351,7 +351,7 @@ async def bulk_import_users(
                 "employee_number": v["employee_number"],
                 "full_name": v["full_name"],
             },
-            ip_address=request.client.host if request.client else None,
+            ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
         ))
         created_count += 1
 
@@ -508,7 +508,7 @@ async def create_tenant_user(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="user", entity_id=new_user.id,
         after_state={"email": new_user.email},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -647,7 +647,7 @@ async def update_tenant_user(
         entity_type="user", entity_id=target.id,
         before_state=before,
         after_state={"email": target.email, "is_active": target.is_active},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -697,7 +697,7 @@ async def deactivate_tenant_user(
         tenant_id=tenant.id, user_id=user.id, action="deactivate",
         entity_type="user", entity_id=target.id,
         after_state={"email": target.email, "is_active": False},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -776,7 +776,7 @@ async def reset_user_password(
     db.add(AuditLog(
         tenant_id=tenant.id, user_id=user.id, action="reset_password",
         entity_type="user", entity_id=target.id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -846,7 +846,7 @@ async def force_logout_user(
         tenant_id=tenant.id, user_id=user.id, action="force_logout",
         entity_type="user", entity_id=user_id,
         after_state={"revoked_sessions": count},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 

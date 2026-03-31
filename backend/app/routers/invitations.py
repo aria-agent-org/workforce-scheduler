@@ -106,7 +106,7 @@ async def create_invitation(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="invitation", entity_id=inv.id,
         after_state={"email": inv.email, "phone": inv.phone, "token": token},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 

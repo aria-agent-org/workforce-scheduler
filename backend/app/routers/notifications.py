@@ -53,7 +53,7 @@ async def create_template(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="notification_template", entity_id=tmpl.id,
         after_state={"name": tmpl.name, "event_type_code": tmpl.event_type_code},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
     return NotificationTemplateResponse.model_validate(tmpl).model_dump()
@@ -142,7 +142,14 @@ async def list_logs(
     if status_filter:
         query = query.where(NotificationLog.status == status_filter)
 
-    count = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+    # Build a separate count query to avoid subquery nesting
+    count_q = select(func.count(NotificationLog.id)).where(NotificationLog.tenant_id == tenant.id)
+    if channel:
+        count_q = count_q.where(NotificationLog.channel == channel)
+    if status_filter:
+        count_q = count_q.where(NotificationLog.status == status_filter)
+    count = (await db.execute(count_q)).scalar() or 0
+
     query = query.order_by(NotificationLog.sent_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
 
@@ -275,7 +282,7 @@ async def update_channel_config(
         tenant_id=tenant.id, user_id=user.id, action="update_channel_config",
         entity_type="notification_channel_config", entity_id=config.id,
         after_state={"channel": channel, **data.model_dump(exclude_unset=True)},
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
 
@@ -480,7 +487,7 @@ async def broadcast_notification(
             "total_recipients": len(employees),
             "recipient_names": recipient_names[:50],  # Limit to 50 for audit log size
         },
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
 
     await db.commit()

@@ -102,10 +102,16 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // Use lightweight /my/teammates for self-service, full /employees for admin
+      const employeesEndpoint = selfService
+        ? tenantApi("/my/teammates")
+        : tenantApi("/employees");
+      const employeesParams = selfService ? {} : { params: { page_size: 200, is_active: true } };
+
       const [prefsRes, empRes, mtRes, configRes] = await Promise.all([
         api.get(apiBase),
-        api.get(tenantApi("/employees"), { params: { page_size: 200, is_active: true } }),
-        api.get(tenantApi("/mission-types")),
+        api.get(employeesEndpoint, employeesParams),
+        api.get(tenantApi("/mission-types")).catch(() => ({ data: [] })),
         api.get(tenantApi("/settings/preferences-config")).catch(() => ({ data: prefConfig })),
       ]);
       setPrefConfig(configRes.data);
@@ -116,7 +122,8 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
         custom_preferences: prefsRes.data.custom_preferences || {},
         notes: prefsRes.data.notes || null,
       });
-      setAllEmployees(empRes.data.items || []);
+      // Handle both paginated (admin) and array (self-service) responses
+      setAllEmployees(Array.isArray(empRes.data) ? empRes.data : (empRes.data.items || []));
       setMissionTypes(mtRes.data || []);
     } catch {
       toast("error", "שגיאה בטעינת העדפות");
