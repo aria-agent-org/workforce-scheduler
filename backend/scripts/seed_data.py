@@ -10,14 +10,12 @@ Usage:
 import asyncio
 import sys
 import os
-import uuid
-from datetime import date, time, datetime, timedelta, timezone
+from datetime import date, time, timedelta
 
 # Add parent to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import async_session_factory, engine
 from app.models.base import Base

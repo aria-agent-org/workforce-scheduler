@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
-from app.permissions import require_permission, require_tenant_admin
+from app.permissions import require_permission
 from app.models.user import User, UserSession, Invitation
 from app.models.employee import Employee
 from app.models.resource import RoleDefinition

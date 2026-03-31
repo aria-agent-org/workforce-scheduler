@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import CurrentUser, CurrentTenant
+from app.dependencies import CurrentUser
 from app.models.push_subscription import PushSubscription
 
 router = APIRouter()
@@ -130,7 +130,7 @@ async def send_test_push(
 
     for sub in subscriptions:
         try:
-            from pywebpush import webpush, WebPushException
+            from pywebpush import webpush
 
             payload = json.dumps({
                 "title": data.title,

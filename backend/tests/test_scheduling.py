@@ -1,7 +1,7 @@
 """Unit tests for scheduling service — scoring factors and utilities."""
 
 import pytest
-from datetime import date, time, timedelta
+from datetime import date, time
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 

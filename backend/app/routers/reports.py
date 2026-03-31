@@ -159,13 +159,11 @@ async def workload_report(
 
         overtime_hours = 0.0
         overtime_days = 0
-        last_mission_date = None
         for d_date, d_hours in day_rows:
             dh = float(d_hours or 0)
             if dh > 8:
                 overtime_hours += dh - 8
                 overtime_days += 1
-            last_mission_date = d_date
 
         # Night shift hours (missions starting between 22:00-06:00)
         night_query = (

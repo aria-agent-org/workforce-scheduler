@@ -1,12 +1,10 @@
 """Authentication service unit tests — password, JWT, 2FA, backup codes."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import bcrypt
 import pyotp
-import pytest
 from jose import jwt
 
 from app.services.auth_service import AuthService

@@ -1,6 +1,5 @@
 """FastAPI application factory."""
 
-import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 

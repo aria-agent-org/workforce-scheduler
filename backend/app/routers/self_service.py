@@ -1,11 +1,11 @@
 """Self-service endpoints for soldiers/viewers (/my/...)."""
 
-from datetime import date, datetime
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -13,8 +13,7 @@ from app.dependencies import CurrentUser, CurrentTenant
 from app.models.employee import Employee, EmployeePreference
 from app.schemas.employee import EmployeePreferencesUpdate, EmployeePreferencesResponse
 from app.models.scheduling import Mission, MissionAssignment, SwapRequest, MissionType
-from app.models.notification import NotificationLog, EventTypeDefinition
-from app.models.user import User
+from app.models.notification import NotificationLog
 
 
 

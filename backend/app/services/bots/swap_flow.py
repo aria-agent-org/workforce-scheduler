@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import select

@@ -20,16 +20,15 @@ Scoring factors:
   mutual_partner: +25 if two employees prefer each other AND both fill slots (second pass)
 """
 
-from datetime import date, time, timedelta, datetime
+from datetime import date, timedelta, datetime
 from uuid import UUID
 from collections import defaultdict
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scheduling import (
-    ScheduleWindow, ScheduleWindowEmployee, MissionType, MissionTemplate,
-    Mission, MissionAssignment,
+    ScheduleWindow, ScheduleWindowEmployee, MissionType, Mission, MissionAssignment,
 )
 from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference
 from app.models.attendance import AttendanceSchedule, AttendanceStatusDefinition

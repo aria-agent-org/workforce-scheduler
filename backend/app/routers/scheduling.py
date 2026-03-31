@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response as FastAPIResponse
 from pydantic import BaseModel as PydanticBaseModel
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -21,14 +21,11 @@ from app.models.scheduling import (
 from app.models.employee import Employee, EmployeeWorkRole
 from app.models.audit import AuditLog
 from app.schemas.scheduling import (
-    ScheduleWindowCreate, ScheduleWindowUpdate, ScheduleWindowResponse,
-    ScheduleWindowEmployeeAdd,
+    ScheduleWindowCreate, ScheduleWindowUpdate, ScheduleWindowEmployeeAdd,
     MissionTypeCreate, MissionTypeUpdate, MissionTypeResponse,
     MissionTemplateCreate, MissionTemplateUpdate, MissionTemplateResponse,
-    MissionCreate, MissionUpdate, MissionResponse,
-    MissionGenerateRequest,
-    MissionAssignmentCreate, MissionAssignmentResponse,
-    SwapRequestCreate, SwapRequestResponse,
+    MissionCreate, MissionUpdate, MissionGenerateRequest,
+    MissionAssignmentCreate, SwapRequestCreate,
 )
 from app.schemas.jsonb_validators import MissionSlot, RecurrencePattern, TimelineItem
 from pydantic import ValidationError as PydanticValidationError
@@ -1752,7 +1749,6 @@ async def export_window_template(
     # Get mission types used
     mt_ids = list({t["mission_type_id"] for t in templates})
     roles = []
-    statuses = []
     if mt_ids:
         mt_result = await db.execute(
             select(MissionType).where(MissionType.id.in_([UUID(mid) for mid in mt_ids]))

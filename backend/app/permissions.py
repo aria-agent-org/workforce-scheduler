@@ -1,7 +1,5 @@
 """Permission checking utilities for RBAC."""
 
-from typing import Callable
-from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import select

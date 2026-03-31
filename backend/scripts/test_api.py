@@ -2,7 +2,6 @@
 """Comprehensive API endpoint testing for Shavtzak."""
 
 import requests
-import json
 import sys
 import uuid
 

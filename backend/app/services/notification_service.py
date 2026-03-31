@@ -1,6 +1,5 @@
 """Multi-channel notification dispatcher with budget checking."""
 
-import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID

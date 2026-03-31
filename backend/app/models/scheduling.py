@@ -5,7 +5,7 @@ from datetime import date, time, datetime
 
 from sqlalchemy import (
     Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time,
-    UniqueConstraint, LargeBinary,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship, backref

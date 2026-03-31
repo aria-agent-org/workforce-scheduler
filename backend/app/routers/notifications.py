@@ -17,7 +17,7 @@ from app.models.audit import AuditLog
 from app.schemas.notification import (
     NotificationTemplateCreate, NotificationTemplateUpdate, NotificationTemplateResponse,
     NotificationLogResponse, EventTypeResponse, NotificationSend,
-    BroadcastNotificationRequest, BroadcastNotificationResponse,
+    BroadcastNotificationRequest,
 )
 from app.models.employee import Employee
 
@@ -406,7 +406,7 @@ async def broadcast_notification(
         # Step 3: Send webpush to each subscription
         emp_sent = False
         if VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY:
-            from pywebpush import webpush, WebPushException
+            from pywebpush import webpush
 
             payload = json.dumps({
                 "title": data.title,

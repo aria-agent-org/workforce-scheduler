@@ -380,7 +380,7 @@ from webauthn.helpers.structs import (
     AuthenticatorAttestationResponse,
     AuthenticatorAssertionResponse,
 )
-from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
+from webauthn.helpers import base64url_to_bytes
 
 # In-memory challenge store (keyed by user_id or session).
 # In production, use Redis with TTL. This is safe for single-instance.

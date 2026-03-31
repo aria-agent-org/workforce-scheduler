@@ -4,7 +4,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -124,7 +124,7 @@ async def update_attendance(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    from datetime import datetime, time as dt_time
+    from datetime import datetime
     from app.models.scheduling import Mission, MissionAssignment
 
     result = await db.execute(

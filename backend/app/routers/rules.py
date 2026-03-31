@@ -13,8 +13,7 @@ from app.models.rules import RuleDefinition
 from app.models.audit import AuditLog
 from app.schemas.rules import (
     RuleCreate, RuleUpdate, RuleResponse,
-    RuleEvaluateRequest, RuleEvaluateResponse,
-    RuleTestRequest, RuleTestResponse,
+    RuleEvaluateRequest, RuleTestRequest,
 )
 from app.schemas.jsonb_validators import ConditionGroup, ActionExpression
 from pydantic import ValidationError as PydanticValidationError

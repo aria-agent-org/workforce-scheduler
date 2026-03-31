@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 

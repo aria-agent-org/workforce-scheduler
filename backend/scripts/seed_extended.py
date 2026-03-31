@@ -10,25 +10,21 @@ Usage:
 import asyncio
 import sys
 import os
-import uuid
 import random
-from datetime import date, time, datetime, timedelta, timezone
+from datetime import date, time, datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_session_factory, engine
-from app.models.base import Base
+from app.database import async_session_factory
 from app.models.tenant import Tenant
 from app.models.resource import WorkRole
 from app.models.user import User
 from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference
 from app.models.attendance import AttendanceSchedule
 from app.models.scheduling import (
-    ScheduleWindow, ScheduleWindowEmployee, MissionType, MissionTemplate,
-    Mission, MissionAssignment, SwapRequest,
+    ScheduleWindow, ScheduleWindowEmployee, MissionType, Mission, MissionAssignment, SwapRequest,
 )
 
 
@@ -231,7 +227,7 @@ async def seed_extended() -> None:
         all_mission_types = list(all_mt_result.scalars().all())
 
         # === CREATE 3 SCHEDULE WINDOWS ===
-        today = date.today()
+        date.today()
 
         windows_to_create = [
             {"name": "מרץ 2026 (עבר)", "start": date(2026, 3, 1), "end": date(2026, 3, 31), "status": "archived"},

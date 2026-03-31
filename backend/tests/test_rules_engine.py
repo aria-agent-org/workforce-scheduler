@@ -1,6 +1,5 @@
 """Unit tests for the rules engine — evaluate_condition + _resolve_field."""
 
-import pytest
 
 from app.services.rules_engine import evaluate_condition, _resolve_field, _num
 

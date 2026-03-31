@@ -13,7 +13,7 @@ from uuid import UUID
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rules import RuleDefinition
@@ -398,7 +398,7 @@ async def evaluate_assignment(
     mt_result = await db.execute(
         select(MissionType).where(MissionType.id == mission.mission_type_id)
     )
-    mission_type = mt_result.scalar_one_or_none()
+    mt_result.scalar_one_or_none()
 
     hard_conflicts: list[dict] = []
     soft_warnings: list[dict] = []

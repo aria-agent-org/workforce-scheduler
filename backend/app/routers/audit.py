@@ -12,7 +12,6 @@ from app.dependencies import CurrentUser, CurrentTenant
 from app.permissions import require_permission
 from app.models.audit import AuditLog
 from app.models.user import User
-from app.schemas.audit import AuditLogResponse
 
 router = APIRouter()
 

@@ -1,6 +1,5 @@
 """Backend i18n helpers."""
 
-from typing import Any
 
 
 def get_localized(

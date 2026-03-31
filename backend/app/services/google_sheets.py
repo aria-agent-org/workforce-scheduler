@@ -3,7 +3,6 @@
 import json
 import logging
 from datetime import date, datetime, timezone
-from uuid import UUID
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -123,7 +122,7 @@ async def sync_inbound(
     status_map = config.status_code_mapping or {}
 
     # Header row
-    header = rows[0]
+    rows[0]
     data_rows = rows[1:]
 
     # Load employees for this tenant

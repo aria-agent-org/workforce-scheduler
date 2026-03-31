@@ -6,11 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import CurrentUser
-from app.models.tenant import Plan, Tenant, TenantSetting
+from app.models.tenant import Plan, Tenant
 from app.models.user import User
 from app.models.resource import RoleDefinition
 from app.models.notification import NotificationChannelConfig
@@ -532,7 +531,6 @@ async def get_system_stats(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get system-wide statistics with dashboard data."""
-    import time as _time
     await require_admin(user, db)
 
     from app.models.employee import Employee

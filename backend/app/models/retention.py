@@ -1,9 +1,7 @@
 """Data retention configuration model."""
 
-import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TenantBase

@@ -1,7 +1,5 @@
 """Webhook routers for WhatsApp and Telegram bot integrations."""
 
-import hashlib
-import hmac
 import logging
 import os
 from uuid import UUID
