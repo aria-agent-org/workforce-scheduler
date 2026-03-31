@@ -3,7 +3,7 @@
 import time
 from datetime import datetime, timezone
 
-import aioredis
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
