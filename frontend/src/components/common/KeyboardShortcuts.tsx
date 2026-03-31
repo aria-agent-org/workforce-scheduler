@@ -30,6 +30,9 @@ export function KeyboardShortcutsProvider({ children }: { children: ReactNode })
       const el = document.querySelector<HTMLInputElement>('[data-search-input]');
       if (el) { el.focus(); el.select(); }
     }, category: "כללי" },
+    { key: "Ctrl+K", label_he: "חיפוש גלובלי", label_en: "Global Search", action: () => {
+      document.dispatchEvent(new CustomEvent("shavtzak:open-global-search"));
+    }, category: "כללי" },
     { key: "g d", label_he: "לוח בקרה", label_en: "Go to Dashboard", action: () => navTo("/dashboard"), category: "ניווט" },
     { key: "g s", label_he: "חיילים", label_en: "Go to Soldiers", action: () => navTo("/soldiers"), category: "ניווט" },
     { key: "g c", label_he: "שיבוצים", label_en: "Go to Scheduling", action: () => navTo("/scheduling"), category: "ניווט" },
@@ -62,6 +65,13 @@ export function KeyboardShortcutsProvider({ children }: { children: ReactNode })
         return;
       }
       if ((e.target as HTMLElement)?.contentEditable === "true") return;
+
+      // Handle Ctrl+K
+      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.dispatchEvent(new CustomEvent("shavtzak:open-global-search"));
+        return;
+      }
 
       // Handle prefix sequences (g + key)
       if (pendingPrefix === "g") {

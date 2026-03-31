@@ -317,6 +317,24 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      {/* Empty state: no windows */}
+      {windows.length === 0 && !loading && (
+        <Card className="border-dashed">
+          <CardContent className="p-12 text-center">
+            <div className="h-20 w-20 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center mx-auto mb-4">
+              <CalendarDays className="h-10 w-10 text-primary-400" />
+            </div>
+            <p className="text-lg font-semibold text-foreground">אין נתוני נוכחות</p>
+            <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+              כדי לנהל נוכחות, יש ליצור קודם לוח עבודה בעמוד השיבוצים.
+            </p>
+            <Button size="sm" className="mt-4" onClick={() => window.location.href = "/scheduling"}>
+              <CalendarDays className="me-1 h-4 w-4" />עבור לשיבוצים
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Controls Row */}
       <div className="flex items-center gap-2 md:gap-3 flex-wrap overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         <div className="space-y-1">

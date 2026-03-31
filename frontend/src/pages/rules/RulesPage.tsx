@@ -328,13 +328,21 @@ export default function RulesPage() {
       <div className="space-y-3">
         {rules.length === 0 ? (
           <Card className="border-dashed">
-            <CardContent className="p-8 text-center text-muted-foreground">
-              <ShieldCheck className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="text-lg font-medium">אין חוקים עדיין</p>
-              <p className="text-sm mt-1">הוסף חוק ראשון כדי להגדיר כללי שיבוץ</p>
-              <Button size="sm" className="mt-4" onClick={openCreate}>
-                <Plus className="me-1 h-4 w-4" />צור חוק ראשון
-              </Button>
+            <CardContent className="p-12 text-center">
+              <div className="h-20 w-20 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center mx-auto mb-4">
+                <ShieldCheck className="h-10 w-10 text-primary-400" />
+              </div>
+              <p className="text-lg font-semibold text-foreground">אין חוקים עדיין</p>
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                חוקים מגדירים מגבלות שיבוץ — מנוחה מינימלית, הוגנות, בטיחות ועוד.
+                <br />הוסף חוקים כדי לוודא שיבוץ תקין.
+              </p>
+              <div className="flex flex-col items-center gap-2 mt-4">
+                <Button size="sm" onClick={openCreate}>
+                  <Plus className="me-1 h-4 w-4" />צור חוק ראשון
+                </Button>
+                <p className="text-xs text-muted-foreground">💡 דוגמאות: מנוחה מינימלית 8 שעות, מקסימום 6 משמרות בשבוע</p>
+              </div>
             </CardContent>
           </Card>
         ) : rules.map(rule => (

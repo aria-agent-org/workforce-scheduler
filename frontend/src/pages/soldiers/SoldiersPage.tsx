@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart } from "lucide-react";
+import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart, ChevronDown } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
@@ -171,6 +171,100 @@ function PreferencePermissions({ employeeId }: { employeeId: string }) {
       <p className="text-[10px] text-muted-foreground">
         ברירת מחדל מוגדרת בהגדרות המערכת. שינוי כאן חל רק על חייל זה.
       </p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// Quick Status Dropdown
+// ═══════════════════════════════════════════
+
+const STATUS_COLORS: Record<string, string> = {
+  available: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  on_duty: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  sick: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  leave: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+  training: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  reserve: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  absent: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  available: "זמין",
+  on_duty: "בתורנות",
+  sick: "חולה",
+  leave: "חופשה",
+  training: "הכשרה",
+  reserve: "מילואים",
+  absent: "נעדר",
+};
+
+function QuickStatusBadge({ soldier, onUpdate }: { soldier: Soldier; onUpdate: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const { toast } = useToast();
+  const ref = useRef<HTMLDivElement>(null);
+
+  const currentStatus = soldier.status || "available";
+  const label = STATUS_LABELS[currentStatus] || currentStatus;
+  const colorClass = STATUS_COLORS[currentStatus] || STATUS_COLORS.available;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const updateStatus = async (newStatus: string) => {
+    if (newStatus === currentStatus) { setOpen(false); return; }
+    setUpdating(true);
+    try {
+      await api.patch(tenantApi(`/employees/${soldier.id}`), { status: newStatus });
+      toast("success", `סטטוס עודכן ל${STATUS_LABELS[newStatus] || newStatus}`);
+      onUpdate();
+    } catch (e: any) {
+      toast("error", getErrorMessage(e, "שגיאה בעדכון סטטוס"));
+    } finally {
+      setUpdating(false);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        disabled={updating}
+        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer hover:ring-2 hover:ring-primary-300 ${colorClass} ${updating ? "opacity-50" : ""}`}
+      >
+        {updating ? (
+          <span className="inline-block h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+        )}
+        {label}
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-36 rounded-xl border bg-background shadow-xl animate-in fade-in zoom-in-95 py-1"
+          style={{ top: "100%", insetInlineStart: 0 }}
+        >
+          {Object.entries(STATUS_LABELS).map(([key, lbl]) => (
+            <button
+              key={key}
+              onClick={(e) => { e.stopPropagation(); updateStatus(key); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start ${key === currentStatus ? "bg-muted/70 font-medium" : ""}`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COLORS[key]?.split(" ")[0] || "bg-gray-200"}`} />
+              {lbl}
+              {key === currentStatus && <span className="ms-auto text-xs text-primary-500">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -688,8 +782,22 @@ export default function SoldiersPage() {
                   <tbody>
                     {soldiers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                          {t("noSoldiers")}
+                        <td colSpan={6} className="px-4 py-16 text-center">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="h-16 w-16 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center">
+                              <UserPlus className="h-8 w-8 text-primary-400" />
+                            </div>
+                            <p className="text-lg font-semibold text-foreground">אין חיילים עדיין</p>
+                            <p className="text-sm text-muted-foreground max-w-xs">הוסף חיילים באופן ידני או ייבא מקובץ CSV/Excel</p>
+                            <div className="flex gap-2 mt-2">
+                              <Button size="sm" onClick={openCreate}>
+                                <UserPlus className="me-1 h-4 w-4" />הוסף חייל ראשון
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                <Upload className="me-1 h-4 w-4" />ייבוא מקובץ
+                              </Button>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -713,9 +821,7 @@ export default function SoldiersPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant={s.is_active ? "success" : "destructive"}>
-                              {s.is_active ? t("active") : t("inactive")}
-                            </Badge>
+                            <QuickStatusBadge soldier={s} onUpdate={loadSoldiers} />
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
@@ -737,7 +843,16 @@ export default function SoldiersPage() {
               {/* Mobile card view */}
               <div className="md:hidden space-y-2 p-3">
                 {soldiers.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">{t("noSoldiers")}</p>
+                  <div className="flex flex-col items-center gap-3 py-12">
+                    <div className="h-14 w-14 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center">
+                      <UserPlus className="h-7 w-7 text-primary-400" />
+                    </div>
+                    <p className="text-base font-semibold">אין חיילים עדיין</p>
+                    <p className="text-sm text-muted-foreground text-center">הוסף חיילים או ייבא מקובץ</p>
+                    <Button size="sm" onClick={openCreate}>
+                      <UserPlus className="me-1 h-4 w-4" />הוסף חייל ראשון
+                    </Button>
+                  </div>
                 ) : soldiers.map((s) => (
                   <div key={s.id} className={`rounded-xl border p-3 transition-all ${selectedIds.has(s.id) ? "ring-2 ring-primary-300 bg-primary-50/50 dark:bg-primary-900/10" : ""}`}>
                     <div className="flex items-start gap-3">
@@ -748,9 +863,7 @@ export default function SoldiersPage() {
                             <p className="font-semibold text-sm">{s.full_name}</p>
                             <p className="text-xs text-muted-foreground font-mono">{s.employee_number}</p>
                           </div>
-                          <Badge variant={s.is_active ? "success" : "destructive"} className="text-[10px] flex-shrink-0">
-                            {s.is_active ? t("active") : t("inactive")}
-                          </Badge>
+                          <QuickStatusBadge soldier={s} onUpdate={loadSoldiers} />
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2">
                           {s.work_roles?.map((r) => (

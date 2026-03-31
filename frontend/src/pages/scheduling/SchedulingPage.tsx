@@ -67,7 +67,8 @@ export default function SchedulingPage() {
   // Selected window for board view
   const [selectedWindow, setSelectedWindow] = useState<any | null>(null);
   const [boardDate, setBoardDate] = useState(new Date().toISOString().split("T")[0]);
-  const [boardView, setBoardView] = useState<"day" | "week">("day");
+  const [boardView, setBoardView] = useState<"day" | "week" | "calendar">("day");
+  const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [expandedMission, setExpandedMission] = useState<string | null>(null);
 
   // Modals
@@ -931,6 +932,7 @@ export default function SchedulingPage() {
             <div className="flex gap-2">
               <button onClick={() => setBoardView("day")} className={`px-3 py-1 text-sm rounded ${boardView === "day" ? "bg-primary-500 text-white" : "bg-muted"}`}>יומי</button>
               <button onClick={() => setBoardView("week")} className={`px-3 py-1 text-sm rounded ${boardView === "week" ? "bg-primary-500 text-white" : "bg-muted"}`}>שבועי</button>
+              <button onClick={() => setBoardView("calendar")} className={`px-3 py-1 text-sm rounded ${boardView === "calendar" ? "bg-primary-500 text-white" : "bg-muted"}`}>לוח שנה</button>
             </div>
             <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="w-40" />
             <Badge className={statusColors[selectedWindow.status]}>{t(`status.${selectedWindow.status}`)}</Badge>
@@ -1016,14 +1018,167 @@ export default function SchedulingPage() {
             );
           })()}
 
+          {/* Calendar View */}
+          {boardView === "calendar" && (() => {
+            const calDate = new Date(boardDate);
+            const year = calDate.getFullYear();
+            const month = calDate.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startPad = firstDay.getDay(); // 0=Sun
+            const totalDays = lastDay.getDate();
+            const calDays: Array<{ date: string; dayNum: number; isCurrentMonth: boolean }> = [];
+
+            // Padding from previous month
+            for (let i = startPad - 1; i >= 0; i--) {
+              const d = new Date(year, month, -i);
+              calDays.push({ date: d.toISOString().split("T")[0], dayNum: d.getDate(), isCurrentMonth: false });
+            }
+            // Current month
+            for (let d = 1; d <= totalDays; d++) {
+              const dt = new Date(year, month, d);
+              calDays.push({ date: dt.toISOString().split("T")[0], dayNum: d, isCurrentMonth: true });
+            }
+            // Padding to fill last row
+            const remaining = 7 - (calDays.length % 7);
+            if (remaining < 7) {
+              for (let i = 1; i <= remaining; i++) {
+                const d = new Date(year, month + 1, i);
+                calDays.push({ date: d.toISOString().split("T")[0], dayNum: d.getDate(), isCurrentMonth: false });
+              }
+            }
+
+            const dayNames = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+            const monthNames = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+
+            const missionsByDate: Record<string, any[]> = {};
+            missions.forEach(m => {
+              if (!missionsByDate[m.date]) missionsByDate[m.date] = [];
+              missionsByDate[m.date].push(m);
+            });
+
+            const today = new Date().toISOString().split("T")[0];
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    const prev = new Date(year, month - 1, 1);
+                    setBoardDate(prev.toISOString().split("T")[0]);
+                  }}>
+                    <ChevronDown className="h-4 w-4 rotate-90" />
+                  </Button>
+                  <h2 className="text-lg font-bold">{monthNames[month]} {year}</h2>
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    const next = new Date(year, month + 1, 1);
+                    setBoardDate(next.toISOString().split("T")[0]);
+                  }}>
+                    <ChevronDown className="h-4 w-4 -rotate-90" />
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-px bg-muted rounded-xl overflow-hidden border">
+                  {/* Day headers */}
+                  {dayNames.map(d => (
+                    <div key={d} className="bg-muted/80 py-2 text-center text-xs font-bold text-muted-foreground">
+                      {d}
+                    </div>
+                  ))}
+                  {/* Day cells */}
+                  {calDays.map((day) => {
+                    const dayMissions = missionsByDate[day.date] || [];
+                    const isToday = day.date === today;
+                    const isSelected = calendarSelectedDay === day.date;
+                    // Group by mission type for colored dots
+                    const typeGroups: Record<string, { color: string; count: number }> = {};
+                    dayMissions.forEach(m => {
+                      const mt = missionTypes.find(mt2 => mt2.id === m.mission_type_id);
+                      const color = mt?.color || "#3b82f6";
+                      if (!typeGroups[color]) typeGroups[color] = { color, count: 0 };
+                      typeGroups[color].count++;
+                    });
+
+                    return (
+                      <button
+                        key={day.date}
+                        onClick={() => setCalendarSelectedDay(isSelected ? null : day.date)}
+                        className={`min-h-[80px] p-1.5 bg-background transition-all text-start hover:bg-muted/50 ${
+                          !day.isCurrentMonth ? "opacity-40" : ""
+                        } ${isToday ? "ring-2 ring-inset ring-primary-500" : ""} ${
+                          isSelected ? "bg-primary-50 dark:bg-primary-900/20" : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-medium ${isToday ? "bg-primary-500 text-white rounded-full w-5 h-5 flex items-center justify-center" : ""}`}>
+                            {day.dayNum}
+                          </span>
+                          {dayMissions.length > 0 && (
+                            <span className="text-[10px] font-bold text-muted-foreground bg-muted rounded-full px-1.5">
+                              {dayMissions.length}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-0.5">
+                          {Object.values(typeGroups).slice(0, 4).map((tg, i) => (
+                            <span key={i} className="h-2 w-2 rounded-full" style={{ backgroundColor: tg.color }} title={`${tg.count} משימות`} />
+                          ))}
+                          {Object.keys(typeGroups).length > 4 && (
+                            <span className="text-[8px] text-muted-foreground">+{Object.keys(typeGroups).length - 4}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected day detail */}
+                {calendarSelectedDay && (() => {
+                  const dayMissions = missionsByDate[calendarSelectedDay] || [];
+                  const selectedDateObj = new Date(calendarSelectedDay);
+                  const dayLabel = selectedDateObj.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
+                  return (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center justify-between">
+                          <span>📅 {dayLabel}</span>
+                          <Badge className="bg-muted text-foreground">{dayMissions.length} משימות</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {dayMissions.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">אין משימות ביום זה</p>
+                        ) : dayMissions.map((m: any) => {
+                          const mt = missionTypes.find(mt2 => mt2.id === m.mission_type_id);
+                          return (
+                            <div key={m.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors cursor-pointer"
+                              onClick={() => { setBoardView("day"); setBoardDate(calendarSelectedDay); setExpandedMission(m.id); }}>
+                              <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ backgroundColor: (mt?.color || "#3b82f6") + "18" }}>
+                                {mt?.icon || "📋"}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{m.name}</p>
+                                <p className="text-xs text-muted-foreground">⏰ {m.start_time?.slice(0, 5)}–{m.end_time?.slice(0, 5)} · 👥 {m.assignments?.length || 0} שובצו</p>
+                              </div>
+                              <Badge className={`${statusColors[m.status] || ""} text-[10px]`}>{t(`status.${m.status}`)}</Badge>
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+              </div>
+            );
+          })()}
+
           {/* Missions list */}
-          {boardMissions.length === 0 ? (
+          {boardView !== "calendar" && boardMissions.length === 0 ? (
             <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
               <Clock className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
               <p className="text-lg font-medium">אין משימות בטווח זה</p>
               <p className="text-sm mt-1">צור משימה חדשה או השתמש בתבנית כדי ליצור משימות אוטומטית</p>
             </CardContent></Card>
-          ) : (
+          ) : boardView !== "calendar" ? (
             <div className="space-y-3">
               {boardMissions.map((m) => {
                 const mt = missionTypes.find(mt => mt.id === m.mission_type_id);
@@ -1205,7 +1360,7 @@ export default function SchedulingPage() {
                 );
               })}
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
