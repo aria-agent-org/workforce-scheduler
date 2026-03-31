@@ -172,7 +172,7 @@ export default function MySchedulePage() {
                               {a.mission_type_icon || "📋"}
                             </div>
                             <div className="min-w-0">
-                              <a href={`/missions/${a.mission_id}`} className="font-semibold text-sm truncate text-primary-600 hover:underline">{a.mission_name}</a>
+                              <a href={`/my/mission/${a.mission_id}`} className="font-semibold text-sm truncate text-primary-600 hover:underline">{a.mission_name}</a>
                               {missionTypeName && (
                                 <Badge
                                   className="text-[10px] mt-0.5"
@@ -203,7 +203,7 @@ export default function MySchedulePage() {
                                   <Users className="h-3 w-3 text-muted-foreground" />
                                   {a.crew.map((cm, i) => (
                                     <Badge key={i} className="text-[10px] bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                      {cm.full_name}
+                                      {cm.name}
                                       {cm.slot_label && <span className="text-muted-foreground mr-0.5"> ({cm.slot_label})</span>}
                                     </Badge>
                                   ))}

@@ -83,7 +83,7 @@ function App() {
                     <PermissionGuard page="scheduling"><SchedulingPage /></PermissionGuard>
                   } />
                   <Route path="missions/:id" element={
-                    <PermissionGuard page="scheduling"><MissionDetailPage /></PermissionGuard>
+                    <PermissionGuard page="my"><MissionDetailPage /></PermissionGuard>
                   } />
 
                   {/* Attendance — scheduler+ */}
@@ -142,6 +142,7 @@ function App() {
                   <Route path="swap" element={<MySwapPage />} />
                   <Route path="notifications" element={<MyNotificationsPage />} />
                   <Route path="profile" element={<MyProfilePage />} />
+                  <Route path="mission/:id" element={<MissionDetailPage />} />
                 </Route>
 
                 <Route path="*" element={<NotFoundPage />} />
