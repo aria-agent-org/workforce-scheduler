@@ -25,15 +25,16 @@ import AttendanceStatusesPage from "./AttendanceStatusesPage";
 import GoogleSheetsPage from "./GoogleSheetsPage";
 import BotConfigPage from "./BotConfigPage";
 import BoardTemplateEditor from "./BoardTemplateEditor";
+import SchedulingConfigPage from "./SchedulingConfigPage";
 import UsersSettingsPage from "./UsersSettingsPage";
 import RegistrationCodesPage from "./RegistrationCodesPage";
 import CommunicationChannelsPage from "./CommunicationChannelsPage";
 import RolePermissionsPage from "./RolePermissionsPage";
 import VisibilitySettingsPage from "./VisibilitySettingsPage";
 import SecuritySettingsPage from "./SecuritySettingsPage";
-import { KeyRound, Radio, Eye, Lock } from "lucide-react";
+import { KeyRound, Radio, Eye, Lock, Sliders } from "lucide-react";
 
-type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "users" | "registration" | "channels" | "visibility" | "security";
+type Tab = "general" | "work-roles" | "role-definitions" | "attendance-statuses" | "google-sheets" | "bot-config" | "board-template" | "scheduling-config" | "users" | "registration" | "channels" | "visibility" | "security";
 
 function BrandingSection({ initialColor, initialLogo, initialFavicon, onSave }: {
   initialColor: string;
@@ -130,7 +131,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab && ["general","users","registration","work-roles","attendance-statuses","board-template","channels","google-sheets","bot-config","visibility","role-definitions","security"].includes(tab)) {
+    if (tab && ["general","users","registration","work-roles","attendance-statuses","board-template","scheduling-config","channels","google-sheets","bot-config","visibility","role-definitions","security"].includes(tab)) {
       return tab as Tab;
     }
     return "general";
@@ -217,6 +218,7 @@ export default function SettingsPage() {
     { key: "work-roles", label: "תפקידים", icon: Users },
     { key: "attendance-statuses", label: "סטטוסי נוכחות", icon: ClipboardList },
     { key: "board-template", label: "תבנית לוח", icon: LayoutTemplate },
+    { key: "scheduling-config", label: "הגדרות שיבוץ", icon: Sliders },
     { key: "channels", label: "ערוצים", icon: Radio },
     { key: "google-sheets", label: "Google Sheets", icon: Sheet },
     { key: "bot-config", label: "בוט", icon: Bot },
@@ -453,6 +455,9 @@ export default function SettingsPage() {
 
       {/* Board Template Editor */}
       {activeTab === "board-template" && <BoardTemplateEditor />}
+
+      {/* Scheduling Configuration */}
+      {activeTab === "scheduling-config" && <SchedulingConfigPage />}
 
       {/* Communication Channels */}
       {activeTab === "channels" && <CommunicationChannelsPage />}
