@@ -71,7 +71,8 @@ export default function MySchedulePage() {
     setSwapSubmitting(true);
     try {
       await api.post(tenantApi("/swap-requests"), {
-        assignment_id: swapTarget.assignment_id,
+        requester_assignment_id: swapTarget.assignment_id,
+        swap_type: "give_away",
         reason: swapReason || undefined,
       });
       toast("success", "בקשת החלפה נשלחה בהצלחה! 🔄");

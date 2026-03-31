@@ -51,17 +51,24 @@ class NotificationService:
             logger.warning(f"Employee {employee_id} not found for notification")
             return []
 
-        # Get notification template
+        # Get notification template — check tenant-specific first, then system (null tenant)
+        from sqlalchemy import or_
         tmpl_result = await self.db.execute(
             select(NotificationTemplate).where(
-                NotificationTemplate.tenant_id == tenant_id,
+                or_(
+                    NotificationTemplate.tenant_id == tenant_id,
+                    NotificationTemplate.tenant_id.is_(None),
+                ),
                 NotificationTemplate.event_type_code == event_type_code,
                 NotificationTemplate.is_active.is_(True),
+            ).order_by(
+                # Prefer tenant-specific over system template
+                NotificationTemplate.tenant_id.is_(None).asc()
             )
         )
-        template = tmpl_result.scalar_one_or_none()
+        template = tmpl_result.scalars().first()
         if not template:
-            logger.warning(f"No active template for event {event_type_code}")
+            logger.warning(f"No active template for event {event_type_code} (checked tenant + system)")
             return []
 
         # Get employee preferences
