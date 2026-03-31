@@ -811,11 +811,20 @@ export default function BoardTemplateEditor() {
 
       if (dragItem.type === "missionType") {
         const n = dragItem.data.name;
-        cell.value = typeof n === 'object' ? (n.he || n.en || '') : String(n);
-        cell.missionTypeId = dragItem.data.id;
+        const newName = typeof n === 'object' ? (n.he || n.en || '') : String(n);
+        // Multi-mission: if cell already has a value, append with pipe separator
+        if (cell.value && cell.missionTypeId) {
+          cell.value = cell.value + " | " + newName;
+          cell.missionTypeId = cell.missionTypeId + "|" + dragItem.data.id;
+        } else {
+          cell.value = newName;
+          cell.missionTypeId = dragItem.data.id;
+        }
         cell.type = "header";
         cell.fontWeight = "bold";
-        if (dragItem.data.color) cell.backgroundColor = dragItem.data.color;
+        if (dragItem.data.color && !cell.backgroundColor?.includes("#166534")) {
+          cell.backgroundColor = dragItem.data.color;
+        }
       } else if (dragItem.type === "workRole") {
         const n = dragItem.data.name;
         cell.value = typeof n === 'object' ? (n.he || n.en || '') : String(n);
@@ -1240,6 +1249,46 @@ export default function BoardTemplateEditor() {
         >
           <Plus className="w-3 h-3 ml-0.5" />עמודה
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          title="התאמת רוחב עמודות לפי משך זמן"
+          onClick={() => {
+            if (!activeSection) return;
+            pushUndo();
+            // Fit column widths based on time ranges in cells
+            updateSection(activeSectionId, (s) => {
+              const colWidths = [...s.colWidths];
+              const BASE_UNIT = 30; // pixels per hour
+              // Scan first column for time ranges and adjust row heights proportionally
+              // Scan all columns for time ranges
+              for (let c = 0; c < s.cols; c++) {
+                let totalDuration = 0;
+                let timeCount = 0;
+                for (let r = 0; r < s.rows; r++) {
+                  const cell = s.grid[r]?.[c];
+                  if (cell?.timeRange?.start && cell?.timeRange?.end) {
+                    const [sh, sm] = cell.timeRange.start.split(":").map(Number);
+                    const [eh, em] = cell.timeRange.end.split(":").map(Number);
+                    let dur = (eh * 60 + em) - (sh * 60 + sm);
+                    if (dur <= 0) dur += 24 * 60; // overnight
+                    totalDuration += dur / 60;
+                    timeCount++;
+                  }
+                }
+                if (timeCount > 0) {
+                  const avgDuration = totalDuration / timeCount;
+                  colWidths[c] = Math.max(60, Math.round(avgDuration * BASE_UNIT));
+                }
+              }
+              return { ...s, colWidths };
+            });
+            toast("success", "רוחב עמודות הותאם לפי משך זמן");
+          }}
+        >
+          <Clock className="w-3 h-3 ml-0.5" />התאם לזמן
+        </Button>
 
         <div className="flex-1" />
 
@@ -1451,6 +1500,14 @@ export default function BoardTemplateEditor() {
                               }}
                               autoFocus
                             />
+                          ) : cell.value?.includes(" | ") ? (
+                            <div className="flex flex-wrap gap-0.5 justify-center">
+                              {cell.value.split(" | ").map((v: string, vi: number) => (
+                                <span key={vi} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-black/10 dark:bg-white/10 leading-tight">
+                                  {v}
+                                </span>
+                              ))}
+                            </div>
                           ) : (
                             <span className="truncate">{cell.value || (isSelected ? "" : "")}</span>
                           )}
@@ -1584,36 +1641,53 @@ export default function BoardTemplateEditor() {
                     />
                   </div>
                   {selectedCell.type === "time" && (
-                    <div className="flex gap-1">
-                      <div className="flex-1">
-                        <Label className="text-xs">מ-</Label>
-                        <Input
-                          type="time"
-                          value={selectedCell.timeRange?.start || ""}
-                          onChange={(e) =>
-                            applyToSelected((c) => ({
-                              ...c,
-                              timeRange: { start: e.target.value, end: c.timeRange?.end || "" },
-                            }))
-                          }
-                          className="h-7 text-xs"
-                        />
+                    <>
+                      <div className="flex gap-1">
+                        <div className="flex-1">
+                          <Label className="text-xs">מ-</Label>
+                          <Input
+                            type="time"
+                            value={selectedCell.timeRange?.start || ""}
+                            onChange={(e) =>
+                              applyToSelected((c) => ({
+                                ...c,
+                                timeRange: { start: e.target.value, end: c.timeRange?.end || "" },
+                                value: `${e.target.value}-${c.timeRange?.end || ""}`,
+                              }))
+                            }
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs">עד</Label>
+                          <Input
+                            type="time"
+                            value={selectedCell.timeRange?.end || ""}
+                            onChange={(e) =>
+                              applyToSelected((c) => ({
+                                ...c,
+                                timeRange: { start: c.timeRange?.start || "", end: e.target.value },
+                                value: `${c.timeRange?.start || ""}-${e.target.value}`,
+                              }))
+                            }
+                            className="h-7 text-xs"
+                          />
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <Label className="text-xs">עד</Label>
-                        <Input
-                          type="time"
-                          value={selectedCell.timeRange?.end || ""}
-                          onChange={(e) =>
-                            applyToSelected((c) => ({
-                              ...c,
-                              timeRange: { start: c.timeRange?.start || "", end: e.target.value },
-                            }))
-                          }
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    </div>
+                      {selectedCell.timeRange?.start && selectedCell.timeRange?.end && (() => {
+                        const [sh, sm] = selectedCell.timeRange.start.split(":").map(Number);
+                        const [eh, em] = selectedCell.timeRange.end.split(":").map(Number);
+                        let dur = (eh * 60 + em) - (sh * 60 + sm);
+                        if (dur <= 0) dur += 24 * 60;
+                        const hours = dur / 60;
+                        const units = Math.round(hours / 4); // 4h = 1 unit
+                        return (
+                          <div className="text-[10px] text-muted-foreground pt-1">
+                            משך: {hours}h • {units} יחידות (4h=1)
+                          </div>
+                        );
+                      })()}
+                    </>
                   )}
                   <div className="pt-1 border-t">
                     <span className="text-muted-foreground">

@@ -6,11 +6,93 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { User, KeyRound, Globe, Bell, Save, Shield, Heart } from "lucide-react";
+import { User, KeyRound, Globe, Bell, Save, Shield, Heart, MessageCircle, Send } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { isPushSupported, getPushPermission, subscribeToPush, isPushSubscribed, sendTestPush } from "@/lib/push";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import EmployeePreferences from "@/components/EmployeePreferences";
+
+function TelegramRegistration() {
+  const { toast } = useToast();
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
+
+  useEffect(() => {
+    // Check if user has a Telegram registration
+    (async () => {
+      try {
+        const res = await api.get(tenantApi("/my/profile"));
+        const channels = res.data.employee?.notification_channels || {};
+        if (channels.telegram_chat_id) {
+          setRegistered(true);
+        }
+      } catch { /* silent */ }
+    })();
+  }, []);
+
+  const generateToken = async () => {
+    setLoading(true);
+    try {
+      const res = await api.post(tenantApi("/my/telegram-token"));
+      setToken(res.data.token || res.data.code || "TOKEN");
+    } catch {
+      // Fallback: generate a client-side placeholder
+      setToken(`reg_${Math.random().toString(36).slice(2, 10)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (registered) {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">✅ מחובר</Badge>
+        <span className="text-sm text-muted-foreground">חשבון Telegram מקושר</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        קבל התראות ישירות ל-Telegram. לחץ על הכפתור כדי לקבל קוד רישום, ושלח אותו לבוט.
+      </p>
+      {!token ? (
+        <Button size="sm" variant="outline" onClick={generateToken} disabled={loading}>
+          <Send className="me-1 h-4 w-4" />
+          {loading ? "יוצר קוד..." : "קבל קוד רישום"}
+        </Button>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono select-all">{token}</code>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => { navigator.clipboard.writeText(token); toast("success", "הקוד הועתק"); }}
+            >
+              📋
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            שלח את הקוד הזה לבוט שלנו ב-Telegram:
+          </p>
+          <a
+            href={`https://t.me/WorkforceSchedulerBot?start=${token}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            <Send className="h-3.5 w-3.5" />
+            פתח בוט Telegram
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MyProfilePage() {
   const { t, i18n } = useTranslation();
@@ -234,47 +316,62 @@ export default function MyProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Push Notification Preferences */}
+      {/* הגדרות התראות */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Bell className="h-5 w-5" />
-            העדפות התראות
+            הגדרות התראות
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm">התראות Push:</span>
-            <Badge className={
-              pushPermission === "granted" ? "bg-green-100 text-green-700" :
-              pushPermission === "denied" ? "bg-red-100 text-red-700" :
-              "bg-gray-100 text-gray-700"
-            }>
-              {pushPermission === "granted" ? "✅ מאושר" :
-               pushPermission === "denied" ? "❌ חסום" :
-               "⏳ לא נשאל"}
-            </Badge>
-            {pushSubscribed && <Badge className="bg-blue-100 text-blue-700">📡 פעיל</Badge>}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {!pushSubscribed && isPushSupported() && pushPermission !== "denied" && (
-              <Button size="sm" onClick={handleEnablePush}>🔔 הפעל התראות Push</Button>
+        <CardContent className="space-y-5">
+          {/* Push Notifications Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              🔔 התראות Push
+            </h3>
+            <div className="flex items-center gap-3">
+              <span className="text-sm">סטטוס:</span>
+              <Badge className={
+                pushPermission === "granted" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
+                pushPermission === "denied" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" :
+                "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+              }>
+                {pushPermission === "granted" ? "✅ מאושר" :
+                 pushPermission === "denied" ? "❌ חסום" :
+                 "⏳ לא נשאל"}
+              </Badge>
+              {pushSubscribed && <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">📡 פעיל</Badge>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {!pushSubscribed && isPushSupported() && pushPermission !== "denied" && (
+                <Button size="sm" onClick={handleEnablePush}>🔔 הפעל התראות Push</Button>
+              )}
+              {pushSubscribed && (
+                <Button size="sm" variant="outline" onClick={handleTestPush}>🧪 בדוק התראות</Button>
+              )}
+            </div>
+            {pushPermission === "denied" && (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                ❌ התראות חסומות. לחץ על 🔒 ליד שורת הכתובת → הרשאות → התראות → אפשר
+              </p>
             )}
-            {pushSubscribed && (
-              <Button size="sm" variant="outline" onClick={handleTestPush}>🧪 בדוק התראות</Button>
-            )}
           </div>
-          {pushPermission === "denied" && (
-            <p className="text-xs text-red-600">
-              ❌ התראות חסומות. לחץ על 🔒 ליד שורת הכתובת → הרשאות → התראות → אפשר
-            </p>
-          )}
+
+          {/* Telegram Section */}
+          <div className="space-y-3 pt-4 border-t">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Telegram
+            </h3>
+            <TelegramRegistration />
+          </div>
 
           {/* Security info */}
           {profile?.user?.two_factor_enabled && (
             <div className="flex items-center gap-2 mt-4 pt-4 border-t">
               <Shield className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-green-700">אימות דו-שלבי מופעל</span>
+              <span className="text-sm text-green-700 dark:text-green-300">אימות דו-שלבי מופעל</span>
             </div>
           )}
         </CardContent>

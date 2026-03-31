@@ -13,14 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import {
   Building2, Users, CreditCard, Activity, Plus, Pencil, Power, PowerOff,
-  UserX, ArrowRightLeft, Search, RefreshCw,
+  UserX, ArrowRightLeft, Search, RefreshCw, Radio, FileSpreadsheet,
 } from "lucide-react";
 import api from "@/lib/api";
 
 import RolePermissionsPage from "../settings/RolePermissionsPage";
 import { Shield } from "lucide-react";
 
-type AdminTab = "tenants" | "plans" | "users" | "roles" | "health";
+type AdminTab = "tenants" | "plans" | "users" | "roles" | "health" | "channels" | "google_sheets";
 
 function SystemHealthDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -130,16 +130,317 @@ function SystemHealthDashboard() {
   );
 }
 
+// ═══════════════════════════════════════════
+// Channel Management (Super Admin)
+// ═══════════════════════════════════════════
+
+const ALL_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp", icon: "💬", credentialFields: [{ key: "api_token", label: "WhatsApp Business Token" }, { key: "phone_number_id", label: "Phone Number ID" }] },
+  { key: "telegram", label: "Telegram", icon: "📨", credentialFields: [{ key: "bot_token", label: "Telegram Bot Token" }, { key: "bot_username", label: "Bot Username" }] },
+  { key: "sms", label: "SMS", icon: "📱", credentialFields: [{ key: "provider", label: "ספק (twilio/019)" }, { key: "api_key", label: "API Key" }] },
+  { key: "email", label: "Email", icon: "📧", credentialFields: [{ key: "smtp_host", label: "SMTP Host" }, { key: "from_address", label: "From Address" }] },
+  { key: "push", label: "Push", icon: "🔔", credentialFields: [] },
+];
+
+function ChannelManagementPanel() {
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [channelConfigs, setChannelConfigs] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [editingTenant, setEditingTenant] = useState<any>(null);
+  const [editChannels, setEditChannels] = useState<Record<string, { enabled: boolean; config: Record<string, string> }>>({});
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get("/admin/tenants");
+        setTenants(res.data);
+        // Load channel configs for each tenant
+        const configs: Record<string, any[]> = {};
+        await Promise.all(res.data.map(async (t: any) => {
+          try {
+            const chRes = await api.get(`/admin/tenants/${t.id}/channels`);
+            configs[t.id] = chRes.data;
+          } catch { configs[t.id] = []; }
+        }));
+        setChannelConfigs(configs);
+      } catch {
+        toast("error", "שגיאה בטעינת נתונים");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const openEdit = (tenant: any) => {
+    setEditingTenant(tenant);
+    const existing = channelConfigs[tenant.id] || [];
+    const channels: Record<string, { enabled: boolean; config: Record<string, string> }> = {};
+    ALL_CHANNELS.forEach(ch => {
+      const found = existing.find((e: any) => e.channel === ch.key);
+      channels[ch.key] = {
+        enabled: found?.is_enabled || false,
+        config: found?.provider_config || {},
+      };
+    });
+    setEditChannels(channels);
+  };
+
+  const saveChannels = async () => {
+    if (!editingTenant) return;
+    setSaving(true);
+    try {
+      const channels = ALL_CHANNELS.map(ch => ({
+        channel: ch.key,
+        is_enabled: editChannels[ch.key]?.enabled || false,
+        provider_config: editChannels[ch.key]?.config || {},
+      }));
+      await api.post(`/admin/tenants/${editingTenant.id}/channels`, { channels });
+      toast("success", "ערוצי תקשורת עודכנו");
+      // Refresh
+      const chRes = await api.get(`/admin/tenants/${editingTenant.id}/channels`);
+      setChannelConfigs(prev => ({ ...prev, [editingTenant.id]: chRes.data }));
+      setEditingTenant(null);
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <TableSkeleton rows={5} cols={7} />;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-3 text-start font-medium">טננט</th>
+                {ALL_CHANNELS.map(ch => (
+                  <th key={ch.key} className="px-3 py-3 text-center font-medium">
+                    <span className="text-base">{ch.icon}</span>
+                    <br /><span className="text-xs">{ch.label}</span>
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-start font-medium">פעולות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenants.map(t => {
+                const configs = channelConfigs[t.id] || [];
+                return (
+                  <tr key={t.id} className="border-b hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{t.name}</td>
+                    {ALL_CHANNELS.map(ch => {
+                      const cfg = configs.find((c: any) => c.channel === ch.key);
+                      return (
+                        <td key={ch.key} className="px-3 py-3 text-center">
+                          {cfg?.is_enabled ? (
+                            <Badge variant="success" className="text-[10px]">✓</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-3">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* Edit Channels Modal */}
+      <Dialog open={!!editingTenant} onOpenChange={() => setEditingTenant(null)}>
+        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>ערוצי תקשורת — {editingTenant?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {ALL_CHANNELS.map(ch => (
+              <div key={ch.key} className="rounded-lg border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{ch.icon}</span>
+                    <span className="font-medium">{ch.label}</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editChannels[ch.key]?.enabled || false}
+                      onChange={(e) => setEditChannels(prev => ({
+                        ...prev,
+                        [ch.key]: { ...prev[ch.key], enabled: e.target.checked },
+                      }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500" />
+                  </label>
+                </div>
+                {editChannels[ch.key]?.enabled && ch.credentialFields.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t">
+                    {ch.credentialFields.map(field => (
+                      <div key={field.key} className="space-y-1">
+                        <Label className="text-xs">{field.label}</Label>
+                        <Input
+                          value={editChannels[ch.key]?.config?.[field.key] || ""}
+                          onChange={(e) => setEditChannels(prev => ({
+                            ...prev,
+                            [ch.key]: {
+                              ...prev[ch.key],
+                              config: { ...prev[ch.key]?.config, [field.key]: e.target.value },
+                            },
+                          }))}
+                          dir="ltr"
+                          className="h-8 text-sm font-mono"
+                          type={field.key.includes("token") || field.key.includes("key") ? "password" : "text"}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTenant(null)}>ביטול</Button>
+            <Button onClick={saveChannels} disabled={saving}>
+              {saving ? "שומר..." : "שמור"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// Google Sheets Config (System Level)
+// ═══════════════════════════════════════════
+
+function GoogleSheetsConfigPanel() {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [jsonKey, setJsonKey] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // Try to load from system settings
+        const res = await api.get("/admin/tenants");
+        // Use first tenant's settings as system-level
+        if (res.data.length > 0) {
+          try {
+            // Check if we have existing google sheets config
+            const settingsRes = await api.get(`/settings/key/google_sheets_service_account`).catch(() => null);
+            if (settingsRes?.data?.value) {
+              const val = typeof settingsRes.data.value === "string" ? JSON.parse(settingsRes.data.value) : settingsRes.data.value;
+              setEmail(val.client_email || val.email || "");
+              setJsonKey(val.json_key || "");
+            }
+          } catch { /* no existing config */ }
+        }
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.post("/settings", {
+        key: "google_sheets_service_account",
+        value: { email, json_key: jsonKey },
+        group: "integrations",
+      });
+      toast("success", "הגדרות Google Sheets נשמרו");
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה בשמירה");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <TableSkeleton rows={3} cols={1} />;
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            חיבור Google Sheets
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Service Account Email</Label>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="my-service@project.iam.gserviceaccount.com"
+              dir="ltr"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Service Account JSON Key</Label>
+            <textarea
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[200px] font-mono"
+              dir="ltr"
+              value={jsonKey}
+              onChange={(e) => setJsonKey(e.target.value)}
+              placeholder='{"type": "service_account", "project_id": "...", ...}'
+            />
+            <p className="text-xs text-muted-foreground">
+              הדבק את תוכן קובץ ה-JSON של Service Account, או העלה קובץ:
+            </p>
+            <input
+              type="file"
+              accept=".json"
+              className="text-xs"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const text = await file.text();
+                setJsonKey(text);
+                try {
+                  const parsed = JSON.parse(text);
+                  if (parsed.client_email) setEmail(parsed.client_email);
+                } catch { /* not valid json */ }
+              }}
+            />
+          </div>
+          <Button onClick={handleSave} disabled={saving || !email}>
+            {saving ? "שומר..." : "שמור הגדרות"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  const ALL_TABS = ["tenants", "plans", "users", "roles", "health", "channels", "google_sheets"];
   const tabFromUrl = searchParams.get("tab") as AdminTab | null;
-  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl && ["tenants", "plans", "users", "roles", "health"].includes(tabFromUrl) ? tabFromUrl : "tenants");
+  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl && ALL_TABS.includes(tabFromUrl) ? tabFromUrl : "tenants");
   const [loading, setLoading] = useState(true);
 
   // Sync tab with URL
   useEffect(() => {
-    if (tabFromUrl && ["tenants", "plans", "users", "roles", "health"].includes(tabFromUrl)) {
+    if (tabFromUrl && ALL_TABS.includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -343,6 +644,8 @@ export default function AdminPage() {
     { key: "plans", label: "תוכניות", icon: CreditCard },
     { key: "users", label: "משתמשים", icon: Users },
     { key: "roles", label: "תפקידים והרשאות", icon: Shield },
+    { key: "channels", label: "ערוצי תקשורת", icon: Radio },
+    { key: "google_sheets", label: "Google Sheets", icon: FileSpreadsheet },
     { key: "health", label: "בריאות מערכת", icon: Activity },
   ];
 
@@ -515,10 +818,16 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Health Tab */}
-            {/* Roles & Permissions — System Level */}
+      {/* Roles & Permissions — System Level */}
       {activeTab === "roles" && <RolePermissionsPage mode="system" />}
 
+      {/* Channels Tab */}
+      {activeTab === "channels" && <ChannelManagementPanel />}
+
+      {/* Google Sheets Tab */}
+      {activeTab === "google_sheets" && <GoogleSheetsConfigPanel />}
+
+      {/* Health Tab */}
       {activeTab === "health" && <SystemHealthDashboard />}
 
       {/* Tenant Modal */}

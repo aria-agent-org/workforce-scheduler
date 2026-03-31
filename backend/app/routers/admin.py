@@ -10,9 +10,10 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import CurrentUser
-from app.models.tenant import Plan, Tenant
+from app.models.tenant import Plan, Tenant, TenantSetting
 from app.models.user import User
 from app.models.resource import RoleDefinition
+from app.models.notification import NotificationChannelConfig
 from app.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
 from app.schemas.settings import RoleDefinitionCreate, RoleDefinitionUpdate, RoleDefinitionResponse
 
@@ -616,3 +617,82 @@ async def get_system_stats(
         "db_size_mb": db_size_mb,
         "recent_activity": recent_activity,
     }
+
+
+# ═══════════════════════════════════════════
+# Tenant Channel Management (Super Admin)
+# ═══════════════════════════════════════════
+
+class ChannelConfigUpdate(BaseModel):
+    channels: list[dict] = Field(
+        ...,
+        description="List of {channel, is_enabled, provider_config} dicts",
+    )
+
+
+@router.get("/tenants/{tenant_id}/channels")
+async def get_tenant_channels(
+    tenant_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Get notification channel configs for a tenant."""
+    await require_admin(user, db)
+    result = await db.execute(
+        select(NotificationChannelConfig).where(
+            NotificationChannelConfig.tenant_id == tenant_id
+        )
+    )
+    configs = result.scalars().all()
+    return [
+        {
+            "id": str(c.id),
+            "channel": c.channel,
+            "is_enabled": c.is_enabled,
+            "provider_config": c.provider_config or {},
+            "cost_per_message_usd": float(c.cost_per_message_usd) if c.cost_per_message_usd else None,
+            "notes": c.notes,
+        }
+        for c in configs
+    ]
+
+
+@router.post("/tenants/{tenant_id}/channels")
+async def update_tenant_channels(
+    tenant_id: UUID,
+    data: ChannelConfigUpdate,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update notification channel configs for a specific tenant."""
+    await require_admin(user, db)
+    # Verify tenant exists
+    t_res = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    if not t_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    for ch_data in data.channels:
+        channel = ch_data.get("channel")
+        if not channel:
+            continue
+        result = await db.execute(
+            select(NotificationChannelConfig).where(
+                NotificationChannelConfig.tenant_id == tenant_id,
+                NotificationChannelConfig.channel == channel,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.is_enabled = ch_data.get("is_enabled", existing.is_enabled)
+            if "provider_config" in ch_data:
+                existing.provider_config = ch_data["provider_config"]
+        else:
+            db.add(NotificationChannelConfig(
+                tenant_id=tenant_id,
+                channel=channel,
+                is_enabled=ch_data.get("is_enabled", False),
+                provider_config=ch_data.get("provider_config"),
+            ))
+
+    await db.commit()
+    return {"status": "ok", "tenant_id": str(tenant_id)}

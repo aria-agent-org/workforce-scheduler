@@ -31,6 +31,148 @@ interface Soldier {
   created_at: string;
 }
 
+// ═══════════════════════════════════════════
+// Preference Permissions per Employee
+// ═══════════════════════════════════════════
+
+const PREF_TYPES = [
+  { key: "partner", label: "העדפות שותפים", icon: "👥" },
+  { key: "mission", label: "העדפות סוג משימה", icon: "📋" },
+  { key: "time", label: "העדפות זמן", icon: "🕐" },
+] as const;
+
+function PreferencePermissions({ employeeId }: { employeeId: string }) {
+  const { toast } = useToast();
+  const [config, setConfig] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get(tenantApi("/settings/preferences-config"));
+        setConfig(res.data);
+      } catch { /* silent */ }
+      setLoading(false);
+    })();
+  }, [employeeId]);
+
+  const getOverride = (prefType: string): boolean | null => {
+    const overrides = config?.per_employee_overrides?.[employeeId] || {};
+    const key = `${prefType}_preferences_enabled`;
+    return overrides[key] ?? null;
+  };
+
+  const getGlobalDefault = (prefType: string): boolean => {
+    const key = `${prefType}_preferences_enabled`;
+    return config?.[key] ?? false;
+  };
+
+  const toggleOverride = async (prefType: string) => {
+    if (!config) return;
+    setSaving(true);
+    try {
+      const key = `${prefType}_preferences_enabled`;
+      const overrides = { ...(config.per_employee_overrides || {}) };
+      const empOverrides = { ...(overrides[employeeId] || {}) };
+      const currentValue = empOverrides[key] ?? getGlobalDefault(prefType);
+      empOverrides[key] = !currentValue;
+      overrides[employeeId] = empOverrides;
+
+      const newConfig = { ...config, per_employee_overrides: overrides };
+      await api.put(tenantApi("/settings/preferences-config"), newConfig);
+      setConfig(newConfig);
+      toast("success", "הרשאות העדפות עודכנו");
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetOverride = async (prefType: string) => {
+    if (!config) return;
+    setSaving(true);
+    try {
+      const key = `${prefType}_preferences_enabled`;
+      const overrides = { ...(config.per_employee_overrides || {}) };
+      const empOverrides = { ...(overrides[employeeId] || {}) };
+      delete empOverrides[key];
+      if (Object.keys(empOverrides).length === 0) {
+        delete overrides[employeeId];
+      } else {
+        overrides[employeeId] = empOverrides;
+      }
+      const newConfig = { ...config, per_employee_overrides: overrides };
+      await api.put(tenantApi("/settings/preferences-config"), newConfig);
+      setConfig(newConfig);
+      toast("success", "אופס לברירת מחדל");
+    } catch (e: any) {
+      toast("error", e.response?.data?.detail || "שגיאה");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="text-sm text-muted-foreground py-2">טוען...</div>;
+  if (!config) return null;
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold flex items-center gap-2">
+        <Heart className="h-4 w-4" />
+        הגדרות העדפות — הרשאות
+      </h3>
+      <div className="space-y-2">
+        {PREF_TYPES.map(pt => {
+          const override = getOverride(pt.key);
+          const globalDefault = getGlobalDefault(pt.key);
+          const effectiveValue = override ?? globalDefault;
+          const isOverridden = override !== null;
+
+          return (
+            <div key={pt.key} className="flex items-center justify-between rounded-lg border p-2.5">
+              <div className="flex items-center gap-2">
+                <span>{pt.icon}</span>
+                <span className="text-sm">{pt.label}</span>
+                {isOverridden && (
+                  <Badge className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    מותאם
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={effectiveValue}
+                    onChange={() => toggleOverride(pt.key)}
+                    disabled={saving}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-500" />
+                </label>
+                {isOverridden && (
+                  <button
+                    onClick={() => resetOverride(pt.key)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                    title="אפס לברירת מחדל"
+                  >
+                    ↩
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        ברירת מחדל מוגדרת בהגדרות המערכת. שינוי כאן חל רק על חייל זה.
+      </p>
+    </div>
+  );
+}
+
 export default function SoldiersPage() {
   const { t, i18n } = useTranslation("employees");
   const { toast } = useToast();
@@ -724,7 +866,11 @@ export default function SoldiersPage() {
 
           {/* Preferences Tab */}
           {editTab === "preferences" && editingSoldier && (
-            <div className="py-4">
+            <div className="py-4 space-y-6">
+              {/* Per-employee preference permissions */}
+              <PreferencePermissions employeeId={editingSoldier.id} />
+
+              {/* Actual preferences */}
               <EmployeePreferences employeeId={editingSoldier.id} compact />
             </div>
           )}
