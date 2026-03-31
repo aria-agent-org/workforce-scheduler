@@ -253,16 +253,16 @@ export default function SettingsPage() {
       {activeTab === "general" && (
         loading ? <TableSkeleton rows={5} cols={3} /> : (() => {
           // Branding state & save handler (hoisted into the IIFE)
-          const brandingSettings = {
-            primary_color: settings.find((s: any) => s.key === "branding_primary_color")?.value || "#3b82f6",
-            logo_url: settings.find((s: any) => s.key === "branding_logo_url")?.value || "",
-            favicon_url: settings.find((s: any) => s.key === "branding_favicon_url")?.value || "",
-          };
-          // Unwrap _v wrapper if present
+          // Try to read from the dedicated branding setting (single object)
+          const brandingSetting = settings.find((s: any) => s.key === "branding")?.value || {};
+          // Fallback: also check legacy individual keys
           const unwrap = (v: any) => (v && typeof v === "object" && "_v" in v) ? v._v : v;
-          const brandColor = String(unwrap(brandingSettings.primary_color) || "#3b82f6");
-          const brandLogo = String(unwrap(brandingSettings.logo_url) || "");
-          const brandFavicon = String(unwrap(brandingSettings.favicon_url) || "");
+          const legacyColor = unwrap(settings.find((s: any) => s.key === "branding_primary_color")?.value);
+          const legacyLogo = unwrap(settings.find((s: any) => s.key === "branding_logo_url")?.value);
+          const legacyFavicon = unwrap(settings.find((s: any) => s.key === "branding_favicon_url")?.value);
+          const brandColor = String(brandingSetting.primary_color || legacyColor || "#3b82f6");
+          const brandLogo = String(brandingSetting.logo_url || legacyLogo || "");
+          const brandFavicon = String(brandingSetting.favicon_url || legacyFavicon || "");
 
           const GROUP_LABELS: Record<string, { label: string; icon: string; isAdvanced?: boolean }> = {
             general: { label: "הגדרות כלליות", icon: "⚙️" },
@@ -334,18 +334,19 @@ export default function SettingsPage() {
                     initialFavicon={brandFavicon}
                     onSave={async (color: string, logo: string, favicon: string) => {
                       try {
-                        const brandKeys = [
-                          { key: "branding_primary_color", value: color },
-                          { key: "branding_logo_url", value: logo },
-                          { key: "branding_favicon_url", value: favicon },
-                        ];
-                        for (const { key, value } of brandKeys) {
-                          const existing = settings.find((s: any) => s.key === key);
-                          if (existing) {
-                            await api.patch(tenantApi(`/settings/${existing.id}`), { value });
-                          } else {
-                            await api.post(tenantApi("/settings"), { key, value, group: "branding" });
-                          }
+                        // Use the dedicated branding endpoint
+                        await api.put(tenantApi("/settings/branding"), {
+                          primary_color: color || undefined,
+                          logo_url: logo || undefined,
+                          favicon_url: favicon || undefined,
+                        });
+                        // Also apply branding CSS variables immediately
+                        if (color) {
+                          document.documentElement.style.setProperty("--color-primary-500", color);
+                        }
+                        if (favicon) {
+                          const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+                          if (link) link.href = favicon;
                         }
                         toast("success", "הגדרות מיתוג נשמרו");
                         load();

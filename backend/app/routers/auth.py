@@ -377,6 +377,8 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
     RegistrationCredential,
     AuthenticationCredential,
+    AuthenticatorAttestationResponse,
+    AuthenticatorAssertionResponse,
 )
 from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
 
@@ -461,10 +463,19 @@ async def webauthn_register_finish(
         )
 
     try:
-        # Build the RegistrationCredential from the request body
-        raw_data = data.model_dump()
-        # py_webauthn 2.x expects the credential as JSON string
-        credential = RegistrationCredential.model_validate(raw_data)
+        # Build the RegistrationCredential manually for py_webauthn 2.x
+        raw_id_bytes = base64url_to_bytes(data.rawId)
+        resp = data.response
+        credential = RegistrationCredential(
+            id=data.id,
+            raw_id=raw_id_bytes,
+            response=AuthenticatorAttestationResponse(
+                client_data_json=base64url_to_bytes(resp["clientDataJSON"]),
+                attestation_object=base64url_to_bytes(resp["attestationObject"]),
+                transports=resp.get("transports"),
+            ),
+            type="public-key",
+        )
 
         verification = verify_registration_response(
             credential=credential,
@@ -472,6 +483,8 @@ async def webauthn_register_finish(
             expected_rp_id=_settings.webauthn_rp_id,
             expected_origin=_settings.webauthn_origin,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -601,7 +614,19 @@ async def webauthn_login_finish(
         )
 
     try:
-        credential = AuthenticationCredential.model_validate(data.model_dump())
+        # Build the AuthenticationCredential manually for py_webauthn 2.x
+        resp = data.response
+        credential = AuthenticationCredential(
+            id=data.id,
+            raw_id=raw_id_bytes,
+            response=AuthenticatorAssertionResponse(
+                client_data_json=base64url_to_bytes(resp["clientDataJSON"]),
+                authenticator_data=base64url_to_bytes(resp["authenticatorData"]),
+                signature=base64url_to_bytes(resp["signature"]),
+                user_handle=base64url_to_bytes(resp["userHandle"]) if resp.get("userHandle") else None,
+            ),
+            type="public-key",
+        )
 
         verification = verify_authentication_response(
             credential=credential,
@@ -611,6 +636,8 @@ async def webauthn_login_finish(
             credential_public_key=stored_cred.public_key,
             credential_current_sign_count=stored_cred.sign_count,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
