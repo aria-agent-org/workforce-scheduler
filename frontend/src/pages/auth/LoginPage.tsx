@@ -217,7 +217,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={{ background: "linear-gradient(135deg, hsl(221 83% 96%), hsl(250 60% 95%), hsl(210 40% 96%))" }}>
+    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={{ background: "linear-gradient(135deg, hsl(221 83% 88%), hsl(250 70% 85%), hsl(280 60% 90%))" }}>
       {/* Animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div className="absolute -top-40 -end-40 h-80 w-80 rounded-full bg-primary-200/30 dark:bg-primary-800/10 blur-3xl animate-float" />
@@ -228,7 +228,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-3 h-16 w-16 rounded-2xl gradient-primary flex items-center justify-center shadow-elevation-2">
             <span className="text-3xl">🎯</span>
           </div>
-          <CardTitle className="text-2xl font-bold gradient-text">שבצק</CardTitle>
+          <CardTitle className="text-2xl font-bold gradient-text">שבצק</CardTitle><div className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700 mt-2">גרסה 2.0 — ספרינט 7 ✨</div>
           <p className="text-sm text-muted-foreground mt-1">{viewTitle[view]}</p>
         </CardHeader>
         <CardContent>
