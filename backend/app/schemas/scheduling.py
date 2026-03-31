@@ -182,8 +182,8 @@ class MissionBulkResponse(BaseModel):
 
 class MissionAssignmentCreate(BaseModel):
     employee_id: UUID
-    work_role_id: UUID
-    slot_id: str
+    work_role_id: UUID | None = None
+    slot_id: str = "default"
 
 class MissionAssignmentResponse(BaseModel):
     id: UUID
