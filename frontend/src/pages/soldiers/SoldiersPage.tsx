@@ -18,6 +18,7 @@ import { getErrorMessage } from "@/lib/errorUtils";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import EmployeePreferences from "@/components/EmployeePreferences";
+import * as XLSX from "xlsx";
 
 interface Soldier {
   id: string;
@@ -465,6 +466,22 @@ export default function SoldiersPage() {
     a.href = url; a.download = "soldiers.csv"; a.click();
   };
 
+  const exportExcel = () => {
+    const data = soldiers.map(s => ({
+      "שם מלא": s.full_name,
+      "מספר אישי": s.employee_number,
+      "סטטוס": s.status,
+      "פעיל": s.is_active ? "כן" : "לא",
+      "תפקידים": s.work_roles?.map(r => r.name[lang] || r.name.he).join(", ") || "",
+      "טלפון": s.notification_channels?.phone_whatsapp || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 25 }, { wch: 15 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "עובדים");
+    XLSX.writeFile(wb, "soldiers.xlsx");
+  };
+
   // Bulk actions
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -573,9 +590,9 @@ export default function SoldiersPage() {
             <Upload className="me-1 h-4 w-4" />
             {t("bulkImport")}
           </Button>
-          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={exportCSV}>
+          <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={exportExcel}>
             <FileSpreadsheet className="me-1 h-4 w-4" />
-            {t("exportList")}
+            ייצוא Excel
           </Button>
           <Button variant="outline" size="sm" className="hidden sm:flex min-h-[44px]" onClick={() => { setSelectedForInvite(soldiers.map(s => s.id)); setShowInviteModal(true); }}>
             <Mail className="me-1 h-4 w-4" />

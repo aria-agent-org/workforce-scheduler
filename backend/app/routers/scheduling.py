@@ -816,6 +816,23 @@ async def create_mission(
     db.add(mission)
     await db.flush()
     await db.refresh(mission)
+
+    # === Conflict detection: check time overlaps with other missions on same window/date ===
+    warnings: list[str] = []
+    if mission.date and mission.start_time and mission.end_time:
+        overlap_result = await db.execute(
+            select(Mission).where(
+                Mission.schedule_window_id == mission.schedule_window_id,
+                Mission.date == mission.date,
+                Mission.id != mission.id,
+                Mission.status.not_in(["cancelled", "archived"]),
+                Mission.start_time < mission.end_time,
+                Mission.end_time > mission.start_time,
+            )
+        )
+        for overlapping in overlap_result.scalars().all():
+            warnings.append(f"חפיפת זמנים עם משימה {overlapping.name}")
+
     db.add(AuditLog(
         tenant_id=tenant.id, user_id=user.id, action="create",
         entity_type="mission", entity_id=mission.id,
@@ -823,13 +840,16 @@ async def create_mission(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
-    return {
+    result = {
         "id": str(mission.id), "name": mission.name, "date": str(mission.date),
         "start_time": str(mission.start_time), "end_time": str(mission.end_time),
         "status": mission.status, "assignments": [],
         "schedule_window_id": str(mission.schedule_window_id),
         "mission_type_id": str(mission.mission_type_id),
     }
+    if warnings:
+        result["warnings"] = warnings
+    return result
 
 
 @router.patch("/missions/{mission_id}")
@@ -959,7 +979,22 @@ async def generate_missions(
     recurrence = tmpl.recurrence or {"type": "daily"}
     time_slots = tmpl.time_slots or [{"start": "08:00", "end": "16:00"}]
 
+    # === Pre-load existing missions for duplicate detection ===
+    existing_missions_result = await db.execute(
+        select(Mission).where(
+            Mission.template_id == tmpl.id,
+            Mission.schedule_window_id == tmpl.schedule_window_id,
+            Mission.date >= data.start_date,
+            Mission.date <= data.end_date,
+            Mission.status.not_in(["cancelled"]),
+        )
+    )
+    existing_by_date_time: set[tuple] = set()
+    for em in existing_missions_result.scalars().all():
+        existing_by_date_time.add((str(em.date), str(em.start_time), str(em.end_time)))
+
     created_missions = []
+    skipped_duplicates = 0
     current = data.start_date
     while current <= data.end_date:
         should_create = False
@@ -979,6 +1014,13 @@ async def generate_missions(
             for slot in time_slots:
                 start_parts = slot.get("start", "08:00").split(":")
                 end_parts = slot.get("end", "16:00").split(":")
+                # Check for duplicate: same template, date, start/end time
+                slot_start = time(int(start_parts[0]), int(start_parts[1]))
+                slot_end = time(int(end_parts[0]), int(end_parts[1]))
+                dup_key = (str(current), str(slot_start), str(slot_end))
+                if dup_key in existing_by_date_time:
+                    skipped_duplicates += 1
+                    continue
                 mission = Mission(
                     tenant_id=tenant.id,
                     schedule_window_id=tmpl.schedule_window_id,
@@ -1089,6 +1131,7 @@ async def generate_missions(
     await db.commit()
     return {
         "created": len(created_missions),
+        "skipped_duplicates": skipped_duplicates,
         "missions": created_missions,
         "follow_ups_created": sum(1 for m in created_missions if m.get("auto_created")),
     }

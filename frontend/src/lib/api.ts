@@ -18,11 +18,39 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor: auto-retry on 5xx / network errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    if (!config) return Promise.reject(error);
+
+    config._retryCount = config._retryCount || 0;
+
+    // Don't retry on 4xx (client errors)
+    const status = error.response?.status;
+    const isServerError = status && status >= 500;
+    const isNetworkError = !error.response; // no response = network error
+
+    const maxRetries = isServerError ? 2 : isNetworkError ? 1 : 0;
+
+    if ((isServerError || isNetworkError) && config._retryCount < maxRetries) {
+      config._retryCount += 1;
+      // Wait 1s before retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return api(config);
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor: handle 401 with token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    if (!original) return Promise.reject(error);
 
     // Don't intercept 401 on auth endpoints (login, 2FA verify, etc.)
     const isAuthEndpoint = original.url?.startsWith('/auth/');

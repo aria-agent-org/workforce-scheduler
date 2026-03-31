@@ -14,9 +14,10 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Info, Zap, Scale, Shield, Clock } from "lucide-react";
+import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Info, Zap, Scale, Shield, Clock, FileSpreadsheet } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
+import * as XLSX from "xlsx";
 
 // Human-readable operator labels
 const OPERATORS = [
@@ -265,6 +266,22 @@ export default function RulesPage() {
     }).join(" וגם ");
   };
 
+  const exportRulesExcel = () => {
+    const data = rules.map(rule => ({
+      "שם": rule.name?.[lang] || rule.name?.he || "",
+      "קטגוריה": CATEGORY_OPTIONS.find(c => c.value === rule.category)?.label || rule.category,
+      "חומרה": rule.severity === "hard" ? "חמור — חוסם" : "רך — אזהרה",
+      "תנאים": buildConditionSummary(rule) || "ללא תנאים",
+      "פעיל": rule.is_active ? "כן" : "לא",
+      "עדיפות": rule.priority,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }, { wch: 50 }, { wch: 8 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "חוקים");
+    XLSX.writeFile(wb, "rules.xlsx");
+  };
+
   if (loading) return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -297,9 +314,14 @@ export default function RulesPage() {
             examples={[{ he: "מנוחה מינימלית: אם עברו פחות מ-16 שעות → חסום", en: "Min rest: if less than 16h → block" }]}
           />
         </div>
-        <Button size="sm" onClick={openCreate} className="min-h-[44px]">
-          <Plus className="me-1 h-4 w-4" />חוק חדש
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportRulesExcel} className="min-h-[44px]">
+            <FileSpreadsheet className="me-1 h-4 w-4" />ייצוא Excel
+          </Button>
+          <Button size="sm" onClick={openCreate} className="min-h-[44px]">
+            <Plus className="me-1 h-4 w-4" />חוק חדש
+          </Button>
+        </div>
       </div>
 
       {/* Rules list */}

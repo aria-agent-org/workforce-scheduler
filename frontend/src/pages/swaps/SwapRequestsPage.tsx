@@ -10,9 +10,10 @@ import { useToast } from "@/components/ui/toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeftRight, Check, X, AlertTriangle, ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { ArrowLeftRight, Check, X, AlertTriangle, ChevronDown, ChevronUp, Filter, FileSpreadsheet } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
+import * as XLSX from "xlsx";
 
 interface SwapRequest {
   id: string;
@@ -100,6 +101,22 @@ export default function SwapRequestsPage() {
     } catch { return d; }
   };
 
+  const exportSwapsExcel = () => {
+    const data = filteredSwaps.map(sr => ({
+      "מבקש": sr.requester_name,
+      "מחליף": sr.target_name || "—",
+      "סוג": sr.swap_type === "swap" ? "החלפה" : "מסירה",
+      "סיבה": sr.reason || "",
+      "סטטוס": sr.status === "pending" ? "ממתין" : sr.status === "approved" ? "אושר" : sr.status === "rejected" ? "נדחה" : "הושלם",
+      "תאריך יצירה": formatDate(sr.created_at),
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 30 }, { wch: 10 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "בקשות החלפה");
+    XLSX.writeFile(wb, "swap_requests.xlsx");
+  };
+
   if (loading) return <TableSkeleton rows={5} cols={4} />;
 
   return (
@@ -107,8 +124,13 @@ export default function SwapRequestsPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{t("swaps.title")}</h1>
-        <div className="text-sm text-muted-foreground">
-          {t("swaps.total")}: {swaps.length} | {t("swaps.statusPending")}: {statusCounts.pending}
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-muted-foreground">
+            {t("swaps.total")}: {swaps.length} | {t("swaps.statusPending")}: {statusCounts.pending}
+          </div>
+          <Button variant="outline" size="sm" onClick={exportSwapsExcel} className="min-h-[36px]">
+            <FileSpreadsheet className="me-1 h-4 w-4" />ייצוא Excel
+          </Button>
         </div>
       </div>
 

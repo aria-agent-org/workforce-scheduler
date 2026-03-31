@@ -124,6 +124,9 @@ async def update_attendance(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    from datetime import datetime, time as dt_time
+    from app.models.scheduling import Mission, MissionAssignment
+
     result = await db.execute(
         select(AttendanceSchedule).where(
             AttendanceSchedule.id == record_id,
@@ -135,10 +138,42 @@ async def update_attendance(
         raise HTTPException(status_code=404, detail="רשומת נוכחות לא נמצאה")
 
     before = {"status_code": record.status_code}
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    new_status = update_data.get("status_code", record.status_code)
+
+    for key, value in update_data.items():
         setattr(record, key, value)
     await db.flush()
     await db.refresh(record)
+
+    # === Status workflow: check future assignments today ===
+    warnings: list[str] = []
+    now = datetime.utcnow()
+    current_time = now.time()
+
+    if new_status in ("home", "going_home", "sick"):
+        # Find future assignments for this employee today
+        future_assignments_result = await db.execute(
+            select(MissionAssignment, Mission)
+            .join(Mission, MissionAssignment.mission_id == Mission.id)
+            .where(
+                MissionAssignment.employee_id == record.employee_id,
+                Mission.date == record.date,
+                Mission.start_time > current_time,
+                MissionAssignment.status.not_in(["replaced", "cancelled"]),
+            )
+        )
+        future_assignments = future_assignments_result.all()
+
+        for ma, mission in future_assignments:
+            warnings.append(f"החייל משובץ למשימה בשעה {str(mission.start_time)[:5]}")
+
+        # If sick — flag all future assignments as needing replacement
+        if new_status == "sick":
+            for ma, mission in future_assignments:
+                ma.status = "needs_replacement"
+            if future_assignments:
+                warnings.append(f"סומנו {len(future_assignments)} שיבוצים כדורשי החלפה")
 
     db.add(AuditLog(
         tenant_id=tenant.id, user_id=user.id, action="update_attendance",
@@ -147,7 +182,12 @@ async def update_attendance(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
-    return AttendanceResponse.model_validate(record).model_dump()
+
+    response = AttendanceResponse.model_validate(record).model_dump()
+    if warnings:
+        response["warnings"] = warnings
+    response["updated"] = True
+    return response
 
 
 @router.post("/bulk", dependencies=[Depends(require_permission("attendance", "write"))])
