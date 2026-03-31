@@ -740,3 +740,82 @@ async def update_preferences_config(
         ))
     await db.commit()
     return data
+
+
+# ═══════════════════════════════════════════
+# Tenant Branding
+# ═══════════════════════════════════════════
+
+class BrandingUpdateRequest(BaseModel):
+    logo_url: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    accent_color: str | None = None
+    theme: str | None = None  # "light" | "dark" | "auto"
+    custom_css: str | None = None
+    favicon_url: str | None = None
+    app_name: str | None = None
+
+
+@router.get("/branding")
+async def get_branding(
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get tenant branding settings."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "branding",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    return setting.value if setting and setting.value else {}
+
+
+@router.put("/branding", dependencies=[Depends(require_tenant_admin)])
+async def update_branding(
+    data: BrandingUpdateRequest,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update tenant branding settings."""
+    branding_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "branding",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        # Merge with existing
+        existing = setting.value or {}
+        existing.update(branding_data)
+        setting.value = existing
+    else:
+        db.add(TenantSetting(
+            tenant_id=tenant.id,
+            key="branding",
+            value=branding_data,
+            value_type="json",
+            label={"he": "מיתוג", "en": "Branding"},
+            group="branding",
+            is_editable_by_tenant_admin=True,
+        ))
+
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user_id=user.id,
+        action="update",
+        entity_type="tenant_branding",
+        entity_id=tenant.id,
+        after_state=branding_data,
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return branding_data

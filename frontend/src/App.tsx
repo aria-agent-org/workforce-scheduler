@@ -41,6 +41,7 @@ const MySchedulePage = lazy(() => import("./pages/my/MySchedulePage"));
 const MySwapPage = lazy(() => import("./pages/my/MySwapPage"));
 const MyNotificationsPage = lazy(() => import("./pages/my/MyNotificationsPage"));
 const MyProfilePage = lazy(() => import("./pages/my/MyProfilePage"));
+const MySettingsPage = lazy(() => import("./pages/my/MySettingsPage"));
 
 function App() {
   const { i18n } = useTranslation();
@@ -144,6 +145,7 @@ function App() {
                   <Route path="swap" element={<MySwapPage />} />
                   <Route path="notifications" element={<MyNotificationsPage />} />
                   <Route path="profile" element={<MyProfilePage />} />
+                  <Route path="settings" element={<MySettingsPage />} />
                   <Route path="mission/:id" element={<MissionDetailPage />} />
                 </Route>
 

@@ -1001,14 +1001,31 @@ async def generate_missions(
         rec_type = recurrence.get("type", "daily")
         if rec_type == "daily":
             should_create = True
-        elif rec_type == "weekly":
-            days = recurrence.get("days", [])
+        elif rec_type in ("weekly", "custom", "specific_days"):
+            days = recurrence.get("days_of_week") or recurrence.get("days", [])
             if current.weekday() in days:
                 should_create = True
-        elif rec_type == "specific_days":
-            days = recurrence.get("days", [])
-            if current.weekday() in days:
+            # Check active_weeks (odd/even)
+            active_weeks = recurrence.get("active_weeks", "all")
+            if active_weeks and active_weeks != "all":
+                week_num = current.isocalendar()[1]
+                if active_weeks == "odd" and week_num % 2 == 0:
+                    should_create = False
+                elif active_weeks == "even" and week_num % 2 == 1:
+                    should_create = False
+        elif rec_type == "one_time":
+            # Only create on the start_date
+            if current == data.start_date:
                 should_create = True
+
+        # Check exceptions
+        exceptions = recurrence.get("exceptions", [])
+        if str(current) in exceptions:
+            should_create = False
+        # Check extra_dates
+        extra_dates = recurrence.get("extra_dates", [])
+        if str(current) in extra_dates and not should_create:
+            should_create = True
 
         if should_create:
             for slot in time_slots:

@@ -21,9 +21,14 @@ class MissionSlot(BaseModel):
     work_role_id: UUID | None = None
     resource_id: UUID | None = None
     count: int = Field(ge=1)
+    role_mode: Literal["specific", "all", "all_except"] | None = None
+    exclude_role_ids: list[str] | None = None
 
     @model_validator(mode="after")
     def must_have_role_or_resource(self) -> "MissionSlot":
+        # When role_mode is "all" or "all_except", work_role_id can be None
+        if self.role_mode in ("all", "all_except"):
+            return self
         if not self.work_role_id and not self.resource_id:
             raise ValueError("slot must have work_role_id or resource_id")
         return self
@@ -75,10 +80,20 @@ class ActionExpression(BaseModel):
 class TimelineItem(BaseModel):
     """An item in a mission timeline."""
     item_id: str
-    offset_minutes: int
+    offset_minutes: int | None = None
+    exact_time: str | None = None
+    time_mode: Literal["relative", "exact"] = "relative"
     label: dict[str, str]
     description: dict[str, str] | None = None
     responsible_slot_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_time_fields(self) -> "TimelineItem":
+        if self.time_mode == "exact" and not self.exact_time:
+            raise ValueError("exact_time is required when time_mode is 'exact'")
+        if self.time_mode == "relative" and self.offset_minutes is None:
+            self.offset_minutes = 0
+        return self
 
 
 class RecurrencePattern(BaseModel):

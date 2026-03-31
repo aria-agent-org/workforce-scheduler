@@ -515,8 +515,8 @@ export default function SchedulingPage() {
     if (!selectedWindow) return;
     try {
       toast("info", "מריץ שיבוץ אוטומטי...");
-      const res = await api.post(tenantApi("/missions/auto-assign"), null, {
-        params: { window_id: selectedWindow.id },
+      const res = await api.post(tenantApi("/missions/auto-assign"), {
+        window_id: selectedWindow.id,
       });
       setAutoAssignResults(res.data);
       setShowAutoAssignResults(true);

@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Calendar, ArrowLeftRight, Bell, UserCircle } from "lucide-react";
+import { Calendar, ArrowLeftRight, Bell, UserCircle, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useEffect } from "react";
@@ -9,6 +9,7 @@ const navItems = [
   { path: "/my/swap", label: "החלפות", icon: ArrowLeftRight },
   { path: "/my/notifications", label: "התראות", icon: Bell },
   { path: "/my/profile", label: "פרופיל", icon: UserCircle },
+  { path: "/my/settings", label: "הגדרות", icon: Settings },
 ];
 
 export default function SoldierLayout() {

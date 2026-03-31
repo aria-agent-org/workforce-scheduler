@@ -462,7 +462,9 @@ async def webauthn_register_finish(
 
     try:
         # Build the RegistrationCredential from the request body
-        credential = RegistrationCredential.parse_raw(json.dumps(data.model_dump()))
+        raw_data = data.model_dump()
+        # py_webauthn 2.x expects the credential as JSON string
+        credential = RegistrationCredential.model_validate(raw_data)
 
         verification = verify_registration_response(
             credential=credential,
@@ -599,7 +601,7 @@ async def webauthn_login_finish(
         )
 
     try:
-        credential = AuthenticationCredential.parse_raw(json.dumps(data.model_dump()))
+        credential = AuthenticationCredential.model_validate(data.model_dump())
 
         verification = verify_authentication_response(
             credential=credential,
