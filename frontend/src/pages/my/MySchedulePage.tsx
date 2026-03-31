@@ -152,8 +152,8 @@ export default function MySchedulePage() {
   // Load soldiers for swap
   useEffect(() => {
     if (swapTarget && swapType === "swap_mutual") {
-      api.get(tenantApi("/employees"), { params: { page_size: 200, is_active: true } })
-        .then(res => setSoldiers(res.data.items || res.data || []))
+      api.get(tenantApi("/my/teammates"))
+        .then(res => setSoldiers(Array.isArray(res.data) ? res.data : (res.data.items || [])))
         .catch(() => setSoldiers([]));
     }
   }, [swapTarget, swapType]);

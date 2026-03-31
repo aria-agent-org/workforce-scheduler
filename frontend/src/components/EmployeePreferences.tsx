@@ -125,8 +125,12 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
       // Handle both paginated (admin) and array (self-service) responses
       setAllEmployees(Array.isArray(empRes.data) ? empRes.data : (empRes.data.items || []));
       setMissionTypes(mtRes.data || []);
-    } catch {
-      toast("error", "שגיאה בטעינת העדפות");
+    } catch (err: any) {
+      console.warn("Preferences load error:", err?.response?.status, err?.message);
+      // Don't show error toast for 403 (permissions) — just load with empty data
+      if (err?.response?.status !== 403) {
+        toast("error", "שגיאה בטעינת העדפות");
+      }
     } finally {
       setLoading(false);
     }
