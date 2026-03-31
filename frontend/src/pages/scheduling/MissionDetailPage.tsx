@@ -12,6 +12,7 @@ import {
   Pencil, AlertTriangle, MessageSquare, Save, Loader2,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -102,7 +103,7 @@ export default function MissionDetailPage() {
       toast("success", `פעולה בוצעה: ${action === "approve" ? "אושר" : "בוטל"}`);
       loadMission();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -119,7 +120,7 @@ export default function MissionDetailPage() {
       setEditing(false);
       loadMission();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בעדכון");
+      toast("error", getErrorMessage(e, "שגיאה בעדכון"));
     }
   };
 

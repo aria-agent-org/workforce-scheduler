@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye, Zap, X } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError, getPushDebugLog, clearPushDebugLog, isIOS, isStandalone, getPushStatus, type PushStatus } from "@/lib/push";
 
 type Tab = "templates" | "logs" | "channels";
@@ -102,7 +103,7 @@ export default function NotificationsPage() {
         toast("error", `שליחה נכשלה. ${result.failed > 0 ? "בדוק את מפתחות VAPID" : "אין מנויים רשומים"}`);
       }
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשליחת בדיקה");
+      toast("error", getErrorMessage(e, "שגיאה בשליחת בדיקה"));
     }
   };
 
@@ -208,7 +209,7 @@ export default function NotificationsPage() {
       setShowBroadcast(false);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשליחה");
+      toast("error", getErrorMessage(e, "שגיאה בשליחה"));
     } finally {
       setBroadcastSending(false);
     }
@@ -363,7 +364,7 @@ export default function NotificationsPage() {
       setEditingTemplate(null);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 

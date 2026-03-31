@@ -74,7 +74,7 @@ async def create_tenant(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> TenantResponse:
-    """Create a new tenant."""
+    """Create a new tenant with default seed data."""
     await require_admin(user, db)
     existing = await db.execute(select(Tenant).where(Tenant.slug == data.slug))
     if existing.scalar_one_or_none():
@@ -86,6 +86,15 @@ async def create_tenant(
     db.add(tenant)
     await db.flush()
     await db.refresh(tenant)
+
+    # Seed default data for the new tenant
+    try:
+        from scripts.tenant_seed import seed_tenant_data
+        await seed_tenant_data(tenant.id, db)
+    except Exception:
+        # Don't fail tenant creation if seeding fails
+        pass
+
     return TenantResponse.model_validate(tenant)
 
 

@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Users, Calendar, AlertTriangle, CheckCircle, Clock, BarChart3, ArrowLeftRight, Zap } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 interface DashboardStats {
   total_employees: number;

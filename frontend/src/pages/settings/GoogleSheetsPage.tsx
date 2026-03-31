@@ -12,6 +12,7 @@ import {
   AlertCircle, Clock, Trash2, Plus, Save,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import HelpTooltip from "@/components/common/HelpTooltip";
 
 interface SheetsConfig {
@@ -141,7 +142,7 @@ export default function GoogleSheetsPage() {
       toast("success", "סנכרון הושלם");
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בסנכרון");
+      toast("error", getErrorMessage(e, "שגיאה בסנכרון"));
     } finally {
       setSyncing(false);
     }

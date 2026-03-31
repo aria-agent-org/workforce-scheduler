@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, GripVertical, Clock, CheckCircle2, XCircle } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragEndEvent,
@@ -201,7 +202,7 @@ export default function AttendanceStatusesPage() {
       setShowModal(false);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -213,7 +214,7 @@ export default function AttendanceStatusesPage() {
       setDeleteTarget(null);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "לא ניתן למחוק סטטוס בשימוש");
+      toast("error", getErrorMessage(e, "לא ניתן למחוק סטטוס בשימוש"));
       setDeleteTarget(null);
     }
   };

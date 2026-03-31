@@ -12,6 +12,7 @@ import {
   ChevronLeft, ChevronRight, Check, Upload
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import Papa from "papaparse";
 
 interface WizardState {
@@ -122,62 +123,119 @@ export default function OnboardingWizard() {
   const finishOnboarding = async () => {
     setSaving(true);
     try {
-      // Save work roles
+      // Step 1: Save tenant details as settings
+      if (state.tenant.name) {
+        await api.post(tenantApi("/settings"), {
+          key: "tenant_display_name", value: state.tenant.name, group: "general",
+        }).catch(() => {});
+      }
+      await api.post(tenantApi("/settings"), {
+        key: "timezone", value: state.tenant.timezone, group: "general",
+      }).catch(() => {});
+      await api.post(tenantApi("/settings"), {
+        key: "language", value: state.tenant.language, group: "general",
+      }).catch(() => {});
+
+      // Step 2: Save work roles
       for (const role of state.workRoles) {
-        await api.post(tenantApi("/settings/work-roles"), {
-          name: { he: role.name_he, en: role.name_en },
-          color: role.color,
-        }).catch(() => {});
-      }
-
-      // Save attendance statuses
-      for (const status of state.statuses) {
-        await api.post(tenantApi("/attendance/statuses"), {
-          code: status.code,
-          name: { he: status.name_he, en: status.name_en },
-          color: status.color,
-          icon: status.icon,
-          counts_as_present: status.counts_as_present,
-          is_schedulable: true,
-          sort_order: state.statuses.indexOf(status),
-        }).catch(() => {});
-      }
-
-      // Save soldiers
-      for (const soldier of state.soldiers) {
-        if (soldier.full_name) {
-          await api.post(tenantApi("/employees"), {
-            full_name: soldier.full_name,
-            employee_number: soldier.employee_number,
-            phone: soldier.phone,
-            email: soldier.email,
+        if (role.name_he) {
+          await api.post(tenantApi("/settings/work-roles"), {
+            name: { he: role.name_he, en: role.name_en },
+            color: role.color,
           }).catch(() => {});
         }
       }
 
-      // Save sheets config if enabled
+      // Step 3: Save attendance statuses
+      for (const status of state.statuses) {
+        if (status.code && status.name_he) {
+          await api.post(tenantApi("/attendance/statuses"), {
+            code: status.code,
+            name: { he: status.name_he, en: status.name_en },
+            color: status.color,
+            icon: status.icon,
+            counts_as_present: status.counts_as_present,
+            is_schedulable: true,
+            sort_order: state.statuses.indexOf(status),
+          }).catch(() => {});
+        }
+      }
+
+      // Step 4: Save first mission type
+      if (state.missionType.name_he) {
+        await api.post(tenantApi("/mission-types"), {
+          name: { he: state.missionType.name_he, en: state.missionType.name_en },
+          color: state.missionType.color,
+          duration_hours: 8,
+          required_slots: [
+            {
+              slot_id: "s1",
+              work_role_id: null,
+              count: state.missionType.max_soldiers || 2,
+              label: { he: "חייל", en: "Soldier" },
+              role_mode: "all",
+            },
+          ],
+        }).catch(() => {});
+      }
+
+      // Step 5: Save soldiers
+      if (state.soldiers.length > 0) {
+        // Use bulk import when available, fall back to individual
+        const validSoldiers = state.soldiers.filter(s => s.full_name);
+        try {
+          await api.post(tenantApi("/employees/bulk-import"), {
+            employees: validSoldiers.map(s => ({
+              full_name: s.full_name,
+              employee_number: s.employee_number,
+              notes: null,
+            })),
+            skip_errors: true,
+          });
+        } catch {
+          // Fallback: create individually
+          for (const soldier of validSoldiers) {
+            await api.post(tenantApi("/employees"), {
+              full_name: soldier.full_name,
+              employee_number: soldier.employee_number,
+              notification_channels: {
+                phone_whatsapp: soldier.phone || undefined,
+                email: soldier.email || undefined,
+              },
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // Step 6: Save sheets config if enabled
       if (state.sheetsConfig.enabled && state.sheetsConfig.spreadsheet_id) {
         await api.post(tenantApi("/settings"), {
           key: "google_sheets_spreadsheet_id",
           value: state.sheetsConfig.spreadsheet_id,
           group: "integrations",
         }).catch(() => {});
-      }
-
-      // Save bot config
-      if (state.botConfig.whatsapp_enabled || state.botConfig.telegram_enabled) {
-        if (state.botConfig.whatsapp_enabled) {
+        if (state.sheetsConfig.sheet_name) {
           await api.post(tenantApi("/settings"), {
-            key: "bot_whatsapp_enabled",
-            value: true,
-            group: "bot",
+            key: "google_sheets_sheet_name",
+            value: state.sheetsConfig.sheet_name,
+            group: "integrations",
           }).catch(() => {});
         }
-        if (state.botConfig.telegram_enabled) {
+      }
+
+      // Step 7: Save bot config
+      if (state.botConfig.whatsapp_enabled) {
+        await api.post(tenantApi("/settings"), {
+          key: "bot_whatsapp_enabled", value: true, group: "bot",
+        }).catch(() => {});
+      }
+      if (state.botConfig.telegram_enabled) {
+        await api.post(tenantApi("/settings"), {
+          key: "bot_telegram_enabled", value: true, group: "bot",
+        }).catch(() => {});
+        if (state.botConfig.telegram_token) {
           await api.post(tenantApi("/settings"), {
-            key: "bot_telegram_enabled",
-            value: true,
-            group: "bot",
+            key: "bot_telegram_token", value: state.botConfig.telegram_token, group: "bot",
           }).catch(() => {});
         }
       }
@@ -186,7 +244,7 @@ export default function OnboardingWizard() {
       toast("success", "ההגדרות נשמרו בהצלחה! 🎉");
       navigate("/dashboard");
     } catch (e) {
-      toast("error", "שגיאה בשמירת ההגדרות");
+      toast("error", getErrorMessage(e, "שגיאה בשמירת ההגדרות"));
     } finally {
       setSaving(false);
     }

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { UserPlus, Search, Download, Upload, Pencil, Trash2, X } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 interface Employee {
   id: string;
@@ -83,7 +84,7 @@ export default function EmployeesPage() {
       setEditingEmployee(null);
       loadEmployees();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירה");
+      toast("error", getErrorMessage(e, "שגיאה בשמירה"));
     }
   };
 

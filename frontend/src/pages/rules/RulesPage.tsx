@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Info, Zap, Scale, Shield, Clock } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 // Human-readable operator labels
 const OPERATORS = [
@@ -190,7 +191,7 @@ export default function RulesPage() {
       setEditingRule(null);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירת החוק");
+      toast("error", getErrorMessage(e, "שגיאה בשמירת החוק"));
     }
   };
 

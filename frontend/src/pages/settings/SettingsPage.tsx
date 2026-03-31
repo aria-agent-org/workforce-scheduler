@@ -15,6 +15,7 @@ import {
   ClipboardList, Sheet, Bot, LayoutTemplate,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import HelpTooltip from "@/components/common/HelpTooltip";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
 import { useAutoSave } from "@/hooks/useAutoSave";
@@ -153,7 +154,7 @@ export default function SettingsPage() {
       setEditingSettingId(null);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירת הגדרה");
+      toast("error", getErrorMessage(e, "שגיאה בשמירת הגדרה"));
     }
   };
 
@@ -194,7 +195,7 @@ export default function SettingsPage() {
       setEditingWR(null);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -348,7 +349,7 @@ export default function SettingsPage() {
                         toast("success", "הגדרות מיתוג נשמרו");
                         load();
                       } catch (e: any) {
-                        toast("error", e.response?.data?.detail || "שגיאה בשמירת מיתוג");
+                        toast("error", getErrorMessage(e, "שגיאה בשמירת מיתוג"));
                       }
                     }}
                   />

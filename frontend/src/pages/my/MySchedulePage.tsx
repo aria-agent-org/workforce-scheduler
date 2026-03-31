@@ -9,6 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import { useToast } from "@/components/ui/toast";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -79,7 +80,7 @@ export default function MySchedulePage() {
       setSwapTarget(null);
       setSwapReason("");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשליחת בקשה");
+      toast("error", getErrorMessage(e, "שגיאה בשליחת בקשה"));
     } finally {
       setSwapSubmitting(false);
     }

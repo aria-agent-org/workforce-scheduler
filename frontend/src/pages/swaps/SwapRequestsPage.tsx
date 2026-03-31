@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeftRight, Check, X, AlertTriangle, ChevronDown, ChevronUp, Filter } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 interface SwapRequest {
   id: string;

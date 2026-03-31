@@ -20,6 +20,7 @@ import {
   MoreVertical, RefreshCw, X, ArrowRightLeft, Search,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import HelpTooltip from "@/components/common/HelpTooltip";
 
 type Tab = "windows" | "board" | "types" | "templates";
@@ -95,6 +96,9 @@ export default function SchedulingPage() {
   const [showSwapDialog, setShowSwapDialog] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{ missionId: string; employeeId: string; employeeName: string } | null>(null);
   const [swapForm, setSwapForm] = useState({ target_employee_id: "", reason: "" });
+
+  // Form validation errors
+  const [typeFormErrors, setTypeFormErrors] = useState<Record<string, string>>({});
 
   // Edit tracking
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
@@ -181,7 +185,7 @@ export default function SchedulingPage() {
       toast("success", "לוח עבודה נוצר בהצלחה");
       setShowWindowModal(false);
       loadAll();
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const windowAction = async (id: string, action: string) => {
@@ -189,11 +193,16 @@ export default function SchedulingPage() {
       await api.post(tenantApi(`/schedule-windows/${id}/${action}`));
       toast("success", `פעולה בוצעה: ${action}`);
       loadAll();
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // === MISSION TYPE CRUD ===
   const saveMissionType = async () => {
+    const errors: Record<string, string> = {};
+    if (!typeForm.name_he.trim()) errors.name_he = "שם בעברית הוא שדה חובה";
+    if (typeForm.required_slots.length === 0) errors.required_slots = "יש להוסיף לפחות סלוט אחד";
+    setTypeFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
       const slots = typeForm.required_slots.map((s, i) => ({
         slot_id: s.slot_id || `s${i + 1}`,
@@ -237,11 +246,12 @@ export default function SchedulingPage() {
       setShowTypeModal(false);
       setEditingTypeId(null);
       loadAll();
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const openEditType = (mt: any) => {
     setEditingTypeId(mt.id);
+    setTypeFormErrors({});
     setTypeForm({
       name_he: mt.name?.he || "",
       name_en: mt.name?.en || "",
@@ -272,6 +282,7 @@ export default function SchedulingPage() {
 
   const openCreateType = () => {
     setEditingTypeId(null);
+    setTypeFormErrors({});
     setTypeForm({
       name_he: "", name_en: "", color: "#3b82f6", icon: "📋", duration_hours: 8, is_standby: false,
       standby_can_count_as_rest: false,
@@ -286,7 +297,7 @@ export default function SchedulingPage() {
       toast("success", "סוג משימה נמחק");
       setDeleteTypeTarget(null);
       loadAll();
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // === MISSIONS ===
@@ -297,7 +308,7 @@ export default function SchedulingPage() {
       setShowMissionModal(false);
       setEditingMissionId(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const updateMission = async () => {
@@ -313,7 +324,7 @@ export default function SchedulingPage() {
       setShowMissionModal(false);
       setEditingMissionId(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בעדכון משימה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה בעדכון משימה")); }
   };
 
   const openEditMission = (m: any) => {
@@ -344,7 +355,7 @@ export default function SchedulingPage() {
       toast("success", "תבנית נמחקה");
       setDeleteTemplateTarget(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה במחיקת תבנית")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה במחיקת תבנית")); }
   };
 
   // === TEMPLATES ===
@@ -366,7 +377,7 @@ export default function SchedulingPage() {
       toast("success", "תבנית נוצרה בהצלחה");
       setShowTemplateModal(false);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // === ASSIGNMENT ===
@@ -417,7 +428,7 @@ export default function SchedulingPage() {
         });
         return;
       }
-      toast("error", detail || "שגיאה");
+      toast("error", (typeof detail === "string" ? detail : "שגיאה"));
     }
   };
 
@@ -428,7 +439,7 @@ export default function SchedulingPage() {
       toast("success", `נוצרו ${res.data.created} משימות`);
       setShowGenerateModal(false);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // === AUTO ASSIGN ===
@@ -442,7 +453,7 @@ export default function SchedulingPage() {
       setAutoAssignResults(res.data);
       setShowAutoAssignResults(true);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בשיבוץ אוטומטי")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה בשיבוץ אוטומטי")); }
   };
 
   // === IMPORT SOLDIERS TO WINDOW ===
@@ -488,7 +499,7 @@ export default function SchedulingPage() {
       setShowImportWizard(false);
       loadWindowData(selectedWindow.id);
     } catch (e: any) {
-      toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בייבוא"));
+      toast("error", getErrorMessage(e, "שגיאה בייבוא"));
     }
   };
 
@@ -497,7 +508,7 @@ export default function SchedulingPage() {
       await api.post(tenantApi(`/missions/${id}/${action}`));
       toast("success", "פעולה בוצעה");
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // === INTERACTIVE BOARD ACTIONS ===
@@ -521,7 +532,7 @@ export default function SchedulingPage() {
       await api.delete(tenantApi(`/missions/${missionId}/assignments/${assignmentId}`));
       toast("success", "חייל הוסר מהמשימה");
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בהסרת שיבוץ")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה בהסרת שיבוץ")); }
   };
 
   const replaceAssignment = async (missionId: string, oldAssignmentId: string, newEmployeeId: string, slotId: string, workRoleId: string) => {
@@ -536,7 +547,7 @@ export default function SchedulingPage() {
       setShowReplaceDialog(false);
       setReplaceTarget(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
-    } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה בהחלפת חייל")); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה בהחלפת חייל")); }
   };
 
   const autoFindReplacement = async (missionId: string, assignmentId: string, slotId: string, workRoleId: string, currentEmployeeName: string) => {
@@ -554,7 +565,7 @@ export default function SchedulingPage() {
       if (confirmed) {
         await replaceAssignment(missionId, assignmentId, best.id || best.employee_id, slotId, workRoleId);
       }
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה במציאת מחליף"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה במציאת מחליף")); }
   };
 
   const submitSwapRequest = async () => {
@@ -570,7 +581,7 @@ export default function SchedulingPage() {
       setShowSwapDialog(false);
       setSwapTarget(null);
       setSwapForm({ target_employee_id: "", reason: "" });
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה בשליחת בקשת החלפה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה בשליחת בקשת החלפה")); }
   };
 
   const openSoldierContextMenu = (e: React.MouseEvent, missionId: string, assignment: any) => {
@@ -1097,7 +1108,7 @@ export default function SchedulingPage() {
                           await api.patch(tenantApi(`/mission-templates/${tmpl.id}`), { is_active: tmpl.is_active === false ? true : false });
                           toast("success", tmpl.is_active === false ? "תבנית הופעלה" : "תבנית הושבתה — משימות שכבר נוצרו יישארו");
                           if (selectedWindow) loadWindowData(selectedWindow.id);
-                        } catch (e: any) { toast("error", (typeof e.response?.data?.detail === "string" ? e.response.data.detail : "שגיאה")); }
+                        } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
                       }}
                       className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors min-h-[44px] min-w-[44px] ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
                       title={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}
@@ -1234,8 +1245,12 @@ export default function SchedulingPage() {
           <DialogHeader><DialogTitle>{editingTypeId ? t("editMissionType") : t("newMissionType")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>שם (עברית)</Label><Input value={typeForm.name_he} onChange={e => setTypeForm({...typeForm, name_he: e.target.value})} /></div>
-              <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={typeForm.name_en} onChange={e => setTypeForm({...typeForm, name_en: e.target.value})} /></div>
+              <div className="space-y-2">
+                <Label>שם (עברית) <span className="text-red-500">*</span></Label>
+                <Input value={typeForm.name_he} onChange={e => { setTypeForm({...typeForm, name_he: e.target.value}); if (typeFormErrors.name_he) setTypeFormErrors(prev => ({...prev, name_he: ""})); }} className={`min-h-[44px] ${typeFormErrors.name_he ? "border-red-500 ring-1 ring-red-500" : ""}`} />
+                {typeFormErrors.name_he && <p className="text-sm text-red-600">{typeFormErrors.name_he}</p>}
+              </div>
+              <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={typeForm.name_en} onChange={e => setTypeForm({...typeForm, name_en: e.target.value})} className="min-h-[44px]" /></div>
             </div>
             <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2"><Label>צבע</Label><Input type="color" value={typeForm.color} onChange={e => setTypeForm({...typeForm, color: e.target.value})} /></div>
@@ -1290,10 +1305,11 @@ export default function SchedulingPage() {
                     examples={[{ he: "שומר × 2, מפקד × 1", en: "Guard × 2, Commander × 1" }]}
                   />
                 </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => setTypeForm({...typeForm, required_slots: [...typeForm.required_slots, { slot_id: `s${typeForm.required_slots.length + 1}`, work_role_id: workRoles[0]?.id || "", count: 1, label_he: "", label_en: "" }]})}>
+                <Button type="button" size="sm" variant="outline" onClick={() => { setTypeForm({...typeForm, required_slots: [...typeForm.required_slots, { slot_id: `s${typeForm.required_slots.length + 1}`, work_role_id: workRoles[0]?.id || "", count: 1, label_he: "", label_en: "" }]}); if (typeFormErrors.required_slots) setTypeFormErrors(prev => ({...prev, required_slots: ""})); }}>
                   <Plus className="h-3 w-3 me-1" />הוסף סלוט
                 </Button>
               </div>
+              {typeFormErrors.required_slots && <p className="text-sm text-red-600">{typeFormErrors.required_slots}</p>}
               {typeForm.required_slots.map((slot, i) => (
                 <div key={i} className="p-3 bg-muted/30 rounded space-y-2">
                   <div className="grid grid-cols-5 gap-2 items-end">

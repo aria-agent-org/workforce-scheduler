@@ -16,6 +16,7 @@ import {
   UserX, ArrowRightLeft, Search, RefreshCw, Radio, FileSpreadsheet,
 } from "lucide-react";
 import api from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 import RolePermissionsPage from "../settings/RolePermissionsPage";
 import { Shield } from "lucide-react";
@@ -203,7 +204,7 @@ function ChannelManagementPanel() {
       setChannelConfigs(prev => ({ ...prev, [editingTenant.id]: chRes.data }));
       setEditingTenant(null);
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     } finally {
       setSaving(false);
     }
@@ -366,7 +367,7 @@ function GoogleSheetsConfigPanel() {
       });
       toast("success", "הגדרות Google Sheets נשמרו");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירה");
+      toast("error", getErrorMessage(e, "שגיאה בשמירה"));
     } finally {
       setSaving(false);
     }
@@ -470,6 +471,7 @@ export default function AdminPage() {
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [editingTenant, setEditingTenant] = useState<any>(null);
   const [tenantForm, setTenantForm] = useState({ name: "", slug: "", is_active: true, plan_id: "" as string, features: {} as Record<string, any> });
+  const [tenantFormErrors, setTenantFormErrors] = useState<Record<string, string>>({});
 
   // Plans
   const [plans, setPlans] = useState<any[]>([]);
@@ -543,6 +545,12 @@ export default function AdminPage() {
 
   // Tenant CRUD
   const saveTenant = async () => {
+    const errors: Record<string, string> = {};
+    if (!tenantForm.name.trim()) errors.name = "שם הוא שדה חובה";
+    if (!tenantForm.slug.trim()) errors.slug = "Slug הוא שדה חובה";
+    else if (!/^[a-z0-9_-]+$/.test(tenantForm.slug)) errors.slug = "רק אותיות אנגליות קטנות, מספרים ומקפים";
+    setTenantFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
       const payload: any = { name: tenantForm.name, slug: tenantForm.slug, is_active: tenantForm.is_active };
       if (tenantForm.plan_id) payload.plan_id = tenantForm.plan_id;
@@ -573,7 +581,7 @@ export default function AdminPage() {
       setShowTenantModal(false);
       setEditingTenant(null);
       loadTenants();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const toggleTenant = async (t: any) => {
@@ -581,7 +589,7 @@ export default function AdminPage() {
       await api.patch(`/admin/tenants/${t.id}`, { is_active: !t.is_active });
       toast("success", t.is_active ? "טננט הושבת" : "טננט הופעל");
       loadTenants();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // Plan CRUD
@@ -597,7 +605,7 @@ export default function AdminPage() {
       setShowPlanModal(false);
       setEditingPlan(null);
       loadPlans();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   // User CRUD
@@ -617,7 +625,7 @@ export default function AdminPage() {
       setShowUserModal(false);
       setEditingUser(null);
       loadUsers();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const deactivateUser = async (userId: string) => {
@@ -625,7 +633,7 @@ export default function AdminPage() {
       await api.delete(`/admin/users/${userId}`);
       toast("success", "משתמש הושבת");
       loadUsers();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const moveTenant = async () => {
@@ -636,7 +644,7 @@ export default function AdminPage() {
       toast("success", "משתמש הועבר");
       setShowMoveModal(false);
       loadUsers();
-    } catch (e: any) { toast("error", e.response?.data?.detail || "שגיאה"); }
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
 
   const tabs: { key: AdminTab; label: string; icon: any }[] = [
@@ -671,7 +679,7 @@ export default function AdminPage() {
       {activeTab === "tenants" && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => { setEditingTenant(null); setTenantForm({ name: "", slug: "", is_active: true, plan_id: "", features: {} }); setShowTenantModal(true); }}>
+            <Button size="sm" onClick={() => { setEditingTenant(null); setTenantFormErrors({}); setTenantForm({ name: "", slug: "", is_active: true, plan_id: "", features: {} }); setShowTenantModal(true); }}>
               <Plus className="me-1 h-4 w-4" />טננט חדש
             </Button>
           </div>
@@ -835,8 +843,17 @@ export default function AdminPage() {
         <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingTenant ? "עריכת טננט" : "טננט חדש"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label>שם</Label><Input value={tenantForm.name} onChange={e => setTenantForm({...tenantForm, name: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Slug</Label><Input value={tenantForm.slug} onChange={e => setTenantForm({...tenantForm, slug: e.target.value})} dir="ltr" disabled={!!editingTenant} /></div>
+            <div className="space-y-2">
+              <Label>שם <span className="text-red-500">*</span></Label>
+              <Input value={tenantForm.name} onChange={e => { setTenantForm({...tenantForm, name: e.target.value}); if (tenantFormErrors.name) setTenantFormErrors(prev => ({...prev, name: ""})); }} className={`min-h-[44px] ${tenantFormErrors.name ? "border-red-500 ring-1 ring-red-500" : ""}`} />
+              {tenantFormErrors.name && <p className="text-sm text-red-600">{tenantFormErrors.name}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Slug <span className="text-red-500">*</span></Label>
+              <Input value={tenantForm.slug} onChange={e => { setTenantForm({...tenantForm, slug: e.target.value}); if (tenantFormErrors.slug) setTenantFormErrors(prev => ({...prev, slug: ""})); }} dir="ltr" disabled={!!editingTenant} className={`min-h-[44px] ${tenantFormErrors.slug ? "border-red-500 ring-1 ring-red-500" : ""}`} />
+              {tenantFormErrors.slug && <p className="text-sm text-red-600">{tenantFormErrors.slug}</p>}
+              <p className="text-xs text-muted-foreground">רק אותיות אנגליות קטנות, מספרים ומקפים</p>
+            </div>
 
             {/* Plan Selection */}
             <div className="space-y-2">

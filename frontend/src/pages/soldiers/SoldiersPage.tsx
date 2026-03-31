@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import EmployeePreferences from "@/components/EmployeePreferences";
@@ -84,7 +85,7 @@ function PreferencePermissions({ employeeId }: { employeeId: string }) {
       setConfig(newConfig);
       toast("success", "הרשאות העדפות עודכנו");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     } finally {
       setSaving(false);
     }
@@ -108,7 +109,7 @@ function PreferencePermissions({ employeeId }: { employeeId: string }) {
       setConfig(newConfig);
       toast("success", "אופס לברירת מחדל");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     } finally {
       setSaving(false);
     }
@@ -194,6 +195,23 @@ export default function SoldiersPage() {
     employee_number: "", full_name: "", preferred_language: "he", notes: "",
     phone: "", email: "", work_role_ids: [] as string[],
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // Form validation
+  const validateSoldierForm = (): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    if (!formData.full_name.trim() || formData.full_name.trim().length < 2) {
+      errors.full_name = "שם מלא חייב להכיל לפחות 2 תווים";
+    }
+    if (!editingSoldier && !formData.employee_number.trim()) {
+      errors.employee_number = "מספר אישי הוא שדה חובה";
+    }
+    return errors;
+  };
+
+  const isSoldierFormValid = (): boolean => {
+    return formData.full_name.trim().length >= 2 && (!!editingSoldier || formData.employee_number.trim().length > 0);
+  };
 
   // Import modal
   const [showImportModal, setShowImportModal] = useState(false);
@@ -269,6 +287,9 @@ export default function SoldiersPage() {
   useEffect(() => { loadSoldiers(); }, [loadSoldiers]);
 
   const handleSave = async () => {
+    const errors = validateSoldierForm();
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
       if (editingSoldier) {
         await api.patch(tenantApi(`/employees/${editingSoldier.id}`), {
@@ -310,7 +331,7 @@ export default function SoldiersPage() {
       setEditingSoldier(null);
       loadSoldiers();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירה");
+      toast("error", getErrorMessage(e, "שגיאה בשמירה"));
     }
   };
 
@@ -328,12 +349,14 @@ export default function SoldiersPage() {
     setEditingSoldier(null);
     setEditTab("details");
     setFormData({ employee_number: "", full_name: "", preferred_language: "he", notes: "", phone: "", email: "", work_role_ids: [] });
+    setFormErrors({});
     setShowModal(true);
   };
 
   const openEdit = (s: Soldier) => {
     setEditingSoldier(s);
     setEditTab("details");
+    setFormErrors({});
     setFormData({
       employee_number: s.employee_number,
       full_name: s.full_name,
@@ -405,7 +428,7 @@ export default function SoldiersPage() {
       setShowImportModal(false);
       loadSoldiers();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בייבוא");
+      toast("error", getErrorMessage(e, "שגיאה בייבוא"));
     } finally {
       setImporting(false);
     }
@@ -459,7 +482,7 @@ export default function SoldiersPage() {
       setSelectedIds(new Set());
       loadSoldiers();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בעדכון תפקיד");
+      toast("error", getErrorMessage(e, "שגיאה בעדכון תפקיד"));
     }
   };
 
@@ -473,7 +496,7 @@ export default function SoldiersPage() {
       setSelectedIds(new Set());
       loadSoldiers();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -486,7 +509,7 @@ export default function SoldiersPage() {
       toast("success", `נוצרו קודים ל-${ids.length} חיילים`);
       setSelectedIds(new Set());
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה ביצירת קודים");
+      toast("error", getErrorMessage(e, "שגיאה ביצירת קודים"));
     }
   };
 
@@ -497,7 +520,7 @@ export default function SoldiersPage() {
       toast("success", `נשלחו התראות ל-${ids.length} חיילים`);
       setSelectedIds(new Set());
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -510,7 +533,7 @@ export default function SoldiersPage() {
       setShowInviteModal(false);
       setSelectedForInvite([]);
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשליחת הזמנות");
+      toast("error", getErrorMessage(e, "שגיאה בשליחת הזמנות"));
     }
   };
 
@@ -785,21 +808,26 @@ export default function SoldiersPage() {
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>{t("employeeNumber")}</Label>
+                    <Label>{t("employeeNumber")} <span className="text-red-500">*</span></Label>
                     <Input
                       value={formData.employee_number}
-                      onChange={(e) => setFormData({ ...formData, employee_number: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, employee_number: e.target.value }); if (formErrors.employee_number) setFormErrors(prev => ({ ...prev, employee_number: "" })); }}
                       disabled={!!editingSoldier}
                       placeholder="001"
+                      className={`min-h-[44px] ${formErrors.employee_number ? "border-red-500 ring-1 ring-red-500" : ""}`}
                     />
+                    {formErrors.employee_number && <p className="text-sm text-red-600">{formErrors.employee_number}</p>}
+                    {!editingSoldier && <p className="text-xs text-muted-foreground">מזהה ייחודי לחייל (מספר, קוד וכו׳)</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label>{t("fullName")}</Label>
+                    <Label>{t("fullName")} <span className="text-red-500">*</span></Label>
                     <Input
                       value={formData.full_name}
-                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, full_name: e.target.value }); if (formErrors.full_name) setFormErrors(prev => ({ ...prev, full_name: "" })); }}
                       placeholder="ישראל ישראלי"
+                      className={`min-h-[44px] ${formErrors.full_name ? "border-red-500 ring-1 ring-red-500" : ""}`}
                     />
+                    {formErrors.full_name && <p className="text-sm text-red-600">{formErrors.full_name}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -859,7 +887,7 @@ export default function SoldiersPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowModal(false)}>{t("common:cancel")}</Button>
-                <Button onClick={handleSave}>{t("common:save")}</Button>
+                <Button onClick={handleSave} disabled={!isSoldierFormValid()}>{t("common:save")}</Button>
               </DialogFooter>
             </>
           )}

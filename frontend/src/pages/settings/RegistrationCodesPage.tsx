@@ -7,6 +7,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { KeyRound, RefreshCw, Copy, Users, Search } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 interface RegStatus {
   employee_id: string;
@@ -56,7 +57,7 @@ export default function RegistrationCodesPage() {
       toast("success", `קוד נוצר: ${res.data.code}`);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה ביצירת קוד");
+      toast("error", getErrorMessage(e, "שגיאה ביצירת קוד"));
     } finally {
       setGenerating(null);
     }
@@ -69,7 +70,7 @@ export default function RegistrationCodesPage() {
       toast("success", `נוצרו ${created} קודים`);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Users, Plus, Pencil, Key, UserX, Link, Search, AlertCircle, Upload, FileSpreadsheet, CheckCircle, XCircle } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 // Hebrew labels for built-in role names
 const ROLE_LABELS_HE: Record<string, string> = {
@@ -215,7 +216,7 @@ export default function UsersSettingsPage() {
       toast("success", "משתמש הושבת");
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -230,7 +231,7 @@ export default function UsersSettingsPage() {
       setShowResetModal(false);
       setNewPassword("");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -243,7 +244,7 @@ export default function UsersSettingsPage() {
       setShowLinkModal(false);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
@@ -268,7 +269,7 @@ export default function UsersSettingsPage() {
       setImportPreview(res.data);
       setImportStep("preview");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בקריאת הקובץ");
+      toast("error", getErrorMessage(e, "שגיאה בקריאת הקובץ"));
     } finally {
       setImportLoading(false);
     }
@@ -287,7 +288,7 @@ export default function UsersSettingsPage() {
       setImportStep("done");
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בייבוא");
+      toast("error", getErrorMessage(e, "שגיאה בייבוא"));
     } finally {
       setImportLoading(false);
     }

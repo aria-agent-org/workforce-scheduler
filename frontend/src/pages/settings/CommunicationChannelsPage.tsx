@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { Save, Smartphone, MessageCircle, Mail, MessageSquare, Send } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 interface Channel {
   key: string;
@@ -116,7 +117,7 @@ export default function CommunicationChannelsPage() {
       });
       toast("success", "ערוצי תקשורת עודכנו");
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירה");
+      toast("error", getErrorMessage(e, "שגיאה בשמירה"));
     } finally {
       setSaving(false);
     }

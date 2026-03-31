@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Shield, Plus, Pencil, Trash2, Users, Check, X, Lock } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 
 // ═══════════════════════════════════════════
 // Permission Matrix Configuration
@@ -234,7 +235,7 @@ export default function RolePermissionsPage({ mode }: Props) {
       setShowModal(false);
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשמירה");
+      toast("error", getErrorMessage(e, "שגיאה בשמירה"));
     } finally {
       setSaving(false);
     }
@@ -247,7 +248,7 @@ export default function RolePermissionsPage({ mode }: Props) {
       toast("success", "תפקיד נמחק");
       load();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה במחיקה");
+      toast("error", getErrorMessage(e, "שגיאה במחיקה"));
     }
   };
 

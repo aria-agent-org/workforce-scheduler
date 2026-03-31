@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { User, KeyRound, Globe, Bell, Save, Shield, Heart, MessageCircle, Send } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errorUtils";
 import { isPushSupported, getPushPermission, subscribeToPush, isPushSubscribed, sendTestPush } from "@/lib/push";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/NotificationPreferences";
@@ -153,7 +154,7 @@ export default function MyProfilePage() {
       }
       loadProfile();
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בעדכון");
+      toast("error", getErrorMessage(e, "שגיאה בעדכון"));
     } finally {
       setSavingProfile(false);
     }
@@ -177,7 +178,7 @@ export default function MyProfilePage() {
       toast("success", "סיסמה שונתה בהצלחה");
       setPasswordForm({ current_password: "", new_password: "", confirm_password: "" });
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה בשינוי סיסמה");
+      toast("error", getErrorMessage(e, "שגיאה בשינוי סיסמה"));
     } finally {
       setSavingPassword(false);
     }
@@ -199,7 +200,7 @@ export default function MyProfilePage() {
       const result = await sendTestPush();
       toast("success", `נשלחה התראת בדיקה (${result.sent} מכשירים)`);
     } catch (e: any) {
-      toast("error", e.response?.data?.detail || "שגיאה");
+      toast("error", getErrorMessage(e, "שגיאה"));
     }
   };
 
