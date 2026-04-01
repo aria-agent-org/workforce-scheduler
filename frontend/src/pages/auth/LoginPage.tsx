@@ -311,7 +311,7 @@ export default function LoginPage() {
           </p>
           {!branding && (
             <div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold mt-2" style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(96, 165, 250, 0.2)", color: "#93c5fd" }}>
-              ✨ ספרינט 7 — גרסה 2.0
+              ✨ גרסה 3.0 — עדכון אפריל 2026
             </div>
           )}
           <p className="text-sm mt-3" style={{ color: "rgba(147, 197, 253, 0.6)" }}>{viewTitle[view]}</p>
