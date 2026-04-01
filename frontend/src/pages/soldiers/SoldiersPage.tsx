@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart } from "lucide-react";
+import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart, ChevronRight } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
@@ -174,50 +175,10 @@ function PreferencePermissions({ employeeId }: { employeeId: string }) {
   );
 }
 
-// ═══════════════════════════════════════════
-// Quick Status Dropdown
-// ═══════════════════════════════════════════
-
-const STATUS_COLORS: Record<string, string> = {
-  available: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  on_duty: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  sick: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  leave: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-  training: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  reserve: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
-  absent: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  available: "זמין",
-  on_duty: "בתורנות",
-  sick: "חולה",
-  leave: "חופשה",
-  training: "הכשרה",
-  reserve: "מילואים",
-  absent: "נעדר",
-};
-
-// Status badge is READ-ONLY. Status changes happen ONLY through attendance in a board context.
-function QuickStatusBadge({ soldier }: { soldier: Soldier; onUpdate?: () => void }) {
-  const currentStatus = soldier.status || "available";
-  const label = STATUS_LABELS[currentStatus] || currentStatus;
-  const colorClass = STATUS_COLORS[currentStatus] || STATUS_COLORS.available;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium pointer-events-none select-none ${colorClass}`}
-      title="סטטוס מתעדכן דרך דוח הנוכחות בלבד"
-    >
-      <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-      {label}
-    </span>
-  );
-}
-
 export default function SoldiersPage() {
   const { t, i18n } = useTranslation("employees");
   const { toast } = useToast();
+  const navigate = useNavigate();
   const lang = i18n.language as "he" | "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -708,7 +669,6 @@ export default function SoldiersPage() {
                       <th className="px-4 py-3 text-start font-medium">{t("employeeNumber")}</th>
                       <th className="px-4 py-3 text-start font-medium">{t("fullName")}</th>
                       <th className="px-4 py-3 text-start font-medium">{t("role")}</th>
-                      <th className="px-4 py-3 text-start font-medium">{t("status")}</th>
                       <th className="px-4 py-3 text-start font-medium">{t("common:actions")}</th>
                     </tr>
                   </thead>
@@ -735,8 +695,12 @@ export default function SoldiersPage() {
                       </tr>
                     ) : (
                       soldiers.map((s) => (
-                        <tr key={s.id} className={`border-b transition-colors ${selectedIds.has(s.id) ? "bg-primary-50 dark:bg-primary-900/10" : "hover:bg-muted/30"}`}>
-                          <td className="px-3 py-3">
+                        <tr
+                          key={s.id}
+                          className={`border-b transition-colors cursor-pointer ${selectedIds.has(s.id) ? "bg-primary-50 dark:bg-primary-900/10" : "hover:bg-muted/30"}`}
+                          onClick={() => navigate(`/soldiers/${s.id}`)}
+                        >
+                          <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                             <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-4 w-4" />
                           </td>
                           <td className="px-4 py-3 font-mono text-sm text-muted-foreground">{s.employee_number}</td>
@@ -760,16 +724,16 @@ export default function SoldiersPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <QuickStatusBadge soldier={s} onUpdate={loadSoldiers} />
-                          </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1">
                               <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)}>
                                 <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => navigate(`/soldiers/${s.id}`)}>
+                                <ChevronRight className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
@@ -794,16 +758,22 @@ export default function SoldiersPage() {
                     </Button>
                   </div>
                 ) : soldiers.map((s) => (
-                  <div key={s.id} className={`rounded-xl border p-3 transition-all ${selectedIds.has(s.id) ? "ring-2 ring-primary-300 bg-primary-50/50 dark:bg-primary-900/10" : ""}`}>
+                  <div
+                    key={s.id}
+                    className={`rounded-xl border p-3 transition-all cursor-pointer ${selectedIds.has(s.id) ? "ring-2 ring-primary-300 bg-primary-50/50 dark:bg-primary-900/10" : "hover:bg-muted/20 active:bg-muted/40"}`}
+                    onClick={() => navigate(`/soldiers/${s.id}`)}
+                  >
                     <div className="flex items-start gap-3">
-                      <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-5 w-5 mt-0.5 flex-shrink-0" />
+                      <div onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded h-5 w-5 mt-0.5" />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <p className="font-semibold text-sm">{s.full_name}</p>
                             <p className="text-xs text-muted-foreground font-mono">{s.employee_number}</p>
                           </div>
-                          <QuickStatusBadge soldier={s} onUpdate={loadSoldiers} />
+                          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2">
                           {s.work_roles?.map((r) => (
@@ -812,7 +782,7 @@ export default function SoldiersPage() {
                             </Badge>
                           ))}
                         </div>
-                        <div className="flex gap-1 mt-2 justify-end">
+                        <div className="flex gap-1 mt-2 justify-end" onClick={e => e.stopPropagation()}>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(s)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -992,7 +962,7 @@ export default function SoldiersPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {a.date && <span className="text-xs text-muted-foreground">{a.date}</span>}
-                          {a.slot_id && <Badge className="text-[10px]">{a.slot_id}</Badge>}
+                          {(a.slot_label || a.slot_id) && <Badge className="text-[10px]">{a.slot_label || a.slot_id}</Badge>}
                           <Badge variant={a.status === "assigned" ? "success" : "default"} className="text-[10px]">{a.status || "שובץ"}</Badge>
                         </div>
                       </div>

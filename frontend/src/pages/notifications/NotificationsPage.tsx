@@ -17,6 +17,195 @@ import { getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscrib
 
 type Tab = "templates" | "logs" | "channels";
 
+const CHANNEL_LABELS: Record<string, string> = {
+  push: "🔔 Push",
+  in_app: "📱 אפליקציה",
+  whatsapp: "💬 WhatsApp",
+  email: "📧 Email",
+  sms: "💬 SMS",
+  telegram: "✈️ Telegram",
+};
+
+const STATUS_LABELS_HE: Record<string, string> = {
+  sent: "נשלח",
+  failed: "נכשל",
+  pending: "ממתין",
+  queued: "בתור",
+};
+
+function LogsPanel({ logs }: { logs: any[] }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filterChannel, setFilterChannel] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [search, setSearch] = useState("");
+
+  const allLogs = Array.isArray(logs) ? logs : [];
+
+  const filtered = allLogs.filter(log => {
+    if (filterChannel && log.channel !== filterChannel) return false;
+    if (filterStatus && log.status !== filterStatus) return false;
+    if (filterType && log.event_type_code !== filterType) return false;
+    if (search && !(
+      (log.employee_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (log.event_type_code || "").toLowerCase().includes(search.toLowerCase()) ||
+      (log.body_sent || "").toLowerCase().includes(search.toLowerCase())
+    )) return false;
+    return true;
+  });
+
+  const uniqueChannels = [...new Set(allLogs.map(l => l.channel).filter(Boolean))];
+  const uniqueStatuses = [...new Set(allLogs.map(l => l.status).filter(Boolean))];
+  const uniqueTypes = [...new Set(allLogs.map(l => l.event_type_code).filter(Boolean))];
+
+  return (
+    <div className="space-y-3">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <input
+          type="text"
+          placeholder="חפש נמען, אירוע, תוכן..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm flex-1 min-w-[160px] bg-background"
+        />
+        <select value={filterChannel} onChange={e => setFilterChannel(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-background min-h-[40px]">
+          <option value="">כל הערוצים</option>
+          {uniqueChannels.map(ch => <option key={ch} value={ch}>{CHANNEL_LABELS[ch] || ch}</option>)}
+        </select>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-background min-h-[40px]">
+          <option value="">כל הסטטוסים</option>
+          {uniqueStatuses.map(s => <option key={s} value={s}>{STATUS_LABELS_HE[s] || s}</option>)}
+        </select>
+        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-background min-h-[40px]">
+          <option value="">כל האירועים</option>
+          {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        {(filterChannel || filterStatus || filterType || search) && (
+          <button onClick={() => { setFilterChannel(""); setFilterStatus(""); setFilterType(""); setSearch(""); }} className="text-xs text-muted-foreground hover:text-foreground px-2">
+            ✕ נקה
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground">{filtered.length} מתוך {allLogs.length} רשומות</p>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block">
+        <div className="rounded-xl border overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/50 text-sm">
+                <th className="px-4 py-3 text-start font-medium">נמען</th>
+                <th className="px-4 py-3 text-start font-medium">ערוץ</th>
+                <th className="px-4 py-3 text-start font-medium">סוג</th>
+                <th className="px-4 py-3 text-start font-medium">תצוגה מקדימה</th>
+                <th className="px-4 py-3 text-start font-medium">סטטוס</th>
+                <th className="px-4 py-3 text-start font-medium">זמן</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">אין רשומות</td></tr>
+              ) : filtered.map((log: any) => (
+                <>
+                  <tr
+                    key={log.id}
+                    className={`border-b cursor-pointer hover:bg-muted/30 transition-colors ${expandedId === log.id ? "bg-muted/20" : ""}`}
+                    onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                  >
+                    <td className="px-4 py-3 text-sm font-medium">{log.employee_name || log.recipient || "—"}</td>
+                    <td className="px-4 py-3 text-sm">{CHANNEL_LABELS[log.channel] || log.channel}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{log.event_type_code}</td>
+                    <td className="px-4 py-3 text-sm max-w-[200px] truncate text-muted-foreground" title={log.body_sent}>{log.body_sent || "—"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"}>
+                        {STATUS_LABELS_HE[log.status] || log.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {log.sent_at ? new Date(log.sent_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "—"}
+                    </td>
+                  </tr>
+                  {expandedId === log.id && (
+                    <tr key={log.id + "-expanded"} className="bg-muted/10">
+                      <td colSpan={6} className="px-4 py-4">
+                        <div className="space-y-2 text-sm">
+                          {log.employee_name && <div><span className="font-medium">נמען:</span> {log.employee_name}</div>}
+                          {log.event_type_code && <div><span className="font-medium">סוג אירוע:</span> {log.event_type_code}</div>}
+                          {log.channel && <div><span className="font-medium">ערוץ:</span> {CHANNEL_LABELS[log.channel] || log.channel}</div>}
+                          {log.body_sent && (
+                            <div>
+                              <span className="font-medium">הודעה:</span>
+                              <p className="mt-1 bg-muted rounded-lg p-3 text-sm whitespace-pre-wrap">{log.body_sent}</p>
+                            </div>
+                          )}
+                          {log.error_message && (
+                            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 px-3 py-2 text-red-700 dark:text-red-300">
+                              <span className="font-medium">שגיאה:</span> {log.error_message}
+                            </div>
+                          )}
+                          {log.sent_at && <div className="text-muted-foreground"><span className="font-medium">זמן:</span> {new Date(log.sent_at).toLocaleString("he-IL")}</div>}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">אין רשומות</div>
+        ) : filtered.map((log: any) => (
+          <div key={log.id} className="rounded-xl border overflow-hidden">
+            <button
+              className="w-full p-3 text-start hover:bg-muted/30 transition-colors"
+              onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{log.employee_name || log.recipient || "אנונימי"}</p>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{log.body_sent || log.event_type_code || ""}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"} className="text-[10px]">
+                    {STATUS_LABELS_HE[log.status] || log.status}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">{CHANNEL_LABELS[log.channel] || log.channel}</span>
+                </div>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1">
+                {log.sent_at ? new Date(log.sent_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : ""}
+              </div>
+            </button>
+            {expandedId === log.id && (
+              <div className="border-t bg-muted/10 p-3 space-y-2 text-sm">
+                {log.event_type_code && <div><span className="font-medium text-xs text-muted-foreground">סוג:</span> <span className="text-xs">{log.event_type_code}</span></div>}
+                {log.body_sent && (
+                  <div>
+                    <p className="font-medium text-xs text-muted-foreground mb-1">הודעה:</p>
+                    <p className="text-xs bg-background rounded-lg p-2 border whitespace-pre-wrap">{log.body_sent}</p>
+                  </div>
+                )}
+                {log.error_message && (
+                  <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 px-2 py-1.5 text-red-700 dark:text-red-300 text-xs">
+                    שגיאה: {log.error_message}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function NotificationsPage() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
@@ -468,60 +657,7 @@ export default function NotificationsPage() {
 
       {/* Logs */}
       {activeTab === "logs" && (
-        <>
-          {/* Desktop table */}
-          <Card className="hidden md:block">
-            <CardContent className="p-0">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50 text-sm">
-                    <th className="px-4 py-3 text-start">ערוץ</th>
-                    <th className="px-4 py-3 text-start">אירוע</th>
-                    <th className="px-4 py-3 text-start">סטטוס</th>
-                    <th className="px-4 py-3 text-start">נשלח</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(Array.isArray(logs) ? logs : []).length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">אין רשומות</td></tr>
-                  ) : (Array.isArray(logs) ? logs : []).map((log: any) => (
-                    <tr key={log.id} className="border-b">
-                      <td className="px-4 py-3">{log.channel}</td>
-                      <td className="px-4 py-3">{log.event_type_code}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"}>
-                          {log.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{log.sent_at}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-          {/* Mobile card view */}
-          <div className="md:hidden space-y-2">
-            {(Array.isArray(logs) ? logs : []).length === 0 ? (
-              <Card><CardContent className="p-8 text-center text-muted-foreground">אין רשומות</CardContent></Card>
-            ) : (Array.isArray(logs) ? logs : []).map((log: any) => (
-              <Card key={log.id}>
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium">{log.event_type_code}</span>
-                    <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "default"}>
-                      {log.status}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{log.channel === "push" ? "🔔 Push" : log.channel === "in_app" ? "📱 אפליקציה" : log.channel === "whatsapp" ? "💬 WhatsApp" : log.channel === "email" ? "📧 Email" : log.channel}</span>
-                    <span>{log.sent_at ? new Date(log.sent_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : ""}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </>
+        <LogsPanel logs={logs} />
       )}
 
       {/* Channels */}

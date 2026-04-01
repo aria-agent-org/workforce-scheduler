@@ -197,11 +197,11 @@ export default function ReportsPage() {
               <Card>
                 <CardHeader><CardTitle className="text-lg">עומס שעות לעובד</CardTitle></CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={data.employees?.slice(0, 20) || []} layout="vertical" margin={{ left: 100 }}>
+                  <ResponsiveContainer width="100%" height={Math.max(300, (data.employees?.slice(0, 20) || []).length * 30)}>
+                    <BarChart data={data.employees?.slice(0, 20) || []} layout="vertical" margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" label={{ value: "שעות", position: "insideBottom", offset: -5 }} />
-                      <YAxis dataKey="employee_name" type="category" width={100} tick={{ fontSize: 12 }} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} />
+                      <YAxis dataKey="employee_name" type="category" width={90} tick={{ fontSize: 10 }} />
                       <RechartsTooltip formatter={(value: any) => [`${value} שעות`, "שעות"]} labelFormatter={(label: any) => `עובד: ${label}`} />
                       <Bar dataKey="total_hours" fill="#2563eb" radius={[0, 4, 4, 0]} name="שעות עבודה">
                         {(data.employees || []).map((_: any, i: number) => (
@@ -289,11 +289,11 @@ export default function ReportsPage() {
                       <BarChart
                         data={data.employees?.filter((e: any) => (e.overtime_hours ?? 0) > 0 || (e.night_shift_hours ?? 0) > 0).slice(0, 15) || []}
                         layout="vertical"
-                        margin={{ left: 100 }}
+                        margin={{ left: 0, right: 10, top: 5, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" label={{ value: "שעות", position: "insideBottom", offset: -5 }} />
-                        <YAxis dataKey="employee_name" type="category" width={100} tick={{ fontSize: 12 }} />
+                        <XAxis type="number" tick={{ fontSize: 10 }} />
+                        <YAxis dataKey="employee_name" type="category" width={90} tick={{ fontSize: 10 }} />
                         <RechartsTooltip />
                         <Legend />
                         <Bar dataKey="overtime_hours" fill="#ef4444" name="שעות נוספות (>8/יום)" radius={[0, 4, 4, 0]} />

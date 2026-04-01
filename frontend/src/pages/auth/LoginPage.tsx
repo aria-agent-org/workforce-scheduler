@@ -166,13 +166,21 @@ export default function LoginPage() {
       setTokens(loginResult.access_token, loginResult.refresh_token);
       navigate("/dashboard");
     } catch (err: any) {
-      if (err?.name === "NotAllowedError") {
-        setError(t("passkeyError", "הפעולה בוטלה או שלא נמצא מפתח אבטחה"));
+      const errName = err?.name || "";
+      const errMsg = err?.response?.data?.detail || err?.message || "";
+      const currentDomain = window.location.hostname;
+      const expectedDomain = "shavtzak.site";
+      
+      if (errName === "NotAllowedError") {
+        setError("הפעולה בוטלה — הקש על מפתח האבטחה שלך ונסה שוב");
+      } else if (errName === "SecurityError" || errMsg.includes("rpId") || errMsg.includes("RP ID")) {
+        setError(`שגיאת אבטחה: הדומיין הנוכחי (${currentDomain}) אינו תואם לדומיין הרשום (${expectedDomain}). גש דרך שבצק.site.`);
+      } else if (errMsg.includes("No credentials") || errMsg.includes("no credentials")) {
+        setError("לא נמצא Passkey עבור חשבון זה. הגדר Passkey בפרופיל שלך תחילה.");
+      } else if (currentDomain !== expectedDomain && currentDomain !== "localhost") {
+        setError(`⚠️ גישה דרך הדומיין הלא נכון. Passkey עובד רק ב: ${expectedDomain}. הדומיין הנוכחי: ${currentDomain}`);
       } else {
-        setError(
-          err?.response?.data?.detail ||
-            t("passkeyError", "שגיאה בכניסה עם Passkey")
-        );
+        setError(errMsg || t("passkeyError", "שגיאה בכניסה עם Passkey — נסה שוב"));
       }
     } finally {
       setPasskeyLoading(false);

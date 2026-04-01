@@ -70,6 +70,10 @@ export default function SchedulingPage() {
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [expandedMission, setExpandedMission] = useState<string | null>(null);
 
+  // Daily board templates (from board template editor in Settings)
+  const [dailyBoardTemplates, setDailyBoardTemplates] = useState<any[]>([]);
+  const [showDailyBoardTemplatesModal, setShowDailyBoardTemplatesModal] = useState(false);
+
   // Modals
   const [showWindowModal, setShowWindowModal] = useState(false);
   const [showMissionModal, setShowMissionModal] = useState(false);
@@ -204,16 +208,18 @@ export default function SchedulingPage() {
     setLoading(true);
     setLoadError(false);
     try {
-      const [winRes, mtRes, empRes, wrRes] = await Promise.all([
+      const [winRes, mtRes, empRes, wrRes, dbtRes] = await Promise.all([
         api.get(tenantApi("/schedule-windows")),
         api.get(tenantApi("/mission-types")),
         api.get(tenantApi("/employees"), { params: { page_size: 200 } }),
         api.get(tenantApi("/settings/work-roles")),
+        api.get(tenantApi("/daily-board-templates")).catch(() => ({ data: [] })),
       ]);
       setWindows(winRes.data);
       setMissionTypes(mtRes.data);
       setEmployees(empRes.data.items || []);
       setWorkRoles(wrRes.data);
+      setDailyBoardTemplates(Array.isArray(dbtRes.data) ? dbtRes.data : []);
     } catch (e) {
       setLoadError(true);
       toast("error", "שגיאה בטעינת נתונים");
@@ -778,25 +784,29 @@ export default function SchedulingPage() {
                 <Button variant="outline" size="sm" onClick={() => navigate('/settings?tab=board-template')}>
                   <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowDailyBoardTemplatesModal(true)}>
+                  <LayoutTemplate className="me-1 h-4 w-4" />תבניות לוח {dailyBoardTemplates.length > 0 && <span className="ms-1 text-xs bg-primary-100 text-primary-700 rounded-full px-1.5">{dailyBoardTemplates.length}</span>}
+                </Button>
                 <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={async () => {
-                  try {
-                    toast("info", "מייצר לוח יומי מתבנית...");
-                    const tmplRes = await api.get(tenantApi("/daily-board-templates"));
-                    const boardTemplates = Array.isArray(tmplRes.data) ? tmplRes.data : [];
-                    if (boardTemplates.length === 0) {
-                      toast("warning", "אין תבניות לוח — עבור לעורך הלוח וצור תבנית");
-                      return;
+                  if (dailyBoardTemplates.length === 0) {
+                    toast("warning", "אין תבניות לוח — לחץ 'תבניות לוח' כדי ליצור");
+                    setShowDailyBoardTemplatesModal(true);
+                    return;
+                  }
+                  if (dailyBoardTemplates.length === 1) {
+                    try {
+                      toast("info", "מייצר לוח יומי מתבנית...");
+                      const tmpl = dailyBoardTemplates[0];
+                      await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
+                        date_from: boardDate, date_to: boardDate,
+                      });
+                      toast("success", `לוח יומי נוצר בהצלחה ליום ${boardDate}`);
+                      if (selectedWindow) loadWindowData(selectedWindow.id);
+                    } catch (err: any) {
+                      toast("error", err?.response?.data?.detail || "שגיאה ביצירת לוח יומי");
                     }
-                    const tmpl = boardTemplates[0];
-                    await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
-                      date_from: boardDate,
-                      date_to: boardDate,
-                    });
-                    toast("success", `לוח יומי נוצר בהצלחה ליום ${boardDate}`);
-                    if (selectedWindow) loadWindowData(selectedWindow.id);
-                  } catch (err: any) {
-                    const detail = err?.response?.data?.detail || "שגיאה ביצירת לוח יומי";
-                    toast("error", detail);
+                  } else {
+                    setShowDailyBoardTemplatesModal(true);
                   }
                 }}>
                   <Wand2 className="me-1 h-4 w-4" />ייצור לוח יומי
@@ -947,15 +957,25 @@ export default function SchedulingPage() {
             const daysTotal = Math.ceil((new Date(w.end_date).getTime() - new Date(w.start_date).getTime()) / (1000 * 60 * 60 * 24));
             const daysElapsed = Math.max(0, Math.ceil((Date.now() - new Date(w.start_date).getTime()) / (1000 * 60 * 60 * 24)));
             const progressPercent = daysTotal > 0 ? Math.min(100, Math.round((daysElapsed / daysTotal) * 100)) : 0;
+            // Determine if this is the "active" board (one active window at a time)
+            const isActive = w.status === "active";
 
             return (
-            <Card key={w.id} className="hover:shadow-lg transition-all cursor-pointer group border-s-4" style={{ borderInlineStartColor: w.status === "active" ? "#22c55e" : w.status === "paused" ? "#eab308" : w.status === "archived" ? "#6366f1" : "#9ca3af" }} onClick={() => openWindowBoard(w)}>
+            <Card key={w.id} className={`hover:shadow-lg transition-all cursor-pointer group border-s-4 ${isActive ? "ring-2 ring-green-400 dark:ring-green-600" : ""}`} style={{ borderInlineStartColor: isActive ? "#22c55e" : w.status === "paused" ? "#eab308" : w.status === "archived" ? "#6366f1" : "#9ca3af" }} onClick={() => openWindowBoard(w)}>
               <CardContent className="p-5">
+                {isActive && (
+                  <div className="flex items-center gap-2 mb-2 text-green-700 dark:text-green-400">
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs font-bold">לוח פעיל — מרכז הפעולות הנוכחי</span>
+                  </div>
+                )}
                 <div className="flex items-start justify-between">
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-3">
                       <h3 className="text-lg font-bold">{w.name}</h3>
-                      <Badge className={`${statusColors[w.status] || ""} text-xs`}>{t(`status.${w.status}`)}</Badge>
+                      <Badge className={`${isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 font-bold" : statusColors[w.status] || ""} text-xs`}>
+                        {isActive ? "✅ לוח פעיל" : t(`status.${w.status}`)}
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{w.start_date} → {w.end_date}</span>
@@ -1007,6 +1027,14 @@ export default function SchedulingPage() {
       {/* === WINDOW BOARD TAB === */}
       {activeTab === "board" && selectedWindow && (
         <div className="space-y-4 board-container" style={{ WebkitOverflowScrolling: "touch" }}>
+          {/* Active board banner */}
+          {selectedWindow.status === "active" && (
+            <div className="flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-2.5 text-green-800 dark:text-green-300">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+              <span className="text-sm font-semibold">לוח פעיל</span>
+              <span className="text-sm opacity-70">— זהו הלוח המשמש לנוכחות ושיבוצים כרגע</span>
+            </div>
+          )}
           {/* Board Header with Navigation */}
           <div className="bg-card border rounded-lg p-3">
             <div className="flex items-center gap-3 flex-wrap">
@@ -1015,7 +1043,7 @@ export default function SchedulingPage() {
               </Button>
               <div className="h-6 border-r border-border" />
               <h2 className="text-lg font-bold">{selectedWindow.name}</h2>
-              <Badge className={statusColors[selectedWindow.status]}>{t(`status.${selectedWindow.status}`)}</Badge>
+              <Badge className={selectedWindow.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 font-bold" : statusColors[selectedWindow.status]}>{selectedWindow.status === "active" ? "✅ לוח פעיל" : t(`status.${selectedWindow.status}`)}</Badge>
               <span className="text-xs text-muted-foreground">
                 {selectedWindow.start_date} — {selectedWindow.end_date}
               </span>
@@ -1437,6 +1465,15 @@ export default function SchedulingPage() {
                               <Check className="me-1 h-3.5 w-3.5" />אשר
                             </Button>
                           )}
+                          <Button size="sm" variant="ghost" className="min-h-[40px] text-orange-500 hover:bg-orange-50 hover:text-orange-600" onClick={async () => {
+                            try {
+                              await api.patch(tenantApi(`/missions/${m.id}`), { status: "archived" });
+                              toast("success", "משימה הועברה לארכיון");
+                              if (selectedWindow) loadWindowData(selectedWindow.id);
+                            } catch { missionAction(m.id, "archive"); }
+                          }}>
+                            <Archive className="h-3.5 w-3.5 me-1" />ארכיון
+                          </Button>
                           <Button size="sm" variant="ghost" className="min-h-[40px] text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => missionAction(m.id, "cancel")}>
                             <Trash2 className="h-3.5 w-3.5 me-1" />בטל
                           </Button>
@@ -1864,7 +1901,18 @@ export default function SchedulingPage() {
                     examples={[{ he: "שומר × 2, מפקד × 1", en: "Guard × 2, Commander × 1" }]}
                   />
                 </div>
-                <Button type="button" size="sm" variant="outline" onClick={() => { setTypeForm({...typeForm, required_slots: [...typeForm.required_slots, { slot_id: `s${typeForm.required_slots.length + 1}`, work_role_id: workRoles[0]?.id || "", count: 1, label_he: "", label_en: "" }]}); if (typeFormErrors.required_slots) setTypeFormErrors(prev => ({...prev, required_slots: ""})); }}>
+                <Button type="button" size="sm" variant="outline" onClick={() => {
+                  const firstRole = workRoles[0];
+                  const newSlot = {
+                    slot_id: `s${typeForm.required_slots.length + 1}`,
+                    work_role_id: firstRole?.id || "",
+                    count: 1,
+                    label_he: firstRole?.name?.he || firstRole?.name?.[lang] || "",
+                    label_en: firstRole?.name?.en || firstRole?.name?.he || "",
+                  };
+                  setTypeForm({...typeForm, required_slots: [...typeForm.required_slots, newSlot]});
+                  if (typeFormErrors.required_slots) setTypeFormErrors(prev => ({...prev, required_slots: ""}));
+                }}>
                   <Plus className="h-3 w-3 me-1" />הוסף סלוט
                 </Button>
               </div>
@@ -1872,7 +1920,7 @@ export default function SchedulingPage() {
               {typeForm.required_slots.map((slot, i) => (
                 <div key={i} className="p-3 bg-muted/30 rounded space-y-2">
                   <div className="grid grid-cols-5 gap-2 items-end">
-                    <div><Label className="text-xs">שם (עב)</Label><Input value={slot.label_he} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_he = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
+                    <div><Label className="text-xs">שם (עב)</Label><Input value={slot.label_he} placeholder="יתמלא אוטומטית מהתפקיד" onChange={e => { const s = [...typeForm.required_slots]; s[i].label_he = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
                     <div><Label className="text-xs">שם (en)</Label><Input value={slot.label_en} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_en = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
                     <div>
                       <Label className="text-xs">תפקיד</Label>
@@ -1898,7 +1946,22 @@ export default function SchedulingPage() {
                   {/* Specific role selector */}
                   {(!slot.role_mode || slot.role_mode === "specific") && (
                     <div>
-                      <Select value={slot.work_role_id} onChange={e => { const s = [...typeForm.required_slots]; s[i].work_role_id = e.target.value; setTypeForm({...typeForm, required_slots: s}); }}>
+                      <Select value={slot.work_role_id} onChange={e => {
+                        const s = [...typeForm.required_slots];
+                        const prevRole = workRoles.find((wr: any) => wr.id === s[i].work_role_id);
+                        s[i].work_role_id = e.target.value;
+                        // Auto-populate label from role name if label is empty or matches previous role name
+                        const selectedRole = workRoles.find((wr: any) => wr.id === e.target.value);
+                        if (selectedRole) {
+                          const prevNameHe = prevRole?.name?.he || prevRole?.name?.[lang] || "";
+                          const isAutoLabel = !s[i].label_he || s[i].label_he === prevNameHe;
+                          if (isAutoLabel) {
+                            s[i].label_he = selectedRole.name?.he || selectedRole.name?.[lang] || "";
+                            s[i].label_en = selectedRole.name?.en || selectedRole.name?.he || "";
+                          }
+                        }
+                        setTypeForm({...typeForm, required_slots: s});
+                      }}>
                         <option value="">בחר תפקיד...</option>
                         {workRoles.map(wr => <option key={wr.id} value={wr.id}>{wr.name?.[lang] || wr.name?.he}</option>)}
                       </Select>
@@ -3156,6 +3219,72 @@ export default function SchedulingPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowSwapDialog(false); setSwapTarget(null); }}>ביטול</Button>
             <Button onClick={submitSwapRequest} disabled={!swapForm.target_employee_id}>שלח בקשה</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* === Daily Board Templates Modal === */}
+      <Dialog open={showDailyBoardTemplatesModal} onOpenChange={setShowDailyBoardTemplatesModal}>
+        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LayoutTemplate className="h-5 w-5" />
+              תבניות לוח
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {dailyBoardTemplates.length === 0 ? (
+              <div className="text-center py-8 space-y-3">
+                <LayoutTemplate className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                <p className="text-muted-foreground">אין תבניות לוח עדיין</p>
+                <p className="text-sm text-muted-foreground">צור תבנית לוח בהגדרות כדי לייצר לוחות יומיים אוטומטית</p>
+                <Button onClick={() => { setShowDailyBoardTemplatesModal(false); navigate("/settings?tab=board-template"); }}>
+                  <LayoutTemplate className="me-1 h-4 w-4" />עבור לעורך תבניות לוח
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">{dailyBoardTemplates.length} תבניות זמינות. בחר תבנית לייצור לוח ליום {boardDate}:</p>
+                <div className="space-y-2">
+                  {dailyBoardTemplates.map((tmpl: any) => (
+                    <div key={tmpl.id} className="flex items-center justify-between rounded-xl border p-4 hover:bg-muted/30 transition-colors">
+                      <div>
+                        <p className="font-semibold">{tmpl.name}</p>
+                        {tmpl.description && <p className="text-sm text-muted-foreground">{tmpl.description}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => { setShowDailyBoardTemplatesModal(false); navigate("/settings?tab=board-template"); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" onClick={async () => {
+                          try {
+                            toast("info", `מייצר לוח מתבנית "${tmpl.name}"...`);
+                            await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
+                              date_from: boardDate, date_to: boardDate,
+                            });
+                            toast("success", `לוח יומי נוצר בהצלחה`);
+                            setShowDailyBoardTemplatesModal(false);
+                            if (selectedWindow) loadWindowData(selectedWindow.id);
+                          } catch (err: any) {
+                            toast("error", err?.response?.data?.detail || "שגיאה ביצירת לוח");
+                          }
+                        }}>
+                          <Wand2 className="me-1 h-3.5 w-3.5" />צור לוח
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-2 border-t">
+                  <Button variant="outline" size="sm" onClick={() => { setShowDailyBoardTemplatesModal(false); navigate("/settings?tab=board-template"); }}>
+                    <Plus className="me-1 h-4 w-4" />הוסף תבנית חדשה
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDailyBoardTemplatesModal(false)}>סגור</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

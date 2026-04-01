@@ -22,6 +22,7 @@ const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const AcceptInvitationPage = lazy(() => import("./pages/auth/AcceptInvitationPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const SoldiersPage = lazy(() => import("./pages/soldiers/SoldiersPage"));
+const SoldierDetailPage = lazy(() => import("./pages/soldiers/SoldierDetailPage"));
 const SchedulingPage = lazy(() => import("./pages/scheduling/SchedulingPage"));
 const MissionDetailPage = lazy(() => import("./pages/scheduling/MissionDetailPage"));
 const AttendancePage = lazy(() => import("./pages/attendance/AttendancePage"));
@@ -81,6 +82,9 @@ function App() {
                   {/* Soldiers — scheduler+ */}
                   <Route path="soldiers" element={
                     <PermissionGuard page="soldiers"><SoldiersPage /></PermissionGuard>
+                  } />
+                  <Route path="soldiers/:id" element={
+                    <PermissionGuard page="soldiers"><SoldierDetailPage /></PermissionGuard>
                   } />
                   <Route path="employees" element={<Navigate to="/soldiers" replace />} />
 

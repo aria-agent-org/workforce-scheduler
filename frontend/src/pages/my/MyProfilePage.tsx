@@ -127,28 +127,65 @@ export default function MyProfilePage() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Validate size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast("error", "הקובץ גדול מדי — מקסימום 2MB");
+      return;
+    }
     setUploadingAvatar(true);
     try {
-      // Get presigned URL
-      const presignRes = await api.post(tenantApi("/my/avatar/presigned-url"), {
-        content_type: file.type,
-        file_name: file.name,
-      });
-      const { upload_url, avatar_url } = presignRes.data;
-
-      // Upload directly to presigned URL
-      await fetch(upload_url, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
-
-      // Notify backend that upload is complete
+      // Try presigned URL approach first
+      let avatarSaved = false;
       try {
-        await api.patch(tenantApi("/my/profile"), { avatar_url });
-      } catch { /* some backends auto-detect */ }
+        const presignRes = await api.post(tenantApi("/my/avatar/presigned-url"), {
+          content_type: file.type,
+          file_name: file.name,
+        });
+        const { upload_url, avatar_url } = presignRes.data;
+        if (upload_url && avatar_url) {
+          await fetch(upload_url, {
+            method: "PUT",
+            body: file,
+            headers: { "Content-Type": file.type },
+          });
+          await api.patch(tenantApi("/my/profile"), { avatar_url }).catch(() => {});
+          setAvatarUrl(avatar_url + "?t=" + Date.now());
+          avatarSaved = true;
+        }
+      } catch {
+        // Presigned URL not available — fall back to base64
+      }
 
-      setAvatarUrl(avatar_url + "?t=" + Date.now());
+      if (!avatarSaved) {
+        // Fallback: convert to base64 and save inline
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = (ev) => resolve(ev.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        // Resize if needed (canvas approach for large images)
+        const img = new Image();
+        const resized = await new Promise<string>((resolve) => {
+          img.onload = () => {
+            const maxSize = 200;
+            const canvas = document.createElement("canvas");
+            const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+            canvas.width = img.width * ratio;
+            canvas.height = img.height * ratio;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
+          };
+          img.src = base64;
+        });
+        await api.patch(tenantApi("/my/profile"), { avatar_url: resized }).catch(() => {
+          // If profile endpoint doesn't support avatar_url, store locally
+          localStorage.setItem("shavtzak_avatar", resized);
+        });
+        setAvatarUrl(resized);
+      }
+
       toast("success", "תמונת הפרופיל עודכנה");
       loadProfile();
     } catch (err: any) {
@@ -169,6 +206,10 @@ export default function MyProfilePage() {
       });
       if (res.data.employee?.avatar_url) {
         setAvatarUrl(res.data.employee.avatar_url);
+      } else {
+        // Fallback: check localStorage
+        const localAvatar = localStorage.getItem("shavtzak_avatar");
+        if (localAvatar) setAvatarUrl(localAvatar);
       }
     } catch {
       toast("error", "שגיאה בטעינת פרופיל");

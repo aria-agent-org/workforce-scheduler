@@ -150,12 +150,21 @@ export default function AppLayout() {
       </a>
       <OfflineBanner />
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
-        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 scroll-smooth page-transition" role="main" tabIndex={-1}>
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        {/* TopBar: sticky at top, full width */}
+        <div className="sticky top-0 z-40 flex-shrink-0">
+          <TopBar />
+        </div>
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto p-3 md:p-6 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-6 scroll-smooth page-transition"
+          role="main"
+          tabIndex={-1}
+        >
           <Outlet />
         </main>
       </div>
+      {/* BottomNav: fixed at bottom, above safe area */}
       <BottomNav />
       <InstallBanner />
     </div>
