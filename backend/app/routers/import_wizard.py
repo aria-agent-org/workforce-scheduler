@@ -2,7 +2,7 @@
 
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from pydantic import BaseModel
@@ -522,7 +522,7 @@ async def execute_import(
                     token=secrets.token_urlsafe(32),
                     employee_id=new_emp.id,
                     invited_by=user.id,
-                    expires_at=datetime.utcnow().replace(year=datetime.utcnow().year + 1),
+                    expires_at=datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1),
                     status="pending",
                 )
                 db.add(inv)
@@ -533,7 +533,7 @@ async def execute_import(
     batch.status = "completed"
     batch.processed_rows = imported + updated + skipped
     batch.invitation_method = req.invitation_method
-    batch.completed_at = datetime.utcnow()
+    batch.completed_at = datetime.now(timezone.utc)
 
     await db.commit()
 

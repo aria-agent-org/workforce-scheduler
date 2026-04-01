@@ -203,7 +203,7 @@ async def pause_window(window_id: UUID, tenant: CurrentTenant, user: CurrentUser
     if w.status != "active":
         raise HTTPException(status_code=400, detail="רק לוחות פעילים ניתנים להשהייה")
     w.status = "paused"
-    w.paused_at = datetime.utcnow()
+    w.paused_at = datetime.now(timezone.utc)
     db.add(ScheduleWindowLifecycleEvent(
         tenant_id=tenant.id, schedule_window_id=w.id, event_type="pause",
         performed_by=user.id, state_snapshot={"previous_status": "active"},
@@ -892,7 +892,7 @@ async def approve_mission(
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
     m.status = "approved"
     m.approved_by = user.id
-    m.approved_at = datetime.utcnow()
+    m.approved_at = datetime.now(timezone.utc)
     await db.commit()
 
     # Notify all assigned employees
@@ -1236,7 +1236,7 @@ async def create_assignment(
         employee_id=data.employee_id,
         work_role_id=data.work_role_id,
         slot_id=data.slot_id,
-        assigned_at=datetime.utcnow(),
+        assigned_at=datetime.now(timezone.utc),
         conflicts_detected=conflicts if conflicts else None,
     )
     db.add(assignment)
@@ -1572,7 +1572,7 @@ async def auto_assign_missions_simple(
                         employee_id=emp.id,
                         work_role_id=work_role_id or emp.id,  # fallback
                         slot_id=slot_key,
-                        assigned_at=datetime.utcnow(),
+                        assigned_at=datetime.now(timezone.utc),
                     )
                     db.add(assignment)
                     total_assigned += 1

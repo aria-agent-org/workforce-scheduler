@@ -6,6 +6,11 @@ import "./i18n";
 import "./index.css";
 import { registerServiceWorker, setupInstallPrompt, setupOfflineTracking } from "./lib/pwa";
 
+// Set default Israel timezone if not already configured
+if (!localStorage.getItem("tenant_timezone")) {
+  localStorage.setItem("tenant_timezone", "Asia/Jerusalem");
+}
+
 // PWA Setup — single SW registration (handled inside registerServiceWorker)
 registerServiceWorker();
 setupInstallPrompt();

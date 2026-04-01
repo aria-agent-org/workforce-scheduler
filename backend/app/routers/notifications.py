@@ -171,13 +171,13 @@ async def send_notification(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Send a notification to specified employees. For push channel, sends real webpush."""
-    from datetime import datetime
+    from datetime import datetime, timezone, timezone
 
     from app.models.user import User
     from app.routers.push import send_push_to_user
 
     sent = 0
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for emp_id in data.employee_ids:
         push_sent = 0
         if data.channel == "push" and data.body:
@@ -315,7 +315,7 @@ async def broadcast_notification(
     """
     import json
     import logging
-    from datetime import datetime
+    from datetime import datetime, timezone, timezone
 
     from app.models.push_subscription import PushSubscription
     from app.models.user import User
@@ -370,7 +370,7 @@ async def broadcast_notification(
         raise HTTPException(status_code=400, detail="סוג יעד לא תקין")
 
     body_text = f"{data.title}: {data.body}"
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     sent_push = 0
     failed_push = 0
     no_subscription = 0
@@ -511,7 +511,7 @@ async def bulk_notification(
     """Send push notifications to a list of employee IDs."""
     import json
     import logging
-    from datetime import datetime
+    from datetime import datetime, timezone, timezone
 
     from app.models.push_subscription import PushSubscription
     from app.models.user import User
@@ -534,7 +534,7 @@ async def bulk_notification(
         )
     )
     employees = result.scalars().all()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     sent = 0
 
     for emp in employees:

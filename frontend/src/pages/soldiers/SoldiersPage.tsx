@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart, ChevronDown } from "lucide-react";
+import { UserPlus, Search, Download, Upload, Pencil, Trash2, FileSpreadsheet, Mail, KeyRound, Bell, CheckSquare, Heart } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
@@ -199,73 +199,20 @@ const STATUS_LABELS: Record<string, string> = {
   absent: "נעדר",
 };
 
-function QuickStatusBadge({ soldier, onUpdate }: { soldier: Soldier; onUpdate: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const { toast } = useToast();
-  const ref = useRef<HTMLDivElement>(null);
-
+// Status badge is READ-ONLY. Status changes happen ONLY through attendance in a board context.
+function QuickStatusBadge({ soldier }: { soldier: Soldier; onUpdate?: () => void }) {
   const currentStatus = soldier.status || "available";
   const label = STATUS_LABELS[currentStatus] || currentStatus;
   const colorClass = STATUS_COLORS[currentStatus] || STATUS_COLORS.available;
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const updateStatus = async (newStatus: string) => {
-    if (newStatus === currentStatus) { setOpen(false); return; }
-    setUpdating(true);
-    try {
-      await api.patch(tenantApi(`/employees/${soldier.id}`), { status: newStatus });
-      toast("success", `סטטוס עודכן ל${STATUS_LABELS[newStatus] || newStatus}`);
-      onUpdate();
-    } catch (e: any) {
-      toast("error", getErrorMessage(e, "שגיאה בעדכון סטטוס"));
-    } finally {
-      setUpdating(false);
-      setOpen(false);
-    }
-  };
-
   return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        disabled={updating}
-        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer hover:ring-2 hover:ring-primary-300 ${colorClass} ${updating ? "opacity-50" : ""}`}
-      >
-        {updating ? (
-          <span className="inline-block h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-        )}
-        {label}
-        <ChevronDown className="h-3 w-3 opacity-60" />
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-36 rounded-xl border bg-background shadow-xl animate-in fade-in zoom-in-95 py-1"
-          style={{ top: "100%", insetInlineStart: 0 }}
-        >
-          {Object.entries(STATUS_LABELS).map(([key, lbl]) => (
-            <button
-              key={key}
-              onClick={(e) => { e.stopPropagation(); updateStatus(key); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start ${key === currentStatus ? "bg-muted/70 font-medium" : ""}`}
-            >
-              <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COLORS[key]?.split(" ")[0] || "bg-gray-200"}`} />
-              {lbl}
-              {key === currentStatus && <span className="ms-auto text-xs text-primary-500">✓</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium pointer-events-none select-none ${colorClass}`}
+      title="סטטוס מתעדכן דרך דוח הנוכחות בלבד"
+    >
+      <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+      {label}
+    </span>
   );
 }
 

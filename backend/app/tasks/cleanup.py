@@ -1,7 +1,7 @@
 """Data retention cleanup tasks."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timezone, timedelta
 
 from sqlalchemy import select, delete, and_
 
@@ -45,7 +45,7 @@ async def _cleanup_expired_data_async():
                 )
                 continue
 
-            cutoff_date = datetime.utcnow() - timedelta(days=config.retain_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=config.retain_days)
 
             if config.archive_to_s3:
                 logger.info(

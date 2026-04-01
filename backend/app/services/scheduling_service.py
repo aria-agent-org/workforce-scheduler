@@ -228,7 +228,7 @@ class AutoScheduler:
                         work_role_id=assign_role_id,
                         slot_id=slot_key,
                         status="proposed",
-                        assigned_at=datetime.utcnow(),
+                        assigned_at=datetime.now(timezone.utc),
                         conflicts_detected=soft_warnings if soft_warnings else None,
                     )
                     self.db.add(assignment)

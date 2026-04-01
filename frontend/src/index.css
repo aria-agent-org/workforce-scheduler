@@ -804,6 +804,55 @@
 .safe-area-pt { padding-top: env(safe-area-inset-top, 0); }
 .safe-area-pb { padding-bottom: env(safe-area-inset-bottom, 0); }
 
+/* === MOBILE RESPONSIVE IMPROVEMENTS === */
+
+/* Settings page tab navigation on mobile */
+.settings-tabs {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-tabs > button {
+  scroll-snap-align: start;
+}
+
+/* Toggle switches — minimum 44px touch target on mobile */
+@media (max-width: 640px) {
+  input[type="checkbox"] + div,
+  .toggle-switch,
+  [class*="peer-checked"] {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Make toggle containers at least 44px tall */
+  label:has(input[type="checkbox"].sr-only) {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Button mobile improvements */
+  button, .btn, [role="button"] {
+    min-height: 44px;
+  }
+
+  /* Prevent overflow in settings cards */
+  .settings-content {
+    overflow-x: hidden;
+  }
+
+  /* Table scroll on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+}
+
 /* === CUSTOM SCROLLBAR for desktop === */
 @media (hover: hover) {
   ::-webkit-scrollbar {

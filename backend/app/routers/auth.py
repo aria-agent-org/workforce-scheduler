@@ -477,11 +477,12 @@ async def webauthn_register_finish(
             type="public-key",
         )
 
+        allowed_origins = [o.strip() for o in _settings.webauthn_allowed_origins.split(",") if o.strip()]
         verification = verify_registration_response(
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=_settings.webauthn_rp_id,
-            expected_origin=_settings.webauthn_origin,
+            expected_origin=allowed_origins,
         )
     except HTTPException:
         raise
@@ -674,11 +675,12 @@ async def webauthn_login_finish(
             type="public-key",
         )
 
+        allowed_origins = [o.strip() for o in _settings.webauthn_allowed_origins.split(",") if o.strip()]
         verification = verify_authentication_response(
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=_settings.webauthn_rp_id,
-            expected_origin=_settings.webauthn_origin,
+            expected_origin=allowed_origins,
             credential_public_key=stored_cred.public_key,
             credential_current_sign_count=stored_cred.sign_count,
         )

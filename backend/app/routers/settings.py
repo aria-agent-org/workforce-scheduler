@@ -1,7 +1,7 @@
 """Settings endpoints: tenant settings, work roles, role definitions, bot tokens."""
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timezone, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -278,7 +278,7 @@ async def create_bot_tokens(
             token=secrets.token_urlsafe(32),
             employee_id=emp.id,
             platform=data.platform,
-            expires_at=datetime.utcnow() + timedelta(days=7),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
         )
         db.add(token)
         await db.flush()

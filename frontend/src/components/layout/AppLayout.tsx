@@ -71,6 +71,23 @@ export default function AppLayout() {
           document.title = data.app_name;
         }
 
+        // Store timezone preference for date utilities
+        if (data.timezone) {
+          localStorage.setItem("tenant_timezone", data.timezone);
+        } else if (!localStorage.getItem("tenant_timezone")) {
+          // Default to Israel timezone
+          localStorage.setItem("tenant_timezone", "Asia/Jerusalem");
+        }
+
+        // Update manifest link to point to backend dynamic manifest
+        const tenantSlug = window.location.pathname.startsWith("/api/v1/") ? "" : "";
+        const existingManifestLink = document.querySelector("link[rel='manifest']") as HTMLLinkElement;
+        if (existingManifestLink && data.app_name) {
+          // The static manifest is served by nginx; we patch meta tags dynamically
+          const metaTheme = document.querySelector("meta[name='theme-color']") as HTMLMetaElement;
+          if (metaTheme && data.primary_color) metaTheme.content = data.primary_color;
+        }
+
         // Apply custom CSS
         if (data.custom_css) {
           document.getElementById("tenant-branding-css")?.remove();
@@ -88,11 +105,19 @@ export default function AppLayout() {
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  // Check if first-time user needs onboarding
-  const onboardingDone = localStorage.getItem("shavtzak_onboarding_done");
-  if (!onboardingDone && user?.role_name && ["tenant_admin", "super_admin"].includes(user.role_name)) {
-    // Only redirect admins to onboarding — soldiers don't need it
-    // Check localStorage so we only show it once
+  // Check if first-time admin needs onboarding (redirects once, only if never started)
+  const onboardingCompleted = localStorage.getItem("shavtzak_onboarding_completed");
+  const onboardingStarted = localStorage.getItem("shavtzak_onboarding");
+  const isFirstTimeAdmin =
+    !onboardingCompleted &&
+    !onboardingStarted &&
+    user?.role_name &&
+    ["tenant_admin", "super_admin"].includes(user.role_name);
+
+  if (isFirstTimeAdmin) {
+    // Mark as started so we don't redirect again (they can complete later)
+    localStorage.setItem("shavtzak_onboarding", JSON.stringify({ currentStep: 0, completed: {}, fromAutoRedirect: true }));
+    return <Navigate to="/onboarding" replace />;
   }
 
   // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal

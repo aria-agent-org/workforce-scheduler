@@ -124,7 +124,7 @@ async def update_attendance(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    from datetime import datetime
+    from datetime import datetime, timezone, timezone
     from app.models.scheduling import Mission, MissionAssignment
 
     result = await db.execute(
@@ -148,7 +148,7 @@ async def update_attendance(
 
     # === Status workflow: check future assignments today ===
     warnings: list[str] = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     current_time = now.time()
 
     if new_status in ("home", "going_home", "sick"):
@@ -437,9 +437,9 @@ async def resolve_conflict(
     conflict = result.scalar_one_or_none()
     if not conflict:
         raise HTTPException(status_code=404, detail="קונפליקט לא נמצא")
-    from datetime import datetime
+    from datetime import datetime, timezone, timezone
     conflict.status = "resolved"
     conflict.resolved_by = user.id
-    conflict.resolved_at = datetime.utcnow()
+    conflict.resolved_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(conflict.id), "status": "resolved"}
