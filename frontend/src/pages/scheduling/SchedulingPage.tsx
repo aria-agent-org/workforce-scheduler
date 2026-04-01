@@ -983,7 +983,8 @@ export default function SchedulingPage() {
                     let filled = 0, total = 0;
                     missions.forEach(m => {
                       const mt = missionTypes.find(t => t.id === m.mission_type_id);
-                      const slots = mt?.required_slots || [];
+                      // Use mission-level slots first, fallback to mission type slots
+                      const slots = (m as any).required_slots || mt?.required_slots || [];
                       total += slots.reduce((s: number, sl: any) => s + (sl.count || 1), 0);
                       filled += (m.assignments || []).filter((a: any) => a.status !== "replaced").length;
                     });
@@ -996,7 +997,7 @@ export default function SchedulingPage() {
                 <p className="text-xl font-bold">
                   {missions.filter(m => {
                     const mt = missionTypes.find(t => t.id === m.mission_type_id);
-                    const slots = mt?.required_slots || [];
+                    const slots = (m as any).required_slots || mt?.required_slots || [];
                     const needed = slots.reduce((s: number, sl: any) => s + (sl.count || 1), 0);
                     const filled = (m.assignments || []).filter((a: any) => a.status !== "replaced").length;
                     return filled < needed;
@@ -1036,7 +1037,7 @@ export default function SchedulingPage() {
             
             missions.forEach(m => {
               const mt = missionTypes.find(t => t.id === m.mission_type_id);
-              const slots = mt?.required_slots || [];
+              const slots = (m as any).required_slots || mt?.required_slots || [];
               totalSlots += slots.reduce((sum: number, s: any) => sum + (s.count || 1), 0);
               
               (m.assignments || []).forEach((a: any) => {
