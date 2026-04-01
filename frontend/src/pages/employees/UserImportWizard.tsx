@@ -30,11 +30,7 @@ function validateIsraeliPhone(phone: string): "valid" | "non-israeli" | "invalid
   return "invalid";
 }
 
-// Split multi-role strings: "נהג, לוחם" → ["נהג", "לוחם"]
-function splitRoles(rolesStr: string): string[] {
-  if (!rolesStr) return [];
-  return rolesStr.split(/[,،;|]/).map(r => r.trim()).filter(Boolean);
-}
+// Note: role splitting (comma-separated) is handled server-side in validate endpoint
 
 interface ImportRow {
   id: string;
