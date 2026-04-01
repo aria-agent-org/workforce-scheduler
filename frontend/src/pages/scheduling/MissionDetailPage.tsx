@@ -40,7 +40,10 @@ export default function MissionDetailPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuthStore();
-  const isSoldier = user?.role_name?.toLowerCase() === "soldier";
+  // Only privileged roles can manage missions — everyone else is read-only
+  const canManageMissions = ["super_admin", "tenant_admin", "scheduler", "commander"].includes(
+    user?.role_name || ""
+  );
 
   const [mission, setMission] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -180,8 +183,8 @@ export default function MissionDetailPage() {
         </Badge>
       </div>
 
-      {/* Action Buttons — hidden from soldiers */}
-      {!isSoldier && (
+      {/* Action Buttons — only for privileged roles */}
+      {canManageMissions && (
         <div className="flex flex-wrap gap-2">
           {(mission.status === "draft" || mission.status === "proposed") && (
             <Button size="sm" className="min-h-[40px]" onClick={() => handleAction("approve")}>
@@ -199,8 +202,8 @@ export default function MissionDetailPage() {
         </div>
       )}
 
-      {/* Edit Form — soldiers cannot see this */}
-      {editing && !isSoldier && (
+      {/* Edit Form — only for privileged roles */}
+      {editing && canManageMissions && (
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="space-y-2">
@@ -361,18 +364,21 @@ export default function MissionDetailPage() {
               <textarea
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-y"
                 value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder="הוסף הערות למשימה..."
+                onChange={e => canManageMissions && setNotes(e.target.value)}
+                readOnly={!canManageMissions}
+                placeholder={canManageMissions ? "הוסף הערות למשימה..." : "אין הערות"}
               />
-              <Button
-                size="sm"
-                className="mt-2 min-h-[36px]"
-                onClick={saveNotes}
-                disabled={savingNotes}
-              >
-                {savingNotes ? <Loader2 className="me-1 h-3 w-3 animate-spin" /> : <Save className="me-1 h-3 w-3" />}
-                שמור הערות
-              </Button>
+              {canManageMissions && (
+                <Button
+                  size="sm"
+                  className="mt-2 min-h-[36px]"
+                  onClick={saveNotes}
+                  disabled={savingNotes}
+                >
+                  {savingNotes ? <Loader2 className="me-1 h-3 w-3 animate-spin" /> : <Save className="me-1 h-3 w-3" />}
+                  שמור הערות
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>

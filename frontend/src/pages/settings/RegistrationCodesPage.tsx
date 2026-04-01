@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { KeyRound, RefreshCw, Copy, Users, Search } from "lucide-react";
+import { KeyRound, RefreshCw, Copy, Users, Search, Download } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 
@@ -79,6 +79,43 @@ export default function RegistrationCodesPage() {
     toast("success", "הקוד הועתק");
   };
 
+  const getRegistrationLink = (code: string): string => {
+    const origin = window.location.origin;
+    return `${origin}/join-tenant?code=${code}`;
+  };
+
+  const copyLink = (code: string) => {
+    navigator.clipboard.writeText(getRegistrationLink(code));
+    toast("success", "קישור הרשמה הועתק");
+  };
+
+  const downloadAllLinks = () => {
+    const withCodes = filtered.filter(i => i.code && !i.has_user);
+    if (withCodes.length === 0) {
+      toast("warning", "אין קישורים להורדה — צור קודים קודם");
+      return;
+    }
+    const origin = window.location.origin;
+    const rows = [
+      ["שם מלא", "מספר אישי", "קוד", "קישור הרשמה"],
+      ...withCodes.map(i => [
+        i.employee_name,
+        i.employee_number,
+        i.code || "",
+        `${origin}/join-tenant?code=${i.code}`,
+      ]),
+    ];
+    const csv = "\uFEFF" + rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "registration_links.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("success", `הורדת ${withCodes.length} קישורים`);
+  };
+
   const filtered = items.filter(i =>
     !search || i.employee_name.includes(search) || i.employee_number.includes(search)
   );
@@ -124,6 +161,9 @@ export default function RegistrationCodesPage() {
         <Button variant="outline" size="sm" onClick={bulkGenerate}>
           <Users className="me-1 h-4 w-4" />יצירת קודים לכולם
         </Button>
+        <Button variant="outline" size="sm" onClick={downloadAllLinks}>
+          <Download className="me-1 h-4 w-4" />הורד קישורי הרשמה
+        </Button>
         <Button variant="ghost" size="sm" onClick={load}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -155,10 +195,13 @@ export default function RegistrationCodesPage() {
                     </td>
                     <td className="px-4 py-3">
                       {item.code ? (
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <code className="font-mono text-lg font-bold tracking-wider">{item.code}</code>
-                          <button onClick={() => copyCode(item.code!)} className="p-1 hover:bg-accent rounded min-h-[44px] min-w-[44px] flex items-center justify-center">
+                          <button onClick={() => copyCode(item.code!)} className="p-1 hover:bg-accent rounded min-h-[36px] min-w-[36px] flex items-center justify-center" title="העתק קוד">
                             <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                          <button onClick={() => copyLink(item.code!)} className="p-1 hover:bg-accent rounded min-h-[36px] min-w-[36px] flex items-center justify-center" title="העתק קישור הרשמה">
+                            <Download className="h-3.5 w-3.5 text-muted-foreground" />
                           </button>
                         </div>
                       ) : item.has_user ? (
@@ -206,10 +249,13 @@ export default function RegistrationCodesPage() {
                   </div>
                   <p className="text-xs text-muted-foreground font-mono">{item.employee_number}</p>
                   {item.code && (
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <code className="font-mono text-xl font-bold tracking-[0.3em] bg-muted px-3 py-1.5 rounded-lg">{item.code}</code>
-                      <button onClick={() => copyCode(item.code!)} className="p-2 hover:bg-accent rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center">
+                      <button onClick={() => copyCode(item.code!)} className="p-2 hover:bg-accent rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center" title="העתק קוד">
                         <Copy className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                      <button onClick={() => copyLink(item.code!)} className="p-2 hover:bg-accent rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center" title="העתק קישור הרשמה">
+                        <Download className="h-4 w-4 text-muted-foreground" />
                       </button>
                     </div>
                   )}

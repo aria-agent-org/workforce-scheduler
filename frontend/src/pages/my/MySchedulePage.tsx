@@ -168,7 +168,7 @@ export default function MySchedulePage() {
         reason: swapReason,
       });
       toast("success", "בקשת החלפה נשלחה בהצלחה! 🔄");
-      setSwapTarget(null); setSwapReason(""); setSwapType("give_away"); setSwapPartner("");
+      setSwapTarget(null); setSwapReason(""); setSwapType("swap_mutual"); setSwapPartner("");
     } catch (e: any) {
       toast("error", getErrorMessage(e, "שגיאה בשליחת בקשה"));
     } finally { setSwapSubmitting(false); }
