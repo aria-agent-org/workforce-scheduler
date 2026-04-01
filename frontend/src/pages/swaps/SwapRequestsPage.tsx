@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -12,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeftRight, Check, X, AlertTriangle, ChevronDown, ChevronUp, Filter, FileSpreadsheet } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errorUtils";
 import * as XLSX from "xlsx";
 
 interface SwapRequest {

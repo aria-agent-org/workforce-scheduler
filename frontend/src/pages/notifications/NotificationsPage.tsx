@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,10 +10,10 @@ import { useToast } from "@/components/ui/toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye, Zap, X } from "lucide-react";
+import { Bell, Plus, Pencil, Mail, MessageSquare, Send, Megaphone, Check, Eye } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
-import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError, getPushDebugLog, clearPushDebugLog, isIOS, isStandalone, getPushStatus, type PushStatus } from "@/lib/push";
+import { getPushPermission, subscribeToPush, unsubscribeFromPush, isPushSubscribed, sendTestPush, getLastPushError, getPushDebugLog, clearPushDebugLog, getPushStatus, type PushStatus } from "@/lib/push";
 
 type Tab = "templates" | "logs" | "channels";
 
@@ -123,7 +123,7 @@ export default function NotificationsPage() {
   const [workRoles, setWorkRoles] = useState<any[]>([]);
   const [scheduleWindows, setScheduleWindows] = useState<any[]>([]);
   const [broadcastSending, setBroadcastSending] = useState(false);
-  const [filteredPreview, setFilteredPreview] = useState<any[]>([]);
+  const [,] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,17 +176,6 @@ export default function NotificationsPage() {
     loadWorkRoles();
     loadScheduleWindows();
   };
-
-  const getFilteredSoldierPreview = useCallback(() => {
-    if (!soldiers.length) return [];
-    const form = broadcastForm;
-    if (form.target === "all") return soldiers;
-    if (form.target === "present") return soldiers.filter((s: any) => s.status === "present");
-    if (form.target === "by_status") return soldiers.filter((s: any) => s.status === form.status_filter);
-    if (form.target === "custom") return soldiers.filter((s: any) => form.soldier_ids.includes(s.id));
-    // by_work_role and by_window can't be easily filtered client-side
-    return soldiers;
-  }, [soldiers, broadcastForm]);
 
   const sendBroadcast = async () => {
     if (!broadcastForm.title || !broadcastForm.body) {

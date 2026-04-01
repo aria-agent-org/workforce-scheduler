@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Info, Zap, Scale, Shield, Clock, FileSpreadsheet, Copy, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, ShieldCheck, Pencil, Trash2, Play, AlertTriangle, Scale, Shield, Clock, FileSpreadsheet, BookOpen, ChevronDown, ChevronRight } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import * as XLSX from "xlsx";
@@ -234,9 +234,6 @@ export default function RulesPage() {
     action_type: "warn", action_message_he: "", action_message_en: "",
   });
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
-
-  // Backward compat helper: flat conditions from groups
-  const formConditions = form.conditionGroups.flatMap(g => g.conditions);
 
   // Test
   const [testContext, setTestContext] = useState("{}");

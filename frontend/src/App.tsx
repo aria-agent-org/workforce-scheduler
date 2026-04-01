@@ -40,6 +40,7 @@ const HelpPage = lazy(() => import("./pages/help/HelpPage"));
 const SoldierLayout = lazy(() => import("./pages/my/SoldierLayout"));
 const MySchedulePage = lazy(() => import("./pages/my/MySchedulePage"));
 const MySwapPage = lazy(() => import("./pages/my/MySwapPage"));
+const SwapRequestPage = lazy(() => import("./pages/my/SwapRequestPage"));
 const MyNotificationsPage = lazy(() => import("./pages/my/MyNotificationsPage"));
 const MyProfilePage = lazy(() => import("./pages/my/MyProfilePage"));
 const MySettingsPage = lazy(() => import("./pages/my/MySettingsPage"));
@@ -145,6 +146,7 @@ function App() {
                   <Route index element={<Navigate to="/my/schedule" replace />} />
                   <Route path="schedule" element={<MySchedulePage />} />
                   <Route path="swap" element={<MySwapPage />} />
+                  <Route path="swap-request" element={<SwapRequestPage />} />
                   <Route path="notifications" element={<MyNotificationsPage />} />
                   <Route path="profile" element={<MyProfilePage />} />
                   <Route path="settings" element={<MySettingsPage />} />

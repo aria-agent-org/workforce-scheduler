@@ -92,7 +92,6 @@ export default function AppLayout() {
         }
 
         // Update manifest link to point to backend dynamic manifest
-        const tenantSlug = window.location.pathname.startsWith("/api/v1/") ? "" : "";
         const existingManifestLink = document.querySelector("link[rel='manifest']") as HTMLLinkElement;
         if (existingManifestLink && data.app_name) {
           // The static manifest is served by nginx; we patch meta tags dynamically

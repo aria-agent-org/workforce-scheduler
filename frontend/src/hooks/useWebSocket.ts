@@ -6,7 +6,8 @@ const WS_URL = import.meta.env.VITE_WS_URL || "";
 type MessageHandler = (msg: any) => void;
 
 export function useWebSocket(handlers?: Record<string, MessageHandler>) {
-  const { slug } = useTenantStore();
+  const { tenant } = useTenantStore();
+  const slug = tenant?.slug;
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const handlersRef = useRef(handlers);

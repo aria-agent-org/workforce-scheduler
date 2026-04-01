@@ -113,7 +113,6 @@ export function formatRelativeDate(dateStr: string): string {
  * Convert a date to start of day in Israel timezone (UTC equivalent).
  */
 export function startOfDayIL(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
   // Create date at midnight Israel time
   const dt = new Date(`${dateStr}T00:00:00`);
   return dt;

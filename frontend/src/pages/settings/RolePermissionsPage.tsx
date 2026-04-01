@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Shield, Plus, Pencil, Trash2, Users, Check, X, Lock } from "lucide-react";
+import { Shield, Plus, Pencil, Trash2, Users, Check, Lock } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 
@@ -41,13 +41,7 @@ const ACTIONS = [
   { key: "export", label: { he: "ייצוא", en: "Export" } },
 ] as const;
 
-const SPECIAL_PERMISSIONS = [
-  { key: "override_soft", label: { he: "עקיפת חוקים רכים", en: "Override Soft Rules" } },
-  { key: "override_hard", label: { he: "עקיפת חוקים קשים", en: "Override Hard Rules" } },
-] as const;
-
 // System roles that cannot be edited
-const SYSTEM_ROLE_NAMES = ["super_admin", "tenant_admin", "scheduler", "viewer"];
 
 interface RoleDefinition {
   id: string;

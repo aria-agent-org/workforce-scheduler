@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { User, KeyRound, Globe, Bell, Save, Shield, Heart, MessageCircle, Send, Camera } from "lucide-react";
+import { User, KeyRound, Globe, Bell, Save, Shield, Heart, Send, Camera } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import { isPushSupported, getPushPermission, subscribeToPush, isPushSubscribed, sendTestPush } from "@/lib/push";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import EmployeePreferences from "@/components/EmployeePreferences";
 
@@ -96,9 +95,8 @@ function TelegramRegistration() {
 }
 
 export default function MyProfilePage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const { toast } = useToast();
-  const lang = i18n.language as "he" | "en";
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
@@ -325,7 +323,6 @@ export default function MyProfilePage() {
               <div className="space-y-2">
                 <Label>שם מלא</Label>
                 {(() => {
-                  const userRole = profile?.user?.role_definition_id ? "admin" : "soldier";
                   const isSoldier = !profile?.user?.role_definition_id || 
                     profile?.role_name === "soldier" || 
                     profile?.role_name === "חייל";

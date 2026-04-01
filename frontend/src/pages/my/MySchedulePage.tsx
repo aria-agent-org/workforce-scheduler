@@ -3,11 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Calendar, Clock, ChevronLeft, ChevronRight, AlertTriangle, Users, ArrowRightLeft, Timer, Sun, Moon, Sunrise } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, AlertTriangle, Users, ArrowRightLeft, Timer, Sun, Moon, Sunrise } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
@@ -59,7 +58,7 @@ export default function MySchedulePage() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [swapTarget, setSwapTarget] = useState<Assignment | null>(null);
   const [swapReason, setSwapReason] = useState("");
-  const [swapType, setSwapType] = useState<"give_away" | "swap_mutual">("swap_mutual");
+  const [, setSwapType] = useState<"give_away" | "swap_mutual">("swap_mutual");
   const [swapPartner, setSwapPartner] = useState("");
   const [swapSubmitting, setSwapSubmitting] = useState(false);
   const [soldiers, setSoldiers] = useState<any[]>([]);

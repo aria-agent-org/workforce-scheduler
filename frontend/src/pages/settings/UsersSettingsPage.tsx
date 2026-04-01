@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Users, Plus, Pencil, Key, UserX, Link, Search, AlertCircle, Upload, FileSpreadsheet, CheckCircle, XCircle } from "lucide-react";
+import { Users, Plus, Pencil, Key, UserX, Link, Search, AlertCircle, Upload, FileSpreadsheet, CheckCircle } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 

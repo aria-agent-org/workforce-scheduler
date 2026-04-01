@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,14 +11,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Settings, Users, Shield, Plus, Pencil, Trash2, Palette,
+  Settings, Users, Shield, Plus, Pencil, Trash2,
   ClipboardList, Sheet, Bot, LayoutTemplate,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
-import HelpTooltip from "@/components/common/HelpTooltip";
-import AutoSaveIndicator from "@/components/common/AutoSaveIndicator";
-import { useAutoSave } from "@/hooks/useAutoSave";
 import BilingualRoleName from "@/components/common/BilingualRoleName";
 import DataRetentionSection from "./DataRetentionSection";
 import AttendanceStatusesPage from "./AttendanceStatusesPage";
@@ -205,26 +202,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<any[]>([]);
   const [workRoles, setWorkRoles] = useState<any[]>([]);
-  const [roleDefinitions, setRoleDefinitions] = useState<any[]>([]);
+  const [, setRoleDefinitions] = useState<any[]>([]);
 
   // Modals
   const [showWRModal, setShowWRModal] = useState(false);
   const [wrForm, setWrForm] = useState({ name_he: "", name_en: "", color: "#3b82f6" });
   const [editingWR, setEditingWR] = useState<any>(null);
-  // Inline editing for settings
-  const [editingSettingId, setEditingSettingId] = useState<string | null>(null);
-  const [editingSettingValue, setEditingSettingValue] = useState<string>("");
 
-  const saveSetting = async (settingId: string, value: any) => {
-    try {
-      await api.patch(tenantApi(`/settings/${settingId}`), { value });
-      toast("success", "הגדרה נשמרה");
-      setEditingSettingId(null);
-      load();
-    } catch (e: any) {
-      toast("error", getErrorMessage(e, "שגיאה בשמירת הגדרה"));
-    }
-  };
+
 
   const load = useCallback(async () => {
     setLoading(true);

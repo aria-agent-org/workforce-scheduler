@@ -41,7 +41,7 @@ const BOT_ACTIONS = [
 ];
 
 export default function BotConfigPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const { toast } = useToast();
   const lang = i18n.language as "he" | "en";
 

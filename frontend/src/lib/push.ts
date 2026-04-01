@@ -246,7 +246,7 @@ export async function subscribeToPush(): Promise<boolean> {
       // IMPORTANT: Safari/iOS requires Uint8Array directly, NOT .buffer (ArrayBuffer)
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: appServerKey,
+        applicationServerKey: appServerKey as any,
       });
     } catch (subErr: any) {
       // Specific handling for common errors

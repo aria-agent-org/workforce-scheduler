@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Building2, Users, CreditCard, Activity, Plus, Pencil, Power, PowerOff,
-  UserX, ArrowRightLeft, Search, RefreshCw, Radio, FileSpreadsheet,
+  UserX, ArrowRightLeft, Radio, FileSpreadsheet,
 } from "lucide-react";
 import api from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";

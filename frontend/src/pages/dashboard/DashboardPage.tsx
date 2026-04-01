@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Users, Calendar, AlertTriangle, CheckCircle, Clock, BarChart3, ArrowLeftRight, Zap } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errorUtils";
 
 interface DashboardStats {
   total_employees: number;
@@ -177,7 +176,7 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {statCards.map(({ key, value, icon: Icon, gradient, bgLight, link, suffix }, idx) => (
+        {statCards.map(({ key, value, icon: Icon, gradient, bgLight, link }, idx) => (
           <Card
             key={key}
             className="card-hover cursor-pointer stagger-item overflow-hidden group border-0 shadow-elevation-2"

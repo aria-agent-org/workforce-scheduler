@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   Upload, FileSpreadsheet, Users, CheckCircle2, AlertTriangle,
-  ArrowLeft, ArrowRight, MapPin, UserPlus, Send, Download,
-  Loader2, X, Plus, Search, Phone, Mail,
+  ArrowLeft, ArrowRight, MapPin, UserPlus,
+  Loader2, X, Phone, Mail,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
@@ -61,7 +61,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
   });
 
   // Step 3: Validation results
-  const [validRows, setValidRows] = useState<ImportRow[]>([]);
+  const [, setValidRows] = useState<ImportRow[]>([]);
   const [invalidRows, setInvalidRows] = useState<ImportRow[]>([]);
   const [warningRows, setWarningRows] = useState<ImportRow[]>([]);
   const [duplicateRows, setDuplicateRows] = useState<ImportRow[]>([]);

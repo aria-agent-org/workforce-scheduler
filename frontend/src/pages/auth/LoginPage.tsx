@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import api from "@/lib/api";
 import { setTokens } from "@/lib/auth";
-import { ArrowRight, Mail, CheckCircle, Key, Fingerprint } from "lucide-react";
+import { ArrowRight, Mail, CheckCircle, Fingerprint } from "lucide-react";
 
 type View = "login" | "2fa" | "forgot-password" | "forgot-success" | "magic-link-sent";
 

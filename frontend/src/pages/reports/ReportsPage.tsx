@@ -41,7 +41,7 @@ const hebrewStatus = (status: string) => STATUS_HE[status] || status;
 const COLORS = ["#2563eb", "#22c55e", "#ef4444", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
 
 export default function ReportsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [activeReport, setActiveReport] = useState<ReportType>("workload");
   const [loading, setLoading] = useState(true);
@@ -509,7 +509,7 @@ export default function ReportsPage() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" label={{ value: "ערוץ", position: "insideBottom", offset: -5 }} />
                         <YAxis label={{ value: "כמות הודעות", angle: -90, position: "insideLeft" }} />
-                        <RechartsTooltip formatter={(value: any, name: string) => [`${value}`, name === "messages" ? "הודעות" : name]} />
+                        <RechartsTooltip formatter={(value: any, name?: string | number) => [`${value}`, name === "messages" ? "הודעות" : String(name ?? "")]} />
                         <Legend />
                         <Bar dataKey="messages" fill="#2563eb" name="הודעות" radius={[4, 4, 0, 0]} />
                       </BarChart>

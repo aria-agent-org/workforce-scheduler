@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
-  Sheet, RefreshCw, Link2, ArrowLeftRight, CheckCircle2,
+  Sheet, RefreshCw, ArrowLeftRight, CheckCircle2,
   AlertCircle, Clock, Trash2, Plus, Save,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
@@ -35,7 +35,7 @@ const SYSTEM_FIELDS = [
 ];
 
 export default function GoogleSheetsPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const { toast } = useToast();
   const lang = i18n.language as "he" | "en";
 

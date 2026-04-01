@@ -493,19 +493,6 @@ export default function SoldiersPage() {
     a.href = url; a.download = "soldiers_template.csv"; a.click();
   };
 
-  const exportCSV = () => {
-    const headers = ["מספר אישי,שם מלא,סטטוס,פעיל,תפקידים"];
-    const rows = soldiers.map(s => {
-      const roles = s.work_roles?.map(r => r.name[lang] || r.name.he).join("; ") || "";
-      return `${s.employee_number},${s.full_name},${s.status},${s.is_active ? "כן" : "לא"},${roles}`;
-    });
-    const csv = [...headers, ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "soldiers.csv"; a.click();
-  };
-
   const exportExcel = () => {
     const data = soldiers.map(s => ({
       "שם מלא": s.full_name,

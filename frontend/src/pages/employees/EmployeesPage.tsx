@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { UserPlus, Search, Download, Upload, Pencil, Trash2, X, FileSpreadsheet } from "lucide-react";
+import { UserPlus, Search, Download, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 import UserImportWizard from "./UserImportWizard";

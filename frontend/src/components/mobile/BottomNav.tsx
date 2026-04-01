@@ -1,5 +1,4 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Calendar, ClipboardList, Settings, MoreHorizontal,
   Users, ShieldCheck, Bell, BarChart3, ArrowLeftRight, History,
@@ -8,7 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuthStore } from "@/stores/authStore";
-import { canAccessPage, isSuperAdmin } from "@/lib/permissions";
+import { canAccessPage } from "@/lib/permissions";
 
 interface MobileNavItem {
   key: string;
@@ -43,7 +42,6 @@ const allMoreNav: MobileNavItem[] = [
 ];
 
 export default function BottomNav() {
-  const { t } = useTranslation();
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);

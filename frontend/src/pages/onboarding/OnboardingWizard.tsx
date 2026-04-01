@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,14 +8,11 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Building2, Users, ClipboardList, Target, UserPlus, Sheet, Bot,
   ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Sparkles, HelpCircle,
   LayoutDashboard, Calendar, Shield, BarChart3, User, BookOpen,
-  Lightbulb, GraduationCap, Rocket, Settings, Eye, X,
-  CircleCheckBig, ArrowRight, Info,
+  GraduationCap, Rocket, Settings,
+  CircleCheckBig,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
@@ -245,10 +241,8 @@ const HELP_CATEGORIES = ["שיבוץ", "החלפות", "נוכחות", "חוקי
 // ─── Main Component ──────────────────────────────
 
 export default function OnboardingWizard() {
-  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const lang = i18n.language as "he" | "en";
 
   // Detect if onboarding was already completed
   const [isCompleted, setIsCompleted] = useState(() => {

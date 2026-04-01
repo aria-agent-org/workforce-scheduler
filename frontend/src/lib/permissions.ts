@@ -37,6 +37,7 @@ export function resolveRole(roleName: string | null | undefined): RoleName {
  */
 const ROLE_PAGES: Record<RoleName, Set<string>> = {
   super_admin: new Set(["all"]),
+  admin: new Set(["all"]),
   tenant_admin: new Set([
     "dashboard", "soldiers", "scheduling", "attendance",
     "rules", "notifications", "reports", "settings",

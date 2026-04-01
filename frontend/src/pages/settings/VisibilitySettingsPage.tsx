@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";

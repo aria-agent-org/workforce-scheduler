@@ -7,16 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Calendar, Plus, Wand2, Send, Play, Pause, Archive, Copy,
-  ChevronDown, ChevronUp, Users, Clock, Trash2, UserPlus,
-  Pencil, Download, Upload, ArrowLeft, Eye, AlertTriangle, Check, LayoutTemplate,
+  Calendar, Plus, Wand2, Play, Pause, Archive, Copy,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Users, Clock, Trash2, UserPlus,
+  Pencil, Upload, ArrowLeft, Eye, AlertTriangle, Check, LayoutTemplate,
   MoreVertical, RefreshCw, X, ArrowRightLeft, Search, Printer,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
@@ -940,7 +939,7 @@ export default function SchedulingPage() {
 
       {/* === WINDOW BOARD TAB === */}
       {activeTab === "board" && selectedWindow && (
-        <div className="space-y-4">
+        <div className="space-y-4 board-container" style={{ WebkitOverflowScrolling: "touch" }}>
           {/* Board Header with Navigation */}
           <div className="bg-card border rounded-lg p-3">
             <div className="flex items-center gap-3 flex-wrap">
@@ -1022,17 +1021,17 @@ export default function SchedulingPage() {
               <button onClick={() => setBoardView("calendar")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "calendar" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>לוח שנה</button>
             </div>
             <div className="flex items-center gap-1 flex-1">
-              <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => {
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg" onClick={() => {
                 const d = new Date(boardDate);
                 d.setDate(d.getDate() - 1);
                 setBoardDate(d.toISOString().split("T")[0]);
-              }}><ChevronRight className="h-4 w-4" /></Button>
-              <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="min-h-[40px] flex-1 min-w-0 max-w-[160px]" />
-              <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => {
+              }} aria-label="יום קודם"><ChevronRight className="h-5 w-5" /></Button>
+              <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="min-h-[44px] flex-1 min-w-0 max-w-[160px] text-base" />
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg" onClick={() => {
                 const d = new Date(boardDate);
                 d.setDate(d.getDate() + 1);
                 setBoardDate(d.toISOString().split("T")[0]);
-              }}><ChevronLeft className="h-4 w-4" /></Button>
+              }} aria-label="יום הבא"><ChevronLeft className="h-5 w-5" /></Button>
             </div>
           </div>
 
@@ -1405,7 +1404,6 @@ export default function SchedulingPage() {
                                 const filled = m.assignments.filter((a2: any) => a2.slot_id === s.slot_id && a2.status !== "replaced").length;
                                 const remaining = (s.count || 1) - filled;
                                 if (remaining > 0) {
-                                  const roleName = workRoles.find((wr: any) => wr.id === s.work_role_id)?.name;
                                   emptySlots.push({
                                     slotId: s.slot_id,
                                     workRoleId: s.work_role_id || "",

@@ -1742,7 +1742,7 @@ export default function BoardTemplateEditor() {
                       onDragStart={() => handleDragStart("missionType", mt)}
                     >
                       <div className="w-3 h-3 rounded" style={{ backgroundColor: mt.color || "#6b7280" }} />
-                      <span>{typeof mt.name === 'object' ? (mt.name.he || mt.name.en || '') : mt.name}</span>
+                      <span>{typeof mt.name === 'object' ? ((mt.name as any).he || (mt.name as any).en || '') : mt.name}</span>
                     </div>
                   ))}
                 </div>
@@ -1766,7 +1766,7 @@ export default function BoardTemplateEditor() {
                       draggable
                       onDragStart={() => handleDragStart("workRole", wr)}
                     >
-                      {typeof wr.name === 'object' ? (wr.name.he || wr.name.en || '') : wr.name}
+                      {typeof wr.name === 'object' ? ((wr.name as any).he || (wr.name as any).en || '') : wr.name}
                     </div>
                   ))}
                 </div>
