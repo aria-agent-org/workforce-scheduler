@@ -156,44 +156,53 @@ export default function DashboardPage() {
   const unfilledSlots = missions.reduce((sum: number, m: any) => sum + (m.unfilled_slots || 0), 0);
 
   const statCards = [
-    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, color: "text-purple-500 bg-purple-50", link: "/scheduling" },
-    { key: "unfilledSlots", value: unfilledSlots, icon: AlertTriangle, color: unfilledSlots > 0 ? "text-red-500 bg-red-50" : "text-green-500 bg-green-50", link: "/scheduling" },
-    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, color: "text-blue-500 bg-blue-50", link: "/soldiers" },
-    { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, color: "text-green-500 bg-green-50", link: "/attendance" },
+    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, gradient: "from-violet-500 to-purple-600", bgLight: "bg-violet-50 dark:bg-violet-900/20", link: "/scheduling", suffix: "היום" },
+    { key: "unfilledSlots", value: unfilledSlots, icon: AlertTriangle, gradient: unfilledSlots > 0 ? "from-red-500 to-rose-600" : "from-emerald-500 to-green-600", bgLight: unfilledSlots > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20", link: "/scheduling", suffix: "משבצות" },
+    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, gradient: "from-blue-500 to-cyan-600", bgLight: "bg-blue-50 dark:bg-blue-900/20", link: "/soldiers", suffix: "חיילים" },
+    { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, gradient: "from-green-500 to-emerald-600", bgLight: "bg-green-50 dark:bg-green-900/20", link: "/attendance", suffix: "נוכחים" },
+    { key: "pendingSwaps_kpi", value: pendingSwapsCount, icon: ArrowLeftRight, gradient: "from-orange-500 to-amber-600", bgLight: "bg-orange-50 dark:bg-orange-900/20", link: "/swaps", suffix: "בקשות" },
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      {/* Page header with greeting */}
+      <div className="flex items-start justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+        </div>
+      </div>
 
-      {/* Stat Cards + Pending Swaps */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {statCards.map(({ key, value, icon: Icon, color, link }) => (
-          <Card key={key} className="card-hover cursor-pointer stagger-item" onClick={() => navigate(link)} role="link" aria-label={`${t(`stats.${key}`)}: ${value}`}>
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className={`rounded-xl p-3 ${color} shadow-sm`}>
-                <Icon className="h-6 w-6" />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {statCards.map(({ key, value, icon: Icon, gradient, bgLight, link, suffix }, idx) => (
+          <Card
+            key={key}
+            className="card-hover cursor-pointer stagger-item overflow-hidden group border-0 shadow-elevation-2"
+            onClick={() => navigate(link)}
+            role="link"
+            aria-label={`${t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}: ${value}`}
+            style={{ animationDelay: `${idx * 60}ms` }}
+          >
+            <CardContent className="p-4 relative">
+              {/* Gradient accent top bar */}
+              <div className={`absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r ${gradient} opacity-80`} />
+              
+              <div className="flex items-start justify-between mb-3">
+                <div className={`rounded-xl p-2.5 ${bgLight} transition-transform group-hover:scale-110 duration-200`}>
+                  <Icon className="h-5 w-5" style={{ color: `var(--tw-gradient-from, currentColor)` }} />
+                </div>
               </div>
+              
               <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t(`stats.${key}`)}</p>
-                <p className="text-2xl font-bold tracking-tight">{value}</p>
+                <p className="text-2xl sm:text-3xl font-black tracking-tight leading-none mb-1">{value}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">{t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}</p>
               </div>
             </CardContent>
           </Card>
         ))}
-
-        {/* Pending Swaps Card */}
-        <Card className="card-hover cursor-pointer stagger-item" onClick={() => navigate("/swaps")}>
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="rounded-xl p-3 text-orange-500 bg-orange-50 shadow-sm">
-              <ArrowLeftRight className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t("pendingSwaps")}</p>
-              <p className="text-2xl font-bold tracking-tight">{pendingSwapsCount}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Upcoming 48h + Weekly Workload */}

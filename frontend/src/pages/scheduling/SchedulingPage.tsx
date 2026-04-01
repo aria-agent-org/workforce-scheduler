@@ -1015,13 +1015,25 @@ export default function SchedulingPage() {
           </div>
 
           {/* Board View Controls */}
-          <div className="flex items-center gap-4">
-            <div className="flex gap-2">
-              <button onClick={() => setBoardView("day")} className={`px-3 py-1 text-sm rounded ${boardView === "day" ? "bg-primary-500 text-white" : "bg-muted"}`}>יומי</button>
-              <button onClick={() => setBoardView("week")} className={`px-3 py-1 text-sm rounded ${boardView === "week" ? "bg-primary-500 text-white" : "bg-muted"}`}>שבועי</button>
-              <button onClick={() => setBoardView("calendar")} className={`px-3 py-1 text-sm rounded ${boardView === "calendar" ? "bg-primary-500 text-white" : "bg-muted"}`}>לוח שנה</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              <button onClick={() => setBoardView("day")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "day" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>יומי</button>
+              <button onClick={() => setBoardView("week")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "week" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>שבועי</button>
+              <button onClick={() => setBoardView("calendar")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "calendar" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>לוח שנה</button>
             </div>
-            <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="w-40" />
+            <div className="flex items-center gap-1 flex-1">
+              <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => {
+                const d = new Date(boardDate);
+                d.setDate(d.getDate() - 1);
+                setBoardDate(d.toISOString().split("T")[0]);
+              }}><ChevronRight className="h-4 w-4" /></Button>
+              <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="min-h-[40px] flex-1 min-w-0 max-w-[160px]" />
+              <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => {
+                const d = new Date(boardDate);
+                d.setDate(d.getDate() + 1);
+                setBoardDate(d.toISOString().split("T")[0]);
+              }}><ChevronLeft className="h-4 w-4" /></Button>
+            </div>
           </div>
 
           {/* Window Statistics Card */}

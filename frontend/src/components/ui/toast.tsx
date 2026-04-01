@@ -76,7 +76,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}
       {/* Toast container — top-right on desktop, top-center on mobile */}
-      <div className="fixed top-4 end-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none max-sm:end-0 max-sm:px-3" aria-live="polite">
+      <div className="fixed top-4 end-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none max-sm:end-auto max-sm:start-1/2 max-sm:-translate-x-1/2 rtl:max-sm:translate-x-1/2 max-sm:w-[calc(100vw-2rem)]" aria-live="polite">
         {toasts.map((t) => {
           const Icon = icons[t.type];
           return (

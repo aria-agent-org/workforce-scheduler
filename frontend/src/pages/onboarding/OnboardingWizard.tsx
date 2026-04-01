@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Building2, Users, ClipboardList, Target, UserPlus, Sheet, Bot,
-  ChevronLeft, ChevronRight, Check, Upload, Sparkles, HelpCircle,
+  ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Sparkles, HelpCircle,
   LayoutDashboard, Calendar, Shield, BarChart3, User, BookOpen,
   Lightbulb, GraduationCap, Rocket, Settings, Eye, X,
   CircleCheckBig, ArrowRight, Info,

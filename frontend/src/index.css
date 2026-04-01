@@ -889,6 +889,128 @@
   }
 }
 
+/* === iOS ZOOM PREVENTION === */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* === SAFE AREA FOR NOTCH PHONES === */
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* === GLOBAL TOUCH TARGET MINIMUM — only on mobile via media query === */
+@media (max-width: 640px) {
+  /* Enlarge tap targets on mobile */
+  button:not([class*="h-5"]):not([class*="h-6"]):not([class*="h-7"]):not([class*="h-8"]):not([class*="size-"]):not([class*="toggle"]),
+  a:not([class*="text-[10px]"]):not([class*="text-xs badge"]) {
+    min-height: 44px;
+  }
+}
+
+/* === WEBKIT SCROLLING === */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* === TOAST POSITIONING ON MOBILE === */
+@media (max-width: 640px) {
+  .toast-container,
+  [class*="ToastContainer"],
+  [class*="toast-container"] {
+    top: 16px !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: calc(100vw - 32px) !important;
+    max-width: 400px !important;
+  }
+}
+
+/* === MOBILE BOARD HORIZONTAL SCROLL === */
+@media (max-width: 640px) {
+  .board-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .board-header-row {
+    display: flex;
+    flex-direction: row;
+    min-width: max-content;
+  }
+  
+  .board-first-col {
+    position: sticky;
+    left: 0;
+    right: auto;
+    z-index: 10;
+    background: hsl(var(--card));
+    min-width: 100px;
+    border-inline-end: 1px solid hsl(var(--border));
+  }
+  
+  [dir="rtl"] .board-first-col {
+    left: auto;
+    right: 0;
+    border-inline-end: none;
+    border-inline-start: 1px solid hsl(var(--border));
+  }
+  
+  /* Mission cards on mobile — stacked */
+  .mission-card {
+    display: flex;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .mission-card .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* === PAGE TRANSITIONS === */
+.page-transition {
+  animation: fadeIn var(--transition-normal) ease-out;
+}
+
+/* === MOBILE MISSION CARDS — ensure responsive layout === */
+@media (max-width: 640px) {
+  /* Mission card action buttons — always visible on mobile (no hover needed) */
+  .group button.opacity-0 {
+    opacity: 1 !important;
+  }
+  
+  /* Schedule windows grid */  
+  .schedule-windows-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Board view controls flex-wrap */
+  .board-view-controls {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+}
+
+/* === ATTENDANCE CALENDAR === */
+@media (max-width: 640px) {
+  .attendance-calendar-cell {
+    min-height: 50px !important;
+    padding: 4px !important;
+  }
+}
+
+/* === PRINT — enhanced for board === */
+@media print {
+  .print-landscape {
+    page-break-after: always;
+  }
+}
+
 /* === CUSTOM SCROLLBAR for desktop === */
 @media (hover: hover) {
   ::-webkit-scrollbar {

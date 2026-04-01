@@ -217,26 +217,40 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={{ background: "linear-gradient(135deg, hsl(221 83% 88%), hsl(250 70% 85%), hsl(280 60% 90%))" }}>
-      {/* Animated background blobs */}
+    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={{ background: "linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)" }}>
+      {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        <div className="absolute -top-40 -end-40 h-80 w-80 rounded-full bg-primary-200/30 dark:bg-primary-800/10 blur-3xl animate-float" />
-        <div className="absolute -bottom-40 -start-40 h-96 w-96 rounded-full bg-purple-200/20 dark:bg-purple-800/10 blur-3xl animate-float" style={{ animationDelay: "1.5s" }} />
+        {/* Glowing orbs */}
+        <div className="absolute top-1/4 start-1/4 h-64 w-64 rounded-full bg-blue-600/20 blur-[80px] animate-float" />
+        <div className="absolute bottom-1/4 end-1/4 h-80 w-80 rounded-full bg-purple-600/15 blur-[100px] animate-float" style={{ animationDelay: "1.5s" }} />
+        <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-full bg-indigo-500/10 blur-[60px] animate-pulse-subtle" />
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(hsl(220 30% 50%) 1px, transparent 1px), linear-gradient(90deg, hsl(220 30% 50%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
       </div>
-      <Card className="w-full max-w-md shadow-elevation-4 relative animate-scale-in border-0 bg-card/95 backdrop-blur-sm">
+      
+      <Card className="w-full max-w-md shadow-elevation-5 relative animate-scale-in border border-white/10 backdrop-blur-xl" style={{ background: "rgba(15, 23, 42, 0.85)" }}>
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-3 h-16 w-16 rounded-2xl gradient-primary flex items-center justify-center shadow-elevation-2">
-            <span className="text-3xl">🎯</span>
+          {/* Logo */}
+          <div className="mx-auto mb-4 relative">
+            <div className="h-20 w-20 rounded-3xl flex items-center justify-center shadow-2xl relative" style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}>
+              <span className="text-4xl">🎯</span>
+              {/* Glow */}
+              <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }} />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold gradient-text">שבצק</CardTitle><div className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700 mt-2">גרסה 2.0 — ספרינט 7 ✨</div>
-          <p className="text-sm text-muted-foreground mt-1">{viewTitle[view]}</p>
+          <CardTitle className="text-3xl font-black tracking-tight" style={{ background: "linear-gradient(135deg, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>שבצק</CardTitle>
+          <p className="text-sm mt-1 font-medium" style={{ color: "rgba(147, 197, 253, 0.7)" }}>מערכת ניהול שיבוצים חכמה</p>
+          <div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold mt-2" style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(96, 165, 250, 0.2)", color: "#93c5fd" }}>
+            ✨ ספרינט 7 — גרסה 2.0
+          </div>
+          <p className="text-sm mt-3" style={{ color: "rgba(147, 197, 253, 0.6)" }}>{viewTitle[view]}</p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="dark">
           {/* ── Standard Login Form ── */}
           {view === "login" && (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div role="alert" className="rounded-md p-3 text-sm font-medium" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
                   {error}
                 </div>
               )}
@@ -270,10 +284,10 @@ export default function LoginPage() {
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+                  <span className="w-full border-t border-white/10" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">{t("or")}</span>
+                  <span className="px-2 text-xs" style={{ background: "rgba(15, 23, 42, 0.85)", color: "rgba(147, 197, 253, 0.5)" }}>{t("or")}</span>
                 </div>
               </div>
 
