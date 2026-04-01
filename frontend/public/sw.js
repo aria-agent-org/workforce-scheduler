@@ -1,129 +1,65 @@
-// Build: 2026-04-01T19:13:04+00:00 — All sprints deployed
-const BUILD_TS = 1775070784000;
-const CACHE_VERSION = `v6-${BUILD_TS}`;
+// Build: 2026-04-01T19:30:00Z — Force update all clients
+const BUILD_TS = Date.now();
+const CACHE_VERSION = `v7-${BUILD_TS}`;
 const CACHE_NAME = `shavtzak-${CACHE_VERSION}`;
 const API_CACHE = `shavtzak-api-${CACHE_VERSION}`;
-const OFFLINE_QUEUE_KEY = 'shavtzak-offline-queue';
 
-const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-];
-
-self.addEventListener('install', (event) => {
+// FORCE: skip waiting and claim immediately
+self.addEventListener('install', event => {
+  // Delete ALL old caches
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL);
-    }).then(() => self.skipWaiting())
+    caches.keys().then(names => 
+      Promise.all(names.map(name => caches.delete(name)))
+    ).then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((k) => k !== CACHE_NAME && k !== API_CACHE).map((k) => caches.delete(k))
-      );
-    }).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  
-  // Always network-first for API and HTML
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/') || 
-      event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-    return;
-  }
-  
-  // Cache-first for static assets (they have content hashes)
-  if (url.pathname.startsWith('/assets/')) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return cached || fetch(event.request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        });
-      })
-    );
-    return;
-  }
-  
-  // Network-first for everything else
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
-  );
-});
-
-// ─── Push Notifications ───────────────────────────────────────────────────────
-
-self.addEventListener('push', (event) => {
-  let data = { title: 'שבצק', body: 'הודעה חדשה', icon: '/favicon.ico', badge: '/favicon.ico', data: {} };
-  
-  if (event.data) {
-    try {
-      const parsed = event.data.json();
-      data = { ...data, ...parsed };
-    } catch (e) {
-      data.body = event.data.text() || data.body;
-    }
-  }
-
-  const options = {
-    body: data.body,
-    icon: data.icon || '/favicon.ico',
-    badge: data.badge || '/favicon.ico',
-    tag: data.tag || 'shavtzak-notification',
-    data: data.data || {},
-    requireInteraction: data.requireInteraction || false,
-    actions: data.actions || [],
-    dir: 'rtl',
-    lang: 'he',
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  const url = event.notification.data?.url || '/';
-  
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Try to focus an existing tab
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.focus();
-          if (url !== '/') client.navigate(url);
-          return;
-        }
-      }
-      // Open a new tab
-      if (clients.openWindow) {
-        return clients.openWindow(url);
-      }
+    caches.keys().then(names => 
+      Promise.all(
+        names.filter(n => n !== CACHE_NAME && n !== API_CACHE).map(n => caches.delete(n))
+      )
+    ).then(() => self.clients.claim())
+    .then(() => {
+      // Force reload all open tabs
+      self.clients.matchAll({type: 'window'}).then(clients => {
+        clients.forEach(client => client.navigate(client.url));
+      });
     })
   );
 });
 
-self.addEventListener('pushsubscriptionchange', (event) => {
-  event.waitUntil(
-    self.registration.pushManager.subscribe(event.oldSubscription.options)
-      .then((subscription) => {
-        return fetch('/api/v1/push/subscription', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(subscription),
-        });
-      })
-  );
+// Minimal fetch - no caching, always network
+self.addEventListener('fetch', event => {
+  // Skip caching for now - ensure fresh content
+  if (event.request.url.includes('/api/') || event.request.url.includes('/auth/')) {
+    return; // Let browser handle API requests normally
+  }
+  // For page navigations, always go to network
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));
+    return;
+  }
+});
+
+// Push notification handler
+self.addEventListener('push', event => {
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || 'שבצק';
+  const options = {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-72.png',
+    dir: 'rtl',
+    lang: 'he',
+    data: data.url ? { url: data.url } : undefined,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(clients.openWindow(url));
 });
