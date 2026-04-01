@@ -722,6 +722,8 @@ async def list_missions(
             "assignments": assignment_map.get(str(m.id), []),
             "created_at": str(m.created_at),
             "updated_at": str(m.updated_at),
+            # Include required_slots (from mission itself or fall back to mission type)
+            "required_slots": m.required_slots or (mt.required_slots if mt else None),
         })
     return items
 
@@ -849,6 +851,7 @@ async def create_mission(
         "status": mission.status, "assignments": [],
         "schedule_window_id": str(mission.schedule_window_id),
         "mission_type_id": str(mission.mission_type_id),
+        "required_slots": mission.required_slots,
     }
     if warnings:
         result["warnings"] = warnings

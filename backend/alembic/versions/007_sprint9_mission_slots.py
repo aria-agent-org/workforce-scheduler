@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision = "007_sprint9_mission_slots"
-down_revision = "006_sprint5_features"
+down_revision = "006_sprint5"
 branch_labels = None
 depends_on = None
 
