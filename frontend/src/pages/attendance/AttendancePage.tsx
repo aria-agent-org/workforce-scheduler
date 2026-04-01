@@ -100,7 +100,9 @@ export default function AttendancePage() {
       );
     }
     if (filterRole) {
-      result = result.filter(e => e.work_role_id === filterRole);
+      result = result.filter(e =>
+        Array.isArray(e.work_roles) && e.work_roles.some((r: any) => r.id === filterRole)
+      );
     }
     if (filterStatus) {
       result = result.filter(e => {
@@ -122,7 +124,9 @@ export default function AttendancePage() {
       setEmployees(empRes.data.items || empRes.data || []);
       setWindows(winRes.data || []);
       if (winRes.data?.length > 0 && !selectedWindow) {
-        setSelectedWindow(winRes.data[0].id);
+        // Prefer the active window, fall back to the first
+        const activeWindow = winRes.data.find((w: any) => w.status === "active");
+        setSelectedWindow((activeWindow || winRes.data[0]).id);
       }
       setStatusDefs(statusRes.data || []);
       setWorkRoles(rolesRes.data || []);

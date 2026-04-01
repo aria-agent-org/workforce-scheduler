@@ -50,20 +50,50 @@ export default function SoldierDetailPage() {
   const [workload, setWorkload] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
+  const [liveAttendanceStatus, setLiveAttendanceStatus] = useState<string | null>(null);
+  const [liveStatusDef, setLiveStatusDef] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [empRes, workloadRes, assignRes] = await Promise.all([
+      const [empRes, workloadRes, assignRes, windowsRes] = await Promise.all([
         api.get(tenantApi(`/employees/${id}`)),
         api.get(tenantApi(`/reports/workload`), { params: { employee_id: id } }).catch(() => ({ data: null })),
         api.get(tenantApi(`/employees/${id}/assignments`), { params: { page_size: 10 } }).catch(() => ({ data: [] })),
+        api.get(tenantApi(`/schedule-windows`)).catch(() => ({ data: [] })),
       ]);
       setSoldier(empRes.data);
       setWorkload(workloadRes.data);
       const aData = assignRes.data;
       setAssignments(Array.isArray(aData) ? aData : (aData?.items || []));
+
+      // Fetch live attendance from active board
+      const windows: any[] = windowsRes.data || [];
+      const activeWindow = windows.find((w: any) => w.status === "active") || windows[0];
+      if (activeWindow) {
+        const today = new Date().toISOString().split("T")[0];
+        const [attRes, statusDefsRes] = await Promise.all([
+          api.get(tenantApi(`/attendance`), {
+            params: {
+              window_id: activeWindow.id,
+              employee_id: id,
+              date_from: today,
+              date_to: today,
+            },
+          }).catch(() => ({ data: [] })),
+          api.get(tenantApi(`/attendance/statuses`)).catch(() => ({ data: [] })),
+        ]);
+        const todayRecord = (attRes.data || []).find((r: any) => r.date === today);
+        if (todayRecord?.status_code) {
+          setLiveAttendanceStatus(todayRecord.status_code);
+          const def = (statusDefsRes.data || []).find((s: any) => s.code === todayRecord.status_code);
+          setLiveStatusDef(def || null);
+        } else {
+          setLiveAttendanceStatus(null);
+          setLiveStatusDef(null);
+        }
+      }
     } catch (e: any) {
       toast("error", "שגיאה בטעינת פרטי חייל");
       navigate("/soldiers");
@@ -86,9 +116,13 @@ export default function SoldierDetailPage() {
 
   const employeeWorkload = workload?.employees?.find((e: any) => e.employee_id === id) || null;
   const notifChannels = soldier.notification_channels || {};
-  const statusKey = soldier.status || "available";
+  // Use live attendance status from active board if available, fall back to static employee.status
+  const statusKey = liveAttendanceStatus || soldier.status || "available";
   const colorClass = STATUS_COLORS[statusKey] || STATUS_COLORS.available;
-  const statusLabel = STATUS_LABELS[statusKey] || statusKey;
+  const statusLabel = liveStatusDef
+    ? (liveStatusDef.name?.he || liveStatusDef.name?.en || liveStatusDef.code)
+    : (STATUS_LABELS[statusKey] || statusKey);
+  const isLiveStatus = !!liveAttendanceStatus;
 
   const avatarBg = `hsl(${(soldier.full_name?.charCodeAt(0) || 65) * 7 % 360} 60% 55%)`;
 
@@ -129,8 +163,9 @@ export default function SoldierDetailPage() {
                   {soldier.is_active ? "פעיל" : "לא פעיל"}
                 </Badge>
                 <Badge className={colorClass + " text-xs"}>
-                  <span className="h-2 w-2 rounded-full bg-current opacity-70 inline-block me-1" />
+                  <span className={`h-2 w-2 rounded-full bg-current inline-block me-1 ${isLiveStatus ? "animate-pulse" : "opacity-70"}`} />
                   {statusLabel}
+                  {isLiveStatus && <span className="ms-1 opacity-70 text-[10px]">🔴 חי</span>}
                 </Badge>
               </div>
               <p className="text-muted-foreground font-mono mt-0.5">#{soldier.employee_number}</p>

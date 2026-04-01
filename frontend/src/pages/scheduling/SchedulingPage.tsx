@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import DailyBoardView from "@/components/scheduling/DailyBoardView";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -66,7 +67,9 @@ export default function SchedulingPage() {
   // Selected window for board view
   const [selectedWindow, setSelectedWindow] = useState<any | null>(null);
   const [boardDate, setBoardDate] = useState(new Date().toISOString().split("T")[0]);
-  const [boardView, setBoardView] = useState<"day" | "week" | "calendar">("day");
+  const [boardView, setBoardView] = useState<"day" | "week" | "calendar" | "daily-board">("day");
+  const [dailyBoardTables] = useState<any[]>([]);
+  const [dailyBoardTimeShifts] = useState<any[]>([]);
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [expandedMission, setExpandedMission] = useState<string | null>(null);
 
@@ -1114,6 +1117,9 @@ export default function SchedulingPage() {
               <button onClick={() => setBoardView("day")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "day" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>יומי</button>
               <button onClick={() => setBoardView("week")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "week" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>שבועי</button>
               <button onClick={() => setBoardView("calendar")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "calendar" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>לוח שנה</button>
+              <button onClick={() => setBoardView("daily-board")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all flex items-center gap-1 ${boardView === "daily-board" ? "bg-green-700 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>
+                <LayoutTemplate className="h-3.5 w-3.5" />לוח שבצ&quot;ק
+              </button>
             </div>
             <div className="flex items-center gap-1 flex-1">
               <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg" onClick={() => {
@@ -1362,14 +1368,27 @@ export default function SchedulingPage() {
             );
           })()}
 
+          {/* === DAILY BOARD (שבצ"ק) VIEW === */}
+          {boardView === "daily-board" && (
+            <DailyBoardView
+              date={boardDate}
+              windowId={selectedWindow?.id}
+              missions={boardMissions}
+              employees={windowEmployees.length > 0 ? windowEmployees : employees}
+              missionTypes={missionTypes}
+              timeShifts={dailyBoardTimeShifts.length > 0 ? dailyBoardTimeShifts : undefined}
+              tables={dailyBoardTables.length > 0 ? dailyBoardTables : undefined}
+            />
+          )}
+
           {/* Missions list */}
-          {boardView !== "calendar" && boardMissions.length === 0 ? (
+          {boardView !== "calendar" && boardView !== "daily-board" && boardMissions.length === 0 ? (
             <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
               <Clock className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
               <p className="text-lg font-medium">אין משימות בטווח זה</p>
               <p className="text-sm mt-1">צור משימה חדשה או השתמש בתבנית כדי ליצור משימות אוטומטית</p>
             </CardContent></Card>
-          ) : boardView !== "calendar" ? (
+          ) : boardView !== "calendar" && boardView !== "daily-board" ? (
             <div className="space-y-3">
               {boardMissions.map((m) => {
                 const mt = missionTypes.find(mt => mt.id === m.mission_type_id);
