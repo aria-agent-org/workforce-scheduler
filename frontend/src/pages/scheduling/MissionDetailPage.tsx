@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
+import { useAuthStore } from "@/stores/authStore";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -38,6 +39,8 @@ export default function MissionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuthStore();
+  const isSoldier = user?.role_name?.toLowerCase() === "soldier";
 
   const [mission, setMission] = useState<any>(null);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -177,25 +180,27 @@ export default function MissionDetailPage() {
         </Badge>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2">
-        {(mission.status === "draft" || mission.status === "proposed") && (
-          <Button size="sm" className="min-h-[40px]" onClick={() => handleAction("approve")}>
-            <CheckCircle className="me-1 h-4 w-4" />אשר משימה
+      {/* Action Buttons — hidden from soldiers */}
+      {!isSoldier && (
+        <div className="flex flex-wrap gap-2">
+          {(mission.status === "draft" || mission.status === "proposed") && (
+            <Button size="sm" className="min-h-[40px]" onClick={() => handleAction("approve")}>
+              <CheckCircle className="me-1 h-4 w-4" />אשר משימה
+            </Button>
+          )}
+          {mission.status !== "cancelled" && (
+            <Button size="sm" variant="destructive" className="min-h-[40px]" onClick={() => handleAction("cancel")}>
+              <XCircle className="me-1 h-4 w-4" />בטל משימה
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => setEditing(!editing)}>
+            <Pencil className="me-1 h-4 w-4" />{editing ? "ביטול עריכה" : "ערוך"}
           </Button>
-        )}
-        {mission.status !== "cancelled" && (
-          <Button size="sm" variant="destructive" className="min-h-[40px]" onClick={() => handleAction("cancel")}>
-            <XCircle className="me-1 h-4 w-4" />בטל משימה
-          </Button>
-        )}
-        <Button size="sm" variant="outline" className="min-h-[40px]" onClick={() => setEditing(!editing)}>
-          <Pencil className="me-1 h-4 w-4" />{editing ? "ביטול עריכה" : "ערוך"}
-        </Button>
-      </div>
+        </div>
+      )}
 
-      {/* Edit Form */}
-      {editing && (
+      {/* Edit Form — soldiers cannot see this */}
+      {editing && !isSoldier && (
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="space-y-2">
@@ -275,7 +280,18 @@ export default function MissionDetailPage() {
                         </div>
                         <div>
                           <p className="font-medium text-sm">{a.employee_name}</p>
-                          <p className="text-xs text-muted-foreground">משבצת: {a.slot_label || a.slot_id}</p>
+                          <p className="text-xs text-muted-foreground">
+                            משבצת: {(() => {
+                              // Try to get slot label from mission type's required_slots
+                              const slots: any[] = missionType?.required_slots || mission?.required_slots || [];
+                              const slotDef = slots.find((s: any) => s.slot_id === a.slot_id);
+                              const label = slotDef?.label;
+                              if (label) {
+                                return typeof label === "object" ? (label.he || label.en || a.slot_id) : label;
+                              }
+                              return a.slot_label || a.slot_id;
+                            })()}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

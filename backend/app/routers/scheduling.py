@@ -152,7 +152,7 @@ async def get_schedule_window(
     }
 
 
-@router.patch("/schedule-windows/{window_id}")
+@router.patch("/schedule-windows/{window_id}", dependencies=[Depends(require_permission("missions", "write"))])
 async def update_schedule_window(
     window_id: UUID, data: ScheduleWindowUpdate, tenant: CurrentTenant,
     user: CurrentUser, request: Request, db: AsyncSession = Depends(get_db),
@@ -530,7 +530,7 @@ async def get_mission_type(
     return MissionTypeResponse.model_validate(mt).model_dump()
 
 
-@router.patch("/mission-types/{mt_id}")
+@router.patch("/mission-types/{mt_id}", dependencies=[Depends(require_permission("missions", "write"))])
 async def update_mission_type(
     mt_id: UUID, data: MissionTypeUpdate, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),
@@ -554,7 +554,7 @@ async def update_mission_type(
     return MissionTypeResponse.model_validate(mt).model_dump()
 
 
-@router.delete("/mission-types/{mt_id}", status_code=204)
+@router.delete("/mission-types/{mt_id}", status_code=204, dependencies=[Depends(require_permission("missions", "write"))])
 async def delete_mission_type(
     mt_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
 ) -> None:
@@ -858,7 +858,7 @@ async def create_mission(
     return result
 
 
-@router.patch("/missions/{mission_id}")
+@router.patch("/missions/{mission_id}", dependencies=[Depends(require_permission("missions", "write"))])
 async def update_mission(
     mission_id: UUID, data: MissionUpdate, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -932,7 +932,7 @@ async def approve_mission(
     return {"id": str(m.id), "status": "approved"}
 
 
-@router.post("/missions/{mission_id}/cancel")
+@router.post("/missions/{mission_id}/cancel", dependencies=[Depends(require_permission("missions", "write"))])
 async def cancel_mission(
     mission_id: UUID, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -966,7 +966,7 @@ async def cancel_mission(
     return {"id": str(m.id), "status": "cancelled"}
 
 
-@router.post("/missions/generate")
+@router.post("/missions/generate", dependencies=[Depends(require_permission("missions", "write"))])
 async def generate_missions(
     data: MissionGenerateRequest, tenant: CurrentTenant, user: CurrentUser,
     request: Request, db: AsyncSession = Depends(get_db),
@@ -1290,7 +1290,7 @@ async def create_assignment(
     }
 
 
-@router.delete("/missions/{mission_id}/assignments/{assignment_id}", status_code=204)
+@router.delete("/missions/{mission_id}/assignments/{assignment_id}", status_code=204, dependencies=[Depends(require_permission("missions", "write"))])
 async def remove_assignment(
     mission_id: UUID, assignment_id: UUID,
     tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
@@ -1663,7 +1663,7 @@ async def create_swap_request(
     return {"id": str(sr.id), "status": sr.status, "swap_type": sr.swap_type}
 
 
-@router.post("/swap-requests/{sr_id}/approve")
+@router.post("/swap-requests/{sr_id}/approve", dependencies=[Depends(require_permission("missions", "approve"))])
 async def approve_swap_request(
     sr_id: UUID, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -1699,7 +1699,7 @@ async def approve_swap_request(
     return {"id": str(sr.id), "status": "approved"}
 
 
-@router.post("/swap-requests/{sr_id}/reject")
+@router.post("/swap-requests/{sr_id}/reject", dependencies=[Depends(require_permission("missions", "approve"))])
 async def reject_swap_request(
     sr_id: UUID, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),

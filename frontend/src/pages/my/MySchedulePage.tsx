@@ -59,7 +59,7 @@ export default function MySchedulePage() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [swapTarget, setSwapTarget] = useState<Assignment | null>(null);
   const [swapReason, setSwapReason] = useState("");
-  const [swapType, setSwapType] = useState<"give_away" | "swap_mutual">("give_away");
+  const [swapType, setSwapType] = useState<"give_away" | "swap_mutual">("swap_mutual");
   const [swapPartner, setSwapPartner] = useState("");
   const [swapSubmitting, setSwapSubmitting] = useState(false);
   const [soldiers, setSoldiers] = useState<any[]>([]);
@@ -149,24 +149,23 @@ export default function MySchedulePage() {
     });
   }
 
-  // Load soldiers for swap
+  // Load soldiers for swap when dialog opens
   useEffect(() => {
-    if (swapTarget && swapType === "swap_mutual") {
+    if (swapTarget) {
       api.get(tenantApi("/my/teammates"))
         .then(res => setSoldiers(Array.isArray(res.data) ? res.data : (res.data.items || [])))
         .catch(() => setSoldiers([]));
     }
-  }, [swapTarget, swapType]);
+  }, [swapTarget]);
 
   const requestSwap = async () => {
     if (!swapTarget || !swapReason.trim()) { toast("error", "נא למלא סיבה"); return; }
-    if (swapType === "swap_mutual" && !swapPartner) { toast("error", "נא לבחור חייל להחלפה"); return; }
     setSwapSubmitting(true);
     try {
       await api.post(tenantApi("/swap-requests"), {
         requester_assignment_id: swapTarget.assignment_id,
-        swap_type: swapType,
-        target_employee_id: swapType === "swap_mutual" ? swapPartner : undefined,
+        swap_type: "swap_mutual",
+        target_employee_id: swapPartner || undefined,
         reason: swapReason,
       });
       toast("success", "בקשת החלפה נשלחה בהצלחה! 🔄");
@@ -412,7 +411,7 @@ export default function MySchedulePage() {
       )}
 
       {/* Swap Request Dialog */}
-      <Dialog open={!!swapTarget} onOpenChange={() => { setSwapTarget(null); setSwapReason(""); setSwapType("give_away"); setSwapPartner(""); }}>
+      <Dialog open={!!swapTarget} onOpenChange={() => { setSwapTarget(null); setSwapReason(""); setSwapType("swap_mutual"); setSwapPartner(""); }}>
         <DialogContent className="max-w-[450px] mobile-bottom-sheet">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -428,39 +427,20 @@ export default function MySchedulePage() {
                   📅 {swapTarget.date} • ⏰ {swapTarget.start_time?.slice(0, 5)} - {swapTarget.end_time?.slice(0, 5)}
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">סוג בקשה</Label>
-                <div className="flex gap-2">
-                  {[
-                    { key: "give_away" as const, icon: "🙋", title: "ויתור", desc: "אני רוצה לוותר על המשימה" },
-                    { key: "swap_mutual" as const, icon: "🔄", title: "החלפה", desc: "להחליף עם חייל אחר" },
-                  ].map(opt => (
-                    <button
-                      key={opt.key}
-                      onClick={() => { setSwapType(opt.key); if (opt.key === "give_away") setSwapPartner(""); }}
-                      className={`flex-1 rounded-xl border-2 p-3 text-sm text-start transition-all min-h-[44px] ${
-                        swapType === opt.key ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20" : "border-muted hover:border-primary-300"
-                      }`}
-                      role="radio"
-                      aria-checked={swapType === opt.key}
-                    >
-                      <p className="font-medium">{opt.icon} {opt.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
-                    </button>
-                  ))}
-                </div>
+              {/* Swap type is always mutual — no "give_away" for soldiers */}
+              <div className="rounded-lg border p-3 bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800">
+                <p className="text-sm font-medium">🔄 בקשת החלפה</p>
+                <p className="text-xs text-muted-foreground mt-0.5">בחר חייל שסיכמת איתו להחליף, ושלח בקשה לאישור המפקד</p>
               </div>
-              {swapType === "swap_mutual" && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">חייל להחלפה <span className="text-red-500">*</span></Label>
-                  <Select value={swapPartner} onChange={e => setSwapPartner(e.target.value)} className="min-h-[44px]" aria-label="בחר חייל להחלפה">
-                    <option value="">בחר חייל...</option>
-                    {soldiers.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.full_name} ({s.employee_number || ""})</option>
-                    ))}
-                  </Select>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">חייל להחלפה (אופציונלי)</Label>
+                <Select value={swapPartner} onChange={e => setSwapPartner(e.target.value)} className="min-h-[44px]" aria-label="בחר חייל להחלפה">
+                  <option value="">בקשה פתוחה (ללא חייל ספציפי)</option>
+                  {soldiers.map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.full_name} ({s.employee_number || ""})</option>
+                  ))}
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">סיבה <span className="text-red-500">*</span></Label>
                 <textarea
