@@ -187,9 +187,20 @@ export default function TenantFeaturesPage() {
                 placeholder="schedule.mycompany.com"
                 dir="ltr"
               />
-              <p className="text-xs text-muted-foreground">
-                הצב את הדומיין על CNAME → shavtzak.site
-              </p>
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-sm space-y-2">
+                <p className="font-medium text-blue-800 dark:text-blue-200">🌐 הגדרת DNS — הוראות:</p>
+                <ol className="space-y-1 text-blue-700 dark:text-blue-300 text-xs list-decimal list-inside">
+                  <li>כנס ללוח הניהול של ספק הדומיין שלך (Cloudflare, GoDaddy, וכו׳)</li>
+                  <li>הוסף רשומת DNS מסוג CNAME:</li>
+                </ol>
+                <div className="bg-white dark:bg-gray-900 rounded border p-2 font-mono text-xs" dir="ltr">
+                  <div>Type: <strong>CNAME</strong></div>
+                  <div>Name: <strong>{customDomain ? customDomain.split('.')[0] : 'schedule'}</strong></div>
+                  <div>Target: <strong>shavtzak.site</strong></div>
+                  <div>TTL: <strong>Auto</strong></div>
+                </div>
+                <p className="text-xs text-muted-foreground">⏱ שינויי DNS עשויים לקחת עד 48 שעות להתפשט</p>
+              </div>
             </div>
             <Button size="sm" onClick={saveDomain} disabled={saving}>
               <Save className="me-1 h-4 w-4" />שמור דומיין

@@ -269,9 +269,20 @@ export default function CommunicationChannelsPage() {
                   </>
                 )}
                 {editProvider === "qr_session" && (
-                  <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 p-3 text-sm text-yellow-700">
-                    ⚠️ חיבור QR ניסיוני — נדרש סריקת QR מטלפון מחובר ל-WhatsApp.
-                    חיבור זה עלול להתנתק אם הטלפון לא פעיל.
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 p-3 text-sm text-yellow-700">
+                      ⚠️ חיבור QR — יש לסרוק מטלפון מחובר ל-WhatsApp. החיבור עלול להתנתק אם הטלפון כבוי.
+                    </div>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const res = await api.get(tenantApi("/channels/whatsapp/qr"));
+                        const d = res.data;
+                        const instructions = (d.instructions || []).join("\n");
+                        alert(`📱 הוראות חיבור WhatsApp QR:\n\n${instructions}\n\nSession ID: ${d.session_id}`);
+                      } catch { alert("שגיאה בקבלת QR"); }
+                    }}>
+                      📱 הצג קוד QR לסריקה
+                    </Button>
                   </div>
                 )}
               </>

@@ -276,6 +276,35 @@ async def upsert_channel_config(
     return {"status": "saved", "channel": channel}
 
 
+@router.get("/{channel}/qr", dependencies=[Depends(require_permission("settings", "write"))])
+async def get_whatsapp_qr(
+    channel: str,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get WhatsApp QR code for session scanning (regular WhatsApp mode)."""
+    if channel != "whatsapp":
+        raise HTTPException(400, "QR code only available for WhatsApp")
+
+    # In production, this would connect to a WhatsApp session manager (e.g., whatsapp-web.js)
+    # For now, return a placeholder QR with instructions
+    import secrets
+    session_id = secrets.token_urlsafe(16)
+    return {
+        "session_id": session_id,
+        "status": "pending",
+        "qr_data": f"whatsapp://qr/{session_id}",
+        "message": "סרוק את קוד ה-QR עם WhatsApp בטלפון שלך",
+        "instructions": [
+            "1. פתח את WhatsApp בטלפון",
+            "2. לחץ על ⋮ > מכשירים מקושרים",
+            "3. לחץ על 'קשר מכשיר'",
+            "4. סרוק את קוד ה-QR",
+        ],
+    }
+
+
 @router.post("/{channel}/test", dependencies=[Depends(require_permission("settings", "write"))])
 async def test_channel(
     channel: str,

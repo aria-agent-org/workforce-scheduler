@@ -836,7 +836,8 @@ async def get_pwa_manifest(
     db: AsyncSession = Depends(get_db),
 ) -> _JSONResponse:
     """Generate a dynamic PWA manifest.json based on tenant branding."""
-    # Load branding
+    from app.models.tenant import Tenant
+    # Load branding from settings
     result = await db.execute(
         select(TenantSetting).where(
             TenantSetting.tenant_id == tenant.id,
@@ -844,7 +845,11 @@ async def get_pwa_manifest(
         )
     )
     setting = result.scalar_one_or_none()
-    branding = setting.value if setting and setting.value else {}
+    branding = dict(setting.value if setting and setting.value else {})
+    # Also merge tenant-level branding (channels branding)
+    tenant_obj = (await db.execute(select(Tenant).where(Tenant.id == tenant.id))).scalar_one_or_none()
+    if tenant_obj and tenant_obj.branding:
+        branding = {**branding, **tenant_obj.branding}
 
     app_name = branding.get("app_name", "שבצק")
     primary_color = branding.get("primary_color", "#2563eb")
@@ -881,3 +886,72 @@ async def get_pwa_manifest(
         "Content-Type": "application/manifest+json",
         "Cache-Control": "public, max-age=3600",
     })
+
+
+# ─── AI Bot Configuration ──────────────────────────────────────────────
+
+class AIBotConfig(BaseModel):
+    is_enabled: bool = False
+    ai_model: str = "gpt-4o-mini"
+    ai_api_key: str | None = None
+    ai_prompt: str | None = None
+    ai_only_registered: bool = True
+
+
+@router.get("/ai-bot-config", dependencies=[Depends(require_tenant_admin)])
+async def get_ai_bot_config(
+    tenant: CurrentTenant,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get AI bot configuration for this tenant."""
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "ai_bot_config",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    config = setting.value if setting and setting.value else {}
+    # Mask API key for display
+    if config.get("ai_api_key"):
+        key = config["ai_api_key"]
+        config = {**config, "ai_api_key_masked": key[:4] + "****" if len(key) > 4 else "****"}
+    return config
+
+
+@router.put("/ai-bot-config", dependencies=[Depends(require_tenant_admin)])
+async def update_ai_bot_config(
+    data: AIBotConfig,
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update AI bot configuration for this tenant."""
+    config_data = data.model_dump(exclude_none=True)
+    result = await db.execute(
+        select(TenantSetting).where(
+            TenantSetting.tenant_id == tenant.id,
+            TenantSetting.key == "ai_bot_config",
+        )
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        existing = dict(setting.value or {})
+        # Don't overwrite API key if masked value was sent
+        if data.ai_api_key and "****" not in (data.ai_api_key or ""):
+            existing["ai_api_key"] = data.ai_api_key
+        elif "ai_api_key" in config_data and "****" in (config_data.get("ai_api_key") or ""):
+            config_data.pop("ai_api_key", None)
+        existing.update(config_data)
+        setting.value = existing
+    else:
+        setting = TenantSetting(
+            tenant_id=tenant.id,
+            key="ai_bot_config",
+            value=config_data,
+            group="ai",
+        )
+        db.add(setting)
+    await db.commit()
+    return {"status": "saved"}
