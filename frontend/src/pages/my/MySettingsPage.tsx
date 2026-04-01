@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { User, Shield, Bell, Lock, Palette, Fingerprint, Sun, Moon, Monitor, Save } from "lucide-react";
+import { User, Shield, Bell, Lock, Palette, Fingerprint, Sun, Moon, Monitor, Save, Trash2, Smartphone, Laptop, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useThemeStore } from "@/stores/themeStore";
@@ -50,8 +50,11 @@ export default function MySettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Security key
+  // Security keys
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [passkeys, setPasskeys] = useState<Array<{ id: string; device_name: string; created_at: string | null; last_used_at: string | null; backed_up: boolean }>>([]);
+  const [passkeysLoading, setPasskeysLoading] = useState(false);
+  const [deletingPasskeyId, setDeletingPasskeyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -59,6 +62,25 @@ export default function MySettingsPage() {
       setLanguage(user.preferred_language || "he");
     }
   }, [user]);
+
+  const fetchPasskeys = useCallback(async () => {
+    if (!supportsWebAuthn) return;
+    setPasskeysLoading(true);
+    try {
+      const { data } = await api.get("/auth/webauthn/credentials");
+      setPasskeys(Array.isArray(data) ? data : []);
+    } catch {
+      // silently ignore
+    } finally {
+      setPasskeysLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "security") {
+      fetchPasskeys();
+    }
+  }, [activeTab, fetchPasskeys]);
 
   const saveProfile = async () => {
     setSaving(true);
@@ -120,10 +142,31 @@ export default function MySettingsPage() {
         device_name: navigator.userAgent.includes("Mobile") ? "טלפון נייד" : "מחשב",
       });
       toast("success", "מפתח האבטחה נרשם בהצלחה! 🔑");
+      await fetchPasskeys();
     } catch (err: any) {
       if (err?.name === "NotAllowedError") toast("error", "הפעולה בוטלה");
       else toast("error", err?.response?.data?.detail || "שגיאה ברישום מפתח אבטחה");
     } finally { setPasskeyLoading(false); }
+  };
+
+  const deletePasskey = async (id: string) => {
+    setDeletingPasskeyId(id);
+    try {
+      await api.delete(`/auth/webauthn/credentials/${id}`);
+      toast("success", "מפתח האבטחה נמחק");
+      setPasskeys(prev => prev.filter(p => p.id !== id));
+    } catch (err: any) {
+      toast("error", getErrorMessage(err, "שגיאה במחיקת מפתח אבטחה"));
+    } finally {
+      setDeletingPasskeyId(null);
+    }
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "—";
+    try {
+      return new Date(dateStr).toLocaleDateString("he-IL", { day: "numeric", month: "short", year: "numeric" });
+    } catch { return dateStr; }
   };
 
   const tabs: Array<{ key: SettingsTab; label: string; icon: any }> = [
@@ -202,17 +245,75 @@ export default function MySettingsPage() {
           <CardContent className="space-y-4">
             {/* WebAuthn / Passkey */}
             <div className="rounded-xl border p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Fingerprint className="h-5 w-5 text-primary-500" />
-                <h3 className="font-semibold">מפתח אבטחה (Passkey)</h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="h-5 w-5 text-primary-500" />
+                  <h3 className="font-semibold">מפתחות אבטחה (Passkeys)</h3>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className="min-h-[36px]" onClick={fetchPasskeys} disabled={passkeysLoading} title="רענן">
+                    <RefreshCw className={`h-4 w-4 ${passkeysLoading ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                הוסף מפתח אבטחה פיזי או ביומטרי לכניסה מהירה ובטוחה.
+                הוסף מפתח אבטחה פיזי או ביומטרי לכניסה מהירה ובטוחה. מקסימום 5 מפתחות.
               </p>
+
+              {/* Existing passkeys list */}
+              {passkeys.length > 0 && (
+                <div className="space-y-2">
+                  {passkeys.map((pk) => (
+                    <div key={pk.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {pk.device_name?.includes("טלפון") || pk.device_name?.includes("Mobile") ? (
+                          <Smartphone className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <Laptop className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{pk.device_name || "מפתח אבטחה"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            נוסף: {formatDate(pk.created_at)}
+                            {pk.last_used_at && ` · שימוש אחרון: ${formatDate(pk.last_used_at)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {pk.backed_up && <Badge className="bg-green-100 text-green-700 text-xs">מגובה</Badge>}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="min-h-[36px] text-red-500 hover:bg-red-50 hover:text-red-600"
+                          onClick={() => deletePasskey(pk.id)}
+                          disabled={deletingPasskeyId === pk.id}
+                          title="מחק מפתח"
+                        >
+                          {deletingPasskeyId === pk.id ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {passkeys.length === 0 && !passkeysLoading && supportsWebAuthn && (
+                <p className="text-sm text-muted-foreground text-center py-2">אין מפתחות אבטחה רשומים</p>
+              )}
+
               {supportsWebAuthn ? (
-                <Button onClick={registerPasskey} disabled={passkeyLoading} variant="outline" className="min-h-[44px]">
+                <Button
+                  onClick={registerPasskey}
+                  disabled={passkeyLoading || passkeys.length >= 5}
+                  variant="outline"
+                  className="min-h-[44px]"
+                >
                   <Fingerprint className="h-4 w-4 me-2" />
-                  {passkeyLoading ? "רושם..." : "הוסף מפתח אבטחה"}
+                  {passkeyLoading ? "רושם..." : passkeys.length >= 5 ? "הגעת למקסימום מפתחות (5)" : "הוסף מפתח אבטחה"}
                 </Button>
               ) : (
                 <p className="text-sm text-yellow-600">הדפדפן שלך לא תומך במפתחות אבטחה</p>

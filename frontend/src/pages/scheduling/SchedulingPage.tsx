@@ -16,7 +16,7 @@ import {
   Calendar, Plus, Wand2, Play, Pause, Archive, Copy,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Users, Clock, Trash2, UserPlus,
   Pencil, Upload, ArrowLeft, Eye, AlertTriangle, Check, LayoutTemplate,
-  MoreVertical, RefreshCw, X, ArrowRightLeft, Search, Printer,
+  MoreVertical, RefreshCw, X, ArrowRightLeft, Search, Printer, Menu,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
@@ -526,6 +526,7 @@ export default function SchedulingPage() {
   // === IMPORT SOLDIERS TO WINDOW ===
   const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
   const [importFileErrors, setImportFileErrors] = useState<any[]>([]);
+  const [showBoardActionsMenu, setShowBoardActionsMenu] = useState(false);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -764,60 +765,126 @@ export default function SchedulingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
           {activeTab === "board" && selectedWindow && (
             <>
-              <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
-                <Printer className="me-1 h-4 w-4" />הדפס
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate('/settings?tab=board-template')}>
-                <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
-              </Button>
-              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={async () => {
-                try {
-                  toast("info", "מייצר לוח יומי מתבנית...");
-                  const tmplRes = await api.get(tenantApi("/daily-board-templates"));
-                  const boardTemplates = Array.isArray(tmplRes.data) ? tmplRes.data : [];
-                  if (boardTemplates.length === 0) {
-                    toast("warning", "אין תבניות לוח — עבור לעורך הלוח וצור תבנית");
-                    return;
+              {/* Desktop: show all buttons */}
+              <div className="hidden sm:flex gap-2 flex-wrap items-center">
+                <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}>
+                  <Printer className="me-1 h-4 w-4" />הדפס
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/settings?tab=board-template')}>
+                  <LayoutTemplate className="me-1 h-4 w-4" />עורך לוח
+                </Button>
+                <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700" onClick={async () => {
+                  try {
+                    toast("info", "מייצר לוח יומי מתבנית...");
+                    const tmplRes = await api.get(tenantApi("/daily-board-templates"));
+                    const boardTemplates = Array.isArray(tmplRes.data) ? tmplRes.data : [];
+                    if (boardTemplates.length === 0) {
+                      toast("warning", "אין תבניות לוח — עבור לעורך הלוח וצור תבנית");
+                      return;
+                    }
+                    const tmpl = boardTemplates[0];
+                    await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
+                      date_from: boardDate,
+                      date_to: boardDate,
+                    });
+                    toast("success", `לוח יומי נוצר בהצלחה ליום ${boardDate}`);
+                    if (selectedWindow) loadWindowData(selectedWindow.id);
+                  } catch (err: any) {
+                    const detail = err?.response?.data?.detail || "שגיאה ביצירת לוח יומי";
+                    toast("error", detail);
                   }
-                  const tmpl = boardTemplates[0];
-                  await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
-                    date_from: boardDate,
-                    date_to: boardDate,
-                  });
-                  toast("success", `לוח יומי נוצר בהצלחה ליום ${boardDate}`);
-                  if (selectedWindow) loadWindowData(selectedWindow.id);
-                } catch (err: any) {
-                  const detail = err?.response?.data?.detail || "שגיאה ביצירת לוח יומי";
-                  toast("error", detail);
-                }
-              }}>
-                <Wand2 className="me-1 h-4 w-4" />ייצור לוח יומי
-              </Button>
-              <Button variant="outline" size="sm" onClick={autoAssign}>
-                <Wand2 className="me-1 h-4 w-4" />{t("autoAssign")}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => {
-                if (templates.length > 0) {
-                  setGenerateForm({ template_id: templates[0]?.id || "", start_date: selectedWindow.start_date, end_date: selectedWindow.end_date });
-                  setShowGenerateModal(true);
-                } else {
-                  toast("warning", "אין תבניות — צור תבנית קודם");
-                }
-              }}>
-                <Calendar className="me-1 h-4 w-4" />יצירה מתבנית
-              </Button>
-              <Button size="sm" onClick={() => {
-                setEditingMissionId(null);
-                setMissionForm({ schedule_window_id: selectedWindow.id, mission_type_id: "", name: "", date: boardDate, start_time: "08:00", end_time: "16:00" });
-                setShowMissionModal(true);
-              }}>
-                <Plus className="me-1 h-4 w-4" />משימה חדשה
-              </Button>
+                }}>
+                  <Wand2 className="me-1 h-4 w-4" />ייצור לוח יומי
+                </Button>
+                <Button variant="outline" size="sm" onClick={autoAssign}>
+                  <Wand2 className="me-1 h-4 w-4" />{t("autoAssign")}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (templates.length > 0) {
+                    setGenerateForm({ template_id: templates[0]?.id || "", start_date: selectedWindow.start_date, end_date: selectedWindow.end_date });
+                    setShowGenerateModal(true);
+                  } else {
+                    toast("warning", "אין תבניות — צור תבנית קודם");
+                  }
+                }}>
+                  <Calendar className="me-1 h-4 w-4" />יצירה מתבנית
+                </Button>
+                <Button size="sm" onClick={() => {
+                  setEditingMissionId(null);
+                  setMissionForm({ schedule_window_id: selectedWindow.id, mission_type_id: "", name: "", date: boardDate, start_time: "08:00", end_time: "16:00" });
+                  setShowMissionModal(true);
+                }}>
+                  <Plus className="me-1 h-4 w-4" />משימה חדשה
+                </Button>
+              </div>
+
+              {/* Mobile: show primary actions + "more" menu */}
+              <div className="flex sm:hidden gap-2 items-center">
+                <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 min-h-[40px]" onClick={async () => {
+                  try {
+                    toast("info", "מייצר לוח יומי מתבנית...");
+                    const tmplRes = await api.get(tenantApi("/daily-board-templates"));
+                    const boardTemplates = Array.isArray(tmplRes.data) ? tmplRes.data : [];
+                    if (boardTemplates.length === 0) {
+                      toast("warning", "אין תבניות לוח — עבור לעורך הלוח וצור תבנית");
+                      return;
+                    }
+                    const tmpl = boardTemplates[0];
+                    await api.post(tenantApi(`/daily-board-templates/${tmpl.id}/generate`), {
+                      date_from: boardDate,
+                      date_to: boardDate,
+                    });
+                    toast("success", `לוח יומי נוצר בהצלחה ליום ${boardDate}`);
+                    if (selectedWindow) loadWindowData(selectedWindow.id);
+                  } catch (err: any) {
+                    const detail = err?.response?.data?.detail || "שגיאה ביצירת לוח יומי";
+                    toast("error", detail);
+                  }
+                }}>
+                  <Wand2 className="me-1 h-4 w-4" />ייצור לוח
+                </Button>
+                <Button variant="outline" size="sm" className="min-h-[40px]" onClick={autoAssign}>
+                  <Wand2 className="me-1 h-4 w-4" />שיבוץ אוטו׳
+                </Button>
+                <Button size="sm" className="min-h-[40px]" onClick={() => {
+                  setEditingMissionId(null);
+                  setMissionForm({ schedule_window_id: selectedWindow.id, mission_type_id: "", name: "", date: boardDate, start_time: "08:00", end_time: "16:00" });
+                  setShowMissionModal(true);
+                }}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+                {/* More actions dropdown */}
+                <div className="relative">
+                  <Button variant="outline" size="sm" className="min-h-[40px]" onClick={() => setShowBoardActionsMenu(v => !v)}>
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                  {showBoardActionsMenu && (
+                    <div className="absolute end-0 top-full mt-1 z-50 bg-background border rounded-xl shadow-lg min-w-[180px] p-1" onClick={() => setShowBoardActionsMenu(false)}>
+                      <button className="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg hover:bg-muted" onClick={() => window.print()}>
+                        <Printer className="h-4 w-4" />הדפס
+                      </button>
+                      <button className="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg hover:bg-muted" onClick={() => navigate('/settings?tab=board-template')}>
+                        <LayoutTemplate className="h-4 w-4" />עורך לוח
+                      </button>
+                      <button className="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg hover:bg-muted" onClick={() => {
+                        if (templates.length > 0) {
+                          setGenerateForm({ template_id: templates[0]?.id || "", start_date: selectedWindow.start_date, end_date: selectedWindow.end_date });
+                          setShowGenerateModal(true);
+                        } else {
+                          toast("warning", "אין תבניות — צור תבנית קודם");
+                        }
+                      }}>
+                        <Calendar className="h-4 w-4" />יצירה מתבנית
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
           {activeTab === "windows" && (

@@ -764,7 +764,8 @@ export default function OnboardingWizard() {
               style={{ width: `${((Object.keys(state.completed).length) / setupSteps.length) * 100}%` }}
             />
           </div>
-          <div className="flex items-center justify-center gap-1 overflow-x-auto pb-2">
+          {/* Step indicators - compact dots on mobile, full labels on desktop */}
+          <div className="hidden sm:flex items-center justify-center gap-1 overflow-x-auto pb-2">
             {setupSteps.map((step, i) => {
               const Icon = step.icon;
               const isActive = i === state.currentStep;
@@ -783,6 +784,34 @@ export default function OnboardingWizard() {
               );
             })}
           </div>
+          {/* Mobile: compact step indicators */}
+          <div className="flex sm:hidden items-center justify-center gap-1.5 overflow-x-auto pb-1">
+            {setupSteps.map((step, i) => {
+              const Icon = step.icon;
+              const isActive = i === state.currentStep;
+              const isDone = state.completed[i];
+              return (
+                <button
+                  key={i}
+                  onClick={() => update({ currentStep: i })}
+                  title={step.label_he}
+                  className={`flex items-center justify-center rounded-full transition-all flex-shrink-0 ${
+                    isActive
+                      ? "bg-primary-500 text-white shadow-md w-10 h-10"
+                      : isDone
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 w-8 h-8"
+                      : "bg-muted text-muted-foreground w-8 h-8"
+                  }`}
+                >
+                  {isDone ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                </button>
+              );
+            })}
+          </div>
+          {/* Current step label on mobile */}
+          <p className="sm:hidden text-center text-sm font-medium text-primary-600 mt-1">
+            שלב {state.currentStep + 1}: {setupSteps[state.currentStep]?.label_he}
+          </p>
         </div>
 
         {/* Step Content */}
@@ -960,11 +989,15 @@ export default function OnboardingWizard() {
                 {state.soldiers.length > 0 ? (
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
                     {state.soldiers.map((s, i) => (
-                      <div key={i} className="flex items-center gap-2 rounded border p-2">
-                        <Input placeholder="שם מלא" value={s.full_name} onChange={e => updateSoldier(i, "full_name", e.target.value)} className="flex-1 min-h-[44px]" />
-                        <Input placeholder="מס׳ אישי" value={s.employee_number} onChange={e => updateSoldier(i, "employee_number", e.target.value)} className="w-28 min-h-[44px]" />
-                        <Input placeholder="טלפון" value={s.phone || ""} onChange={e => updateSoldier(i, "phone", e.target.value)} className="w-32 min-h-[44px]" />
-                        <Button variant="ghost" size="sm" onClick={() => removeSoldier(i)} className="text-red-500">✕</Button>
+                      <div key={i} className="rounded border p-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input placeholder="שם מלא" value={s.full_name} onChange={e => updateSoldier(i, "full_name", e.target.value)} className="flex-1 min-h-[44px]" />
+                          <Button variant="ghost" size="sm" onClick={() => removeSoldier(i)} className="text-red-500 flex-shrink-0">✕</Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input placeholder="מס׳ אישי" value={s.employee_number} onChange={e => updateSoldier(i, "employee_number", e.target.value)} className="flex-1 min-h-[44px]" />
+                          <Input placeholder="טלפון" value={s.phone || ""} onChange={e => updateSoldier(i, "phone", e.target.value)} className="flex-1 min-h-[44px]" />
+                        </div>
                       </div>
                     ))}
                   </div>

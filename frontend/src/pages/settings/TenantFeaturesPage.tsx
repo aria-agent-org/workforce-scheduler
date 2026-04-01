@@ -135,35 +135,44 @@ export default function TenantFeaturesPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {features.map(f => (
-            <Card
+            <div
               key={f.key}
-              className={`transition-all cursor-pointer ${f.enabled ? "ring-1 ring-green-200 dark:ring-green-800" : "opacity-60"}`}
+              role="button"
+              tabIndex={0}
+              aria-pressed={f.enabled}
+              className={`flex items-center justify-between gap-3 rounded-xl border p-4 cursor-pointer transition-all min-h-[64px] select-none ${
+                f.enabled
+                  ? "ring-1 ring-green-300 dark:ring-green-700 bg-green-50/30 dark:bg-green-900/10"
+                  : "opacity-70 hover:opacity-90"
+              } hover:shadow-sm`}
               onClick={() => toggleFeature(f.key)}
+              onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleFeature(f.key); } }}
             >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-xl flex-shrink-0">{f.icon}</span>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{f.label}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{f.description}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleFeature(f.key); }}
-                    aria-label={`${f.label} ${f.enabled ? 'פעיל' : 'כבוי'}`}
-                    className={`feature-toggle relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                      f.enabled ? "bg-green-500" : "bg-muted"
-                    }`}
-                    style={{ minWidth: '44px', minHeight: '28px' }}
-                  >
-                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                      f.enabled ? "translate-x-[18px] rtl:-translate-x-[18px]" : "translate-x-0.5 rtl:-translate-x-0.5"
-                    }`} />
-                  </button>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="text-2xl flex-shrink-0">{f.icon}</span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">{f.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{f.description}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              {/* Toggle switch */}
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleFeature(f.key); }}
+                aria-label={`${f.label} ${f.enabled ? 'פעיל' : 'כבוי'}`}
+                aria-checked={f.enabled}
+                role="switch"
+                className={`relative rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
+                  f.enabled ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+                }`}
+                style={{ width: '52px', height: '28px', minWidth: '52px' }}
+              >
+                <span
+                  className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    f.enabled ? "translate-x-[24px] rtl:-translate-x-[24px]" : "translate-x-[3px] rtl:-translate-x-[3px]"
+                  }`}
+                />
+              </button>
+            </div>
           ))}
         </div>
       </div>
