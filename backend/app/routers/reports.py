@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -112,7 +112,7 @@ async def workload_report(
     for emp in employees:
         # Count assignments and get hours
         # Use CASE to handle overnight shifts: if end < start, add 24h
-        hours_expr = func.case(
+        hours_expr = case(
             (
                 func.extract("hour", Mission.end_time) >= func.extract("hour", Mission.start_time),
                 func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
@@ -140,7 +140,7 @@ async def workload_report(
         total_hours += hours
 
         # Get per-day hours for overtime calculation
-        day_hours_expr = func.case(
+        day_hours_expr = case(
             (
                 func.extract("hour", Mission.end_time) >= func.extract("hour", Mission.start_time),
                 func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
@@ -177,7 +177,7 @@ async def workload_report(
                 overtime_days += 1
 
         # Night shift hours (missions starting between 22:00-06:00)
-        night_hours_expr = func.case(
+        night_hours_expr = case(
             (
                 func.extract("hour", Mission.end_time) >= func.extract("hour", Mission.start_time),
                 func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)

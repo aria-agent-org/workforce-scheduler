@@ -10,13 +10,15 @@ const config: Config = {
       },
       colors: {
         primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
           50: "#eff6ff",
           100: "#dbeafe",
           200: "#bfdbfe",
           300: "#93c5fd",
           400: "#60a5fa",
-          500: "#2563eb",
-          600: "#2563eb",
+          500: "hsl(var(--primary))",
+          600: "#1d4ed8",
           700: "#1d4ed8",
           800: "#1e40af",
           900: "#1e3a8a",

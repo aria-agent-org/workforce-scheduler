@@ -28,7 +28,7 @@ interface Assignment {
   status: string;
   mission_status: string;
   conflicts_detected: any;
-  crew?: Array<{ employee_id: string; full_name: string; slot_label?: string }>;
+  crew?: Array<{ name: string; full_name?: string; slot_id?: string; slot_label?: string; is_me?: boolean }>;
   timeline_items?: Array<{ label: any; time: string; offset_minutes: number }>;
   pre_mission_events?: Array<{ label: any; offset_minutes: number; location?: any }>;
 }
@@ -229,7 +229,7 @@ export default function MySchedulePage() {
               <Users className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">צוות:</span>
               {currentMission.crew.map((cm, i) => (
-                <Badge key={i} className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">{cm.full_name}</Badge>
+                <Badge key={i} className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">{cm.name || cm.full_name}</Badge>
               ))}
             </div>
           )}
@@ -385,7 +385,7 @@ export default function MySchedulePage() {
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                         {a.crew.map((cm, i) => (
-                          <Badge key={i} className="text-[10px] bg-muted">{cm.full_name}</Badge>
+                          <Badge key={i} className="text-[10px] bg-muted">{cm.name || cm.full_name}</Badge>
                         ))}
                       </div>
                     )}

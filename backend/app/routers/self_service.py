@@ -451,7 +451,13 @@ async def get_notification_settings(
 ) -> dict:
     """Get current user's notification channel settings."""
     if not user.employee_id:
-        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+        # User not linked to employee — return empty settings
+        return {
+            "employee_id": None,
+            "channels": {},
+            "active_channels": [],
+            "primary_channel": "push",
+        }
 
     emp_res = await db.execute(
         select(Employee).where(Employee.id == user.employee_id)
