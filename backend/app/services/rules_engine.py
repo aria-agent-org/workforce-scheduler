@@ -35,8 +35,10 @@ def evaluate_condition(condition: dict, context: dict) -> bool:
 
     operator = condition.get("operator", "and")
 
-    # Logical operators
-    if operator in ("and", "or", "not", "AND", "OR", "NOT"):
+    # Logical operators — only if "conditions" key is present (i.e. it's a group node)
+    # Without this check, leaf conditions without "operator" key default to "and" which
+    # would incorrectly evaluate `all([])` = True for any leaf condition
+    if operator in ("and", "or", "not", "AND", "OR", "NOT") and "conditions" in condition:
         conditions = condition.get("conditions", [])
         op_lower = operator.lower()
         if op_lower == "and":
@@ -161,7 +163,10 @@ async def build_employee_context(
         diff_hours = max(0, (ref_start - last_end).total_seconds() / 3600)
         ctx["hours_since_last_mission"] = round(diff_hours, 2)
         h = last_mission.start_time.hour
-        ctx["last_mission_was_night"] = h >= 22 or h < 6
+        is_night = h >= 22 or h < 6
+        # last_mission_was_night is only meaningful if the mission was recent (within 36h)
+        # Otherwise the night shift penalty should not apply — the employee has had enough rest
+        ctx["last_mission_was_night"] = is_night and diff_hours < 36
     else:
         ctx["hours_since_last_mission"] = 999
         ctx["last_mission_was_night"] = False
