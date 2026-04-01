@@ -13,6 +13,7 @@ from app.permissions import require_permission
 from app.models.attendance import AttendanceSchedule, AttendanceStatusDefinition, AttendanceSyncConflict
 from app.models.employee import Employee
 from app.models.audit import AuditLog
+from app.models.scheduling import ScheduleWindow
 from app.schemas.attendance import (
     AttendanceCreate, AttendanceUpdate, AttendanceBulkUpdate,
     AttendanceResponse, AttendanceStatusDefinitionResponse, AttendanceStatusCreate,
@@ -200,6 +201,19 @@ async def bulk_update_attendance(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Bulk update attendance for multiple employees on a date."""
+    # Validate schedule_window_id exists and belongs to this tenant
+    win_check = await db.execute(
+        select(ScheduleWindow).where(
+            ScheduleWindow.id == data.schedule_window_id,
+            ScheduleWindow.tenant_id == tenant.id,
+        )
+    )
+    if not win_check.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail=f"חלון לוח זמנים {data.schedule_window_id} לא נמצא. בחר חלון תקין.",
+        )
+
     updated = 0
     created = 0
     for entry in data.entries:

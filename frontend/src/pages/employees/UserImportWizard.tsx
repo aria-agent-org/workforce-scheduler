@@ -139,7 +139,6 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
       setRegistrationLinks(codes);
 
       // Build CSV content
-      const baseUrl = `${window.location.origin}/register`;
       const tenantSlug = getTenantSlug();
       const header = "שם מלא,קוד הרשמה,קישור הרשמה,סטטוס\n";
       const rows = codes.map(c => {
