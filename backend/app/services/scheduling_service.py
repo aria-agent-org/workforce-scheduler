@@ -370,7 +370,7 @@ class AutoScheduler:
             select(Mission).where(
                 Mission.tenant_id == self.tenant_id,
                 Mission.schedule_window_id == window_id,
-                Mission.status.in_(["draft", "proposed", "active", "published"]),
+                Mission.status.in_(["draft", "proposed", "active", "published", "approved"]),
                 Mission.date >= date_from,
                 Mission.date <= date_to,
             ).order_by(Mission.date, Mission.start_time)
