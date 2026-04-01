@@ -1,6 +1,6 @@
 """Scheduling endpoints: windows, missions, templates, assignments, swaps."""
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
