@@ -75,7 +75,7 @@ async def create_attendance(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create or update attendance for a specific employee and date."""
-    # Check if attendance already exists for this employee/date
+    # Check if attendance already exists for this employee/date (unique per day across all windows)
     existing = await db.execute(
         select(AttendanceSchedule).where(
             AttendanceSchedule.tenant_id == tenant.id,
@@ -85,10 +85,11 @@ async def create_attendance(
     )
     record = existing.scalar_one_or_none()
     if record:
-        # Update existing
+        # Update existing — also reassign to the current window
         record.status_code = data.status_code
         record.notes = data.notes
         record.source = "manual"
+        record.schedule_window_id = data.schedule_window_id
     else:
         record = AttendanceSchedule(
             tenant_id=tenant.id,
@@ -206,6 +207,7 @@ async def bulk_update_attendance(
         status_code = entry.get("status_code", "present")
         notes = entry.get("notes")
 
+        # Find existing record by tenant + employee + date (unique constraint)
         existing = await db.execute(
             select(AttendanceSchedule).where(
                 AttendanceSchedule.tenant_id == tenant.id,
@@ -215,8 +217,10 @@ async def bulk_update_attendance(
         )
         record = existing.scalar_one_or_none()
         if record:
+            # Update status and reassign to the current window
             record.status_code = status_code
             record.notes = notes
+            record.schedule_window_id = data.schedule_window_id
             updated += 1
         else:
             record = AttendanceSchedule(
