@@ -24,11 +24,10 @@ def upgrade() -> None:
             sa.ForeignKey("users.id", ondelete="CASCADE"),
             nullable=False,
             unique=True,
-            index=True,
         ),
-        sa.Column("current_step", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("completed_steps", JSONB, nullable=False, server_default="'{}'"),
-        sa.Column("status", sa.String(20), nullable=False, server_default="'in_progress'"),
+        sa.Column("current_step", sa.Integer, nullable=False, server_default=sa.text("0")),
+        sa.Column("completed_steps", JSONB, nullable=False, server_default=sa.text("'{}'")),
+        sa.Column("status", sa.String(20), nullable=False, server_default=sa.text("'in_progress'")),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -45,11 +44,14 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
+    # Note: unique=True on user_id column already creates a unique constraint index.
+    # We add an explicit named index here for query performance (non-unique lookup by name).
     op.create_index(
         "ix_onboarding_progress_user_id",
         "onboarding_progress",
         ["user_id"],
         unique=True,
+        if_not_exists=True,
     )
 
 

@@ -15,15 +15,18 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add required_slots and notes columns to missions
-    op.add_column(
-        "missions",
-        sa.Column("required_slots", JSONB, nullable=True),
-    )
-    op.add_column(
-        "missions",
-        sa.Column("notes", sa.Text, nullable=True),
-    )
+    # Add required_slots and notes columns to missions (idempotent)
+    conn = op.get_bind()
+    # Check existing columns
+    result = conn.execute(sa.text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name='missions' AND column_name IN ('required_slots','notes')"
+    ))
+    existing = {row[0] for row in result}
+    if "required_slots" not in existing:
+        op.add_column("missions", sa.Column("required_slots", JSONB, nullable=True))
+    if "notes" not in existing:
+        op.add_column("missions", sa.Column("notes", sa.Text, nullable=True))
 
     # Backfill required_slots from mission_types for existing missions
     op.execute("""
