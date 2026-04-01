@@ -125,6 +125,16 @@ async def update_tenant_features(
     return {"features": t.features}
 
 
+@router.get("/branding", dependencies=[Depends(require_permission("settings", "read"))])
+async def get_tenant_branding(
+    tenant: CurrentTenant,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get branding settings for this tenant."""
+    return {"branding": tenant.branding or {}}
+
+
 @router.put("/branding", dependencies=[Depends(require_permission("settings", "write"))])
 async def update_tenant_branding(
     req: TenantBrandingUpdate,

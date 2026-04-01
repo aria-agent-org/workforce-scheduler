@@ -141,7 +141,7 @@ async def build_employee_context(
         .where(
             MissionAssignment.employee_id == employee_id,
             MissionAssignment.status.notin_(["replaced", "cancelled"]),
-            Mission.date <= mission_date,
+            Mission.date < mission_date,  # strictly before — don't count same-day missions as "last"
         )
         .order_by(Mission.date.desc(), Mission.end_time.desc())
         .limit(1)

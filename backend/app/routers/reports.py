@@ -111,10 +111,16 @@ async def workload_report(
     total_hours = 0
     for emp in employees:
         # Count assignments and get hours
-        query = (
-            select(func.count(), func.sum(
+        # Use CASE to handle overnight shifts: if end < start, add 24h
+        hours_expr = func.case(
+            (
+                func.extract("hour", Mission.end_time) >= func.extract("hour", Mission.start_time),
                 func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
-            ))
+            ),
+            else_=func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time) + 24
+        )
+        query = (
+            select(func.count(), func.sum(hours_expr))
             .select_from(MissionAssignment)
             .join(Mission, MissionAssignment.mission_id == Mission.id)
             .where(
@@ -134,12 +140,17 @@ async def workload_report(
         total_hours += hours
 
         # Get per-day hours for overtime calculation
+        day_hours_expr = func.case(
+            (
+                func.extract("hour", Mission.end_time) >= func.extract("hour", Mission.start_time),
+                func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
+            ),
+            else_=func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time) + 24
+        )
         day_query = (
             select(
                 Mission.date,
-                func.sum(
-                    func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
-                ),
+                func.sum(day_hours_expr),
             )
             .select_from(MissionAssignment)
             .join(Mission, MissionAssignment.mission_id == Mission.id)
@@ -166,10 +177,15 @@ async def workload_report(
                 overtime_days += 1
 
         # Night shift hours (missions starting between 22:00-06:00)
-        night_query = (
-            select(func.sum(
+        night_hours_expr = func.case(
+            (
+                func.extract("hour", Mission.end_time) >= func.extract("hour", Mission.start_time),
                 func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
-            ))
+            ),
+            else_=func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time) + 24
+        )
+        night_query = (
+            select(func.sum(night_hours_expr))
             .select_from(MissionAssignment)
             .join(Mission, MissionAssignment.mission_id == Mission.id)
             .where(
@@ -182,9 +198,7 @@ async def workload_report(
         )
         # Also include missions starting before 06:00
         night_query2 = (
-            select(func.sum(
-                func.extract("hour", Mission.end_time) - func.extract("hour", Mission.start_time)
-            ))
+            select(func.sum(night_hours_expr))
             .select_from(MissionAssignment)
             .join(Mission, MissionAssignment.mission_id == Mission.id)
             .where(
