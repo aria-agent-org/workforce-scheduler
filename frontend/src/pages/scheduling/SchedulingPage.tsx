@@ -1112,23 +1112,23 @@ export default function SchedulingPage() {
           </div>
 
           {/* Board View Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex gap-1 bg-muted rounded-lg p-1">
-              <button onClick={() => setBoardView("day")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "day" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>יומי</button>
-              <button onClick={() => setBoardView("week")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "week" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>שבועי</button>
-              <button onClick={() => setBoardView("calendar")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all ${boardView === "calendar" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>לוח שנה</button>
-              <button onClick={() => setBoardView("daily-board")} className={`px-3 py-2 text-sm rounded-md min-h-[40px] transition-all flex items-center gap-1 ${boardView === "daily-board" ? "bg-green-700 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex gap-1 bg-muted rounded-lg p-1 w-full sm:w-auto overflow-x-auto scrollbar-hide">
+              <button onClick={() => setBoardView("day")} className={`px-3 py-2 text-sm rounded-md min-h-[44px] transition-all whitespace-nowrap flex-shrink-0 ${boardView === "day" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>יומי</button>
+              <button onClick={() => setBoardView("week")} className={`px-3 py-2 text-sm rounded-md min-h-[44px] transition-all whitespace-nowrap flex-shrink-0 ${boardView === "week" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>שבועי</button>
+              <button onClick={() => setBoardView("calendar")} className={`px-3 py-2 text-sm rounded-md min-h-[44px] transition-all whitespace-nowrap flex-shrink-0 ${boardView === "calendar" ? "bg-primary-500 text-white shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>לוח שנה</button>
+              <button onClick={() => setBoardView("daily-board")} className={`px-3 py-2 text-sm rounded-md min-h-[44px] transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0 font-semibold ${boardView === "daily-board" ? "bg-green-700 text-white shadow-sm" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200"}`}>
                 <LayoutTemplate className="h-3.5 w-3.5" />לוח שבצ&quot;ק
               </button>
             </div>
-            <div className="flex items-center gap-1 flex-1">
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg" onClick={() => {
+            <div className="flex items-center gap-1 flex-1 w-full sm:w-auto">
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg flex-shrink-0" onClick={() => {
                 const d = new Date(boardDate);
                 d.setDate(d.getDate() - 1);
                 setBoardDate(d.toISOString().split("T")[0]);
               }} aria-label="יום קודם"><ChevronRight className="h-5 w-5" /></Button>
-              <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="min-h-[44px] flex-1 min-w-0 max-w-[160px] text-base" />
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg" onClick={() => {
+              <Input type="date" value={boardDate} onChange={e => setBoardDate(e.target.value)} className="min-h-[44px] flex-1 min-w-0 text-base" />
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg flex-shrink-0" onClick={() => {
                 const d = new Date(boardDate);
                 d.setDate(d.getDate() + 1);
                 setBoardDate(d.toISOString().split("T")[0]);
