@@ -104,10 +104,14 @@ class AutoScheduler:
 
         for mission in missions:
             mt = mission_types.get(str(mission.mission_type_id))
-            if not mt or not mt.required_slots:
+            # Use slots copied to mission first, fall back to mission type slots
+            mission_slots = getattr(mission, "required_slots", None)
+            if mission_slots is None and mt:
+                mission_slots = mt.required_slots
+            if not mission_slots:
                 continue
 
-            required_slots = mt.required_slots if isinstance(mt.required_slots, list) else []
+            required_slots = mission_slots if isinstance(mission_slots, list) else []
 
             # Get existing assignments
             existing = await self._get_existing_assignments(mission.id)

@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
 
     # WebAuthn / Passkey
-    webauthn_rp_id: str = "localhost"
+    webauthn_rp_id: str = "shavtzak.site"
     webauthn_rp_name: str = "שבצק"
     webauthn_origin: str = "http://localhost:3000"
     # Comma-separated list of allowed origins (for multi-environment support)

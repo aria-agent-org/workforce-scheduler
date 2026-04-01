@@ -607,7 +607,9 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                     { key: "email", icon: "✉️", title: "אימייל", desc: "שלח הזמנה לאימייל לכל משתמש" },
                     { key: "sms", icon: "📱", title: "SMS", desc: "שלח הזמנה ב-SMS" },
                     { key: "whatsapp", icon: "💬", title: "WhatsApp", desc: "שלח הזמנה ב-WhatsApp" },
-                    { key: "download", icon: "📥", title: "הורד קובץ", desc: "הורד קובץ עם קישורי הרשמה" },
+                    { key: "telegram", icon: "📨", title: "Telegram", desc: "שלח הזמנה דרך Telegram" },
+                    { key: "download", icon: "📥", title: "הורד קובץ", desc: "הורד קובץ עם קישורי הרשמה לכל המשתמשים" },
+                    { key: "self_registration", icon: "🔗", title: "הרשמה עצמאית", desc: "המערכת תתאים אוטומטית לפי טלפון/אימייל בהרשמה" },
                   ].map(m => (
                     <button
                       key={m.key}

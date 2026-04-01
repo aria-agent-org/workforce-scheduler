@@ -151,6 +151,10 @@ class Mission(TenantBase):
     )
     # Post-mission settings override (inherited from mission_type.post_mission_rule but editable)
     post_mission_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Slots copied from mission_type.required_slots at mission creation
+    required_slots: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Notes / description for this mission instance
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     assignments = relationship("MissionAssignment", back_populates="mission", lazy="selectin", foreign_keys="[MissionAssignment.mission_id]")
     follow_up_missions = relationship("Mission", backref=backref("parent_mission", remote_side="Mission.id"), lazy="selectin")

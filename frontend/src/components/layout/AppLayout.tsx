@@ -20,7 +20,19 @@ export default function AppLayout() {
     if (!isAuthenticated) return;
     (async () => {
       try {
-        const { data } = await api.get(tenantApi("/settings/branding"));
+        // Try channels branding first (set via TenantFeaturesPage), fallback to settings branding
+        let data: Record<string, any> = {};
+        try {
+          const res = await api.get(tenantApi("/channels/branding"));
+          data = res.data?.branding || {};
+        } catch { /* ignore */ }
+        // Also merge settings branding (for backwards compatibility)
+        try {
+          const res2 = await api.get(tenantApi("/settings/branding"));
+          if (res2.data && Object.keys(res2.data).length > 0) {
+            data = { ...res2.data, ...data }; // channels branding takes priority
+          }
+        } catch { /* ignore */ }
         if (!data || Object.keys(data).length === 0) return;
 
         // Helper: convert hex color to HSL values string for CSS variables

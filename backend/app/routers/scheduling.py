@@ -799,16 +799,22 @@ async def create_mission(
     )
     if not w_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="לוח עבודה לא נמצא")
-    # Validate mission type exists
+    # Validate mission type exists and load its slots
     mt_result = await db.execute(
         select(MissionType).where(MissionType.id == data.mission_type_id, MissionType.tenant_id == tenant.id)
     )
-    if not mt_result.scalar_one_or_none():
+    mt = mt_result.scalar_one_or_none()
+    if not mt:
         raise HTTPException(status_code=404, detail="סוג משימה לא נמצא")
+
+    # Copy required_slots from mission type if not explicitly provided
+    mission_data = data.model_dump()
+    if not mission_data.get("required_slots") and mt.required_slots:
+        mission_data["required_slots"] = mt.required_slots
 
     mission = Mission(
         tenant_id=tenant.id, created_by=user.id,
-        **data.model_dump(),
+        **mission_data,
     )
     db.add(mission)
     await db.flush()
@@ -1045,6 +1051,8 @@ async def generate_missions(
                     start_time=time(int(start_parts[0]), int(start_parts[1])),
                     end_time=time(int(end_parts[0]), int(end_parts[1])),
                     created_by=user.id,
+                    # Copy slots from mission type
+                    required_slots=mt.required_slots if mt and mt.required_slots else None,
                 )
                 db.add(mission)
                 await db.flush()

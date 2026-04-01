@@ -124,6 +124,71 @@ function BrandingSection({ initialColor, initialLogo, initialFavicon, onSave }: 
   );
 }
 
+const ISRAEL_TIMEZONES = [
+  { value: "Asia/Jerusalem", label: "ירושלים (Asia/Jerusalem) — ישראל" },
+  { value: "UTC", label: "UTC — שעון עולמי" },
+  { value: "Europe/London", label: "לונדון (Europe/London)" },
+  { value: "America/New_York", label: "ניו יורק (America/New_York)" },
+  { value: "America/Los_Angeles", label: "לוס אנג'לס (America/Los_Angeles)" },
+  { value: "Europe/Paris", label: "פריז (Europe/Paris)" },
+  { value: "Asia/Dubai", label: "דובאי (Asia/Dubai)" },
+];
+
+function TimezoneSection() {
+  const { toast } = useToast();
+  const [timezone, setTimezone] = useState(
+    localStorage.getItem("tenant_timezone") || "Asia/Jerusalem"
+  );
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.post(tenantApi("/settings"), { key: "timezone", value: timezone, group: "general" })
+        .catch(() => api.patch(tenantApi("/settings/timezone"), { value: timezone }));
+      localStorage.setItem("tenant_timezone", timezone);
+      toast("success", `אזור זמן הוגדר: ${timezone}`);
+    } catch {
+      // fallback: just save to localStorage
+      localStorage.setItem("tenant_timezone", timezone);
+      toast("success", `אזור זמן הוגדר מקומית: ${timezone}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-bold flex items-center gap-2 border-b pb-2">
+        <span>🕐</span>
+        אזור זמן
+      </h2>
+      <Card>
+        <CardContent className="p-4 space-y-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">אזור הזמן של המערכת</Label>
+            <select
+              value={timezone}
+              onChange={e => setTimezone(e.target.value)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[44px]"
+            >
+              {ISRAEL_TIMEZONES.map(tz => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              ברירת מחדל: Asia/Jerusalem (ישראל). כל התאריכים והשעות יוצגו באזור זמן זה.
+            </p>
+          </div>
+          <Button onClick={save} disabled={saving} className="min-h-[44px]">
+            {saving ? "שומר..." : "💾 שמור אזור זמן"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
@@ -359,6 +424,9 @@ export default function SettingsPage() {
                       }
                     }}
                   />
+
+                  {/* Timezone Setting */}
+                  <TimezoneSection />
 
                   {/* Data Retention */}
                   <DataRetentionSection />

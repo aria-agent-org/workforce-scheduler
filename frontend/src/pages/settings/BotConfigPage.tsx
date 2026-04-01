@@ -67,6 +67,9 @@ export default function BotConfigPage() {
 
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("אתה עוזר צבאי ידידותי. עזור לחיילים עם שאלות לגבי שיבוצים, נוכחות ולוח זמנים.");
+  const [aiModel, setAiModel] = useState("gpt-4o-mini");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiOnlyRegistered, setAiOnlyRegistered] = useState(true);
   const [tokens, setTokens] = useState<RegistrationToken[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -88,6 +91,9 @@ export default function BotConfigPage() {
         if (s.key === "bot_allowed_actions") setAllowedActions(prev => ({ ...prev, ...s.value }));
         if (s.key === "bot_ai_enabled") setAiEnabled(s.value === true);
         if (s.key === "bot_ai_prompt") setAiPrompt(s.value || aiPrompt);
+        if (s.key === "bot_ai_model") setAiModel(s.value || "gpt-4o-mini");
+        if (s.key === "bot_ai_api_key") setAiApiKey(s.value || "");
+        if (s.key === "bot_ai_only_registered") setAiOnlyRegistered(s.value !== false);
       }
 
       setTokens(tokensRes.data || []);
@@ -109,6 +115,9 @@ export default function BotConfigPage() {
         { key: "bot_allowed_actions", value: allowedActions, group: "bot" },
         { key: "bot_ai_enabled", value: aiEnabled, group: "bot" },
         { key: "bot_ai_prompt", value: aiPrompt, group: "bot" },
+        { key: "bot_ai_model", value: aiModel, group: "bot" },
+        { key: "bot_ai_api_key", value: aiApiKey, group: "bot" },
+        { key: "bot_ai_only_registered", value: aiOnlyRegistered, group: "bot" },
       ];
       for (const pair of pairs) {
         await api.post(tenantApi("/settings"), pair).catch(() =>
@@ -264,13 +273,13 @@ export default function BotConfigPage() {
         </CardContent>
       </Card>
 
-      {/* AI Mode */}
+      {/* AI Bot Configuration */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-yellow-500" />
-              {lang === "he" ? "מצב AI" : "AI Mode"}
+              {lang === "he" ? "בוט AI — הגדרות" : "AI Bot Configuration"}
             </CardTitle>
             <button onClick={() => setAiEnabled(!aiEnabled)}>
               {aiEnabled ? <ToggleRight className="h-8 w-8 text-green-500" /> : <ToggleLeft className="h-8 w-8 text-muted-foreground" />}
@@ -279,15 +288,58 @@ export default function BotConfigPage() {
         </CardHeader>
         {aiEnabled && (
           <CardContent className="space-y-4">
+            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-200">
+              💡 {lang === "he" ? "הבוט ישתמש ב-AI רק אם גם ערוץ תקשורת (Telegram/WhatsApp) מוגדר ופעיל" : "The bot uses AI only if a communication channel (Telegram/WhatsApp) is configured and enabled"}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{lang === "he" ? "מודל AI" : "AI Model"}</Label>
+                <select
+                  value={aiModel}
+                  onChange={e => setAiModel(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="gpt-4o-mini">GPT-4o Mini (OpenAI) — מהיר וחסכוני</option>
+                  <option value="gpt-4o">GPT-4o (OpenAI) — חזק ביותר</option>
+                  <option value="claude-3-haiku-20240307">Claude 3 Haiku (Anthropic) — מהיר</option>
+                  <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Anthropic) — חכם</option>
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Google) — חסכוני</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Google) — חזק</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>{lang === "he" ? "מפתח API" : "API Key"}</Label>
+                <Input
+                  type="password"
+                  value={aiApiKey}
+                  onChange={e => setAiApiKey(e.target.value)}
+                  placeholder="sk-... / AIza... / claude-..."
+                  dir="ltr"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label>System Prompt</Label>
+              <Label>System Prompt {lang === "he" ? "(הנחיות לבוט)" : "(Bot instructions)"}</Label>
               <textarea
                 value={aiPrompt}
                 onChange={e => setAiPrompt(e.target.value)}
                 rows={4}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                dir="rtl"
               />
             </div>
+            <label className="flex items-center gap-3 cursor-pointer rounded-lg border p-3 hover:bg-muted/50">
+              <input
+                type="checkbox"
+                checked={aiOnlyRegistered}
+                onChange={e => setAiOnlyRegistered(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <div>
+                <p className="text-sm font-medium">{lang === "he" ? "הגב רק למשתמשים רשומים" : "Reply only to registered users"}</p>
+                <p className="text-xs text-muted-foreground">{lang === "he" ? "הבוט יתעלם ממי שאינו רשום במערכת" : "Bot will ignore unregistered users"}</p>
+              </div>
+            </label>
           </CardContent>
         )}
       </Card>

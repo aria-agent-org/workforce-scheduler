@@ -159,9 +159,47 @@ export default function Sidebar() {
           </>
         )}
       </nav>
-      <div className="border-t p-3 bg-gradient-to-t from-muted/30 to-transparent">
+      <div className="border-t p-3 bg-gradient-to-t from-muted/30 to-transparent space-y-2">
+        <TelegramBanner />
         <p className="text-[10px] text-muted-foreground text-center opacity-60">שבצק v0.2.0</p>
       </div>
     </aside>
+  );
+}
+
+function TelegramBanner() {
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get(tenantApi("/channels/features")).then(res => {
+      const features = res.data?.features || {};
+      if (features.channel_telegram) {
+        // Try to get telegram bot username
+        api.get(tenantApi("/channels")).then(chRes => {
+          const channels = Array.isArray(chRes.data) ? chRes.data : [];
+          const tg = channels.find((c: any) => c.channel === "telegram" && c.is_enabled);
+          if (tg?.config?.bot_username) {
+            setBotUsername(tg.config.bot_username);
+          }
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
+
+  if (!botUsername) return null;
+
+  return (
+    <a
+      href={`https://t.me/${botUsername}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors"
+    >
+      <span className="text-base">📨</span>
+      <div className="min-w-0">
+        <p className="font-medium truncate">@{botUsername}</p>
+        <p className="text-[10px] opacity-70">בוט Telegram — לחץ להתחברות</p>
+      </div>
+    </a>
   );
 }

@@ -140,6 +140,8 @@ class MissionCreate(BaseModel):
     date: dt.date
     start_time: dt.time
     end_time: dt.time
+    required_slots: Optional[list] = None
+    notes: Optional[str] = None
 
 class MissionUpdate(BaseModel):
     name: Optional[str] = None

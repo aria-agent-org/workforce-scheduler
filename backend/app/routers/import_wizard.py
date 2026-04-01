@@ -75,7 +75,7 @@ class ResolveConflictsRequest(BaseModel):
 
 class ExecuteImportRequest(BaseModel):
     batch_id: str
-    invitation_method: str | None = None  # "sms" | "email" | "whatsapp" | "download" | "none"
+    invitation_method: str | None = None  # "sms" | "email" | "whatsapp" | "telegram" | "download" | "self_registration" | "none"
 
 
 class ExecuteImportResponse(BaseModel):
@@ -499,12 +499,13 @@ async def execute_import(
                 )
                 db.add(ewr)
 
-        # Create user if email provided
-        if row.email:
+        # Create user record (always create if email or phone provided)
+        user_email = row.email
+        if user_email or row.phone:
             new_user = User(
                 id=uuid.uuid4(),
                 tenant_id=tenant.id,
-                email=row.email,
+                email=user_email,
                 employee_id=new_emp.id,
                 is_active=True,
             )
@@ -512,14 +513,29 @@ async def execute_import(
             row.user_id = new_user.id
 
             # Create invitation if method specified
-            if req.invitation_method and req.invitation_method != "none":
-                import secrets
+            effective_method = req.invitation_method or "none"
+            if effective_method not in ("none", "self_registration", "download"):
+                import secrets as _secrets
                 inv = Invitation(
                     id=uuid.uuid4(),
                     tenant_id=tenant.id,
-                    email=row.email,
+                    email=user_email,
                     phone=row.phone,
-                    token=secrets.token_urlsafe(32),
+                    token=_secrets.token_urlsafe(32),
+                    employee_id=new_emp.id,
+                    invited_by=user.id,
+                    expires_at=datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1),
+                    status="pending",
+                )
+                db.add(inv)
+            elif effective_method == "download":
+                import secrets as _secrets
+                inv = Invitation(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant.id,
+                    email=user_email,
+                    phone=row.phone,
+                    token=_secrets.token_urlsafe(32),
                     employee_id=new_emp.id,
                     invited_by=user.id,
                     expires_at=datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year + 1),
@@ -542,7 +558,7 @@ async def execute_import(
         "skipped": skipped,
         "updated": updated,
         "roles_created": 0,
-        "invitations_sent": imported if req.invitation_method and req.invitation_method != "none" else 0,
+        "invitations_sent": imported if req.invitation_method and req.invitation_method not in ("none", None) else 0,
     }
 
 

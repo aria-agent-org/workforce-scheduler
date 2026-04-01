@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────
 
-type CellType = "header" | "subheader" | "role_label" | "soldier_slot" | "time" | "empty" | "separator";
+type CellType = "header" | "subheader" | "role_label" | "soldier_slot" | "time" | "empty" | "separator" | "mission_reference";
 
 interface GridCell {
   id: string;
@@ -1696,6 +1696,11 @@ export default function BoardTemplateEditor() {
                                 </span>
                               ))}
                             </div>
+                          ) : cell.type === "mission_reference" ? (
+                            <div className="flex flex-col items-center gap-0.5 w-full">
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium">📋 משימה</span>
+                              {cell.value && <span className="truncate text-[11px] font-medium">{cell.value}</span>}
+                            </div>
                           ) : (
                             <span className="truncate">{cell.value || (isSelected ? "" : "")}</span>
                           )}
@@ -1848,6 +1853,7 @@ export default function BoardTemplateEditor() {
                       <option value="soldier_slot">משבצת חייל</option>
                       <option value="time">שעה</option>
                       <option value="separator">מפריד</option>
+                      <option value="mission_reference">הפניה למשימה</option>
                     </Select>
                   </div>
                   <div>
