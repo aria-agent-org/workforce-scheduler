@@ -1004,7 +1004,7 @@ export default function SoldiersPage() {
           {editTab === "details" && (
             <>
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>{t("employeeNumber")} <span className="text-red-500">*</span></Label>
                     <Input
@@ -1028,7 +1028,7 @@ export default function SoldiersPage() {
                     {formErrors.full_name && <p className="text-sm text-red-600">{formErrors.full_name}</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>טלפון</Label>
                     <Input
@@ -1036,6 +1036,7 @@ export default function SoldiersPage() {
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="0501234567"
                       dir="ltr"
+                      className="min-h-[44px]"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1045,6 +1046,7 @@ export default function SoldiersPage() {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="soldier@example.com"
                       dir="ltr"
+                      className="min-h-[44px]"
                     />
                   </div>
                 </div>

@@ -210,18 +210,18 @@ export default function MissionDetailPage() {
               <Label>שם המשימה</Label>
               <Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="min-h-[44px]" />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>תאריך</Label>
-                <Input type="date" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
+                <Input type="date" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} className="min-h-[44px]" />
               </div>
               <div className="space-y-2">
                 <Label>שעת התחלה</Label>
-                <Input type="time" value={editForm.start_time} onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} />
+                <Input type="time" value={editForm.start_time} onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} className="min-h-[44px]" />
               </div>
               <div className="space-y-2">
                 <Label>שעת סיום</Label>
-                <Input type="time" value={editForm.end_time} onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} />
+                <Input type="time" value={editForm.end_time} onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} className="min-h-[44px]" />
               </div>
             </div>
             <Button onClick={saveEdit} className="min-h-[44px]">

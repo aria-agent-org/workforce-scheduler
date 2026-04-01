@@ -158,13 +158,17 @@ export default function VisibilitySettingsPage() {
               </div>
               <button
                 onClick={() => updateSetting(opt.key, !settings[opt.key])}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                role="switch"
+                aria-checked={settings[opt.key]}
+                aria-label={opt.label}
+                className={`relative flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
                   settings[opt.key] ? "bg-primary-500" : "bg-gray-300 dark:bg-gray-600"
                 }`}
+                style={{ width: '52px', height: '28px', minWidth: '52px' }}
               >
                 <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                    settings[opt.key] ? "translate-x-5 rtl:-translate-x-5" : "translate-x-0"
+                  className={`absolute top-[3px] h-[22px] w-[22px] transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    settings[opt.key] ? "translate-x-[24px] rtl:-translate-x-[24px]" : "translate-x-[3px] rtl:-translate-x-[3px]"
                   }`}
                 />
               </button>
