@@ -169,8 +169,12 @@ export default function Sidebar() {
 
 function TelegramBanner() {
   const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(() => {
+    return localStorage.getItem("telegram_banner_dismissed") === "true";
+  });
 
   useEffect(() => {
+    if (dismissed) return;
     api.get(tenantApi("/channels/features")).then(res => {
       const features = res.data?.features || {};
       if (features.channel_telegram) {
@@ -184,22 +188,39 @@ function TelegramBanner() {
         }).catch(() => {});
       }
     }).catch(() => {});
-  }, []);
+  }, [dismissed]);
 
-  if (!botUsername) return null;
+  if (!botUsername || dismissed) return null;
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    localStorage.setItem("telegram_banner_dismissed", "true");
+    setDismissed(true);
+  };
 
   return (
-    <a
-      href={`https://t.me/${botUsername}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors"
-    >
-      <span className="text-base">📨</span>
-      <div className="min-w-0">
-        <p className="font-medium truncate">@{botUsername}</p>
-        <p className="text-[10px] opacity-70">בוט Telegram — לחץ להתחברות</p>
-      </div>
-    </a>
+    <div className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300">
+      <a
+        href={`https://t.me/${botUsername}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+      >
+        <span className="text-base flex-shrink-0">📱</span>
+        <div className="min-w-0">
+          <p className="font-medium truncate">@{botUsername}</p>
+          <p className="text-[10px] opacity-70">בוט Telegram — לחץ להתחברות</p>
+        </div>
+      </a>
+      <button
+        onClick={handleDismiss}
+        className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity p-0.5 rounded"
+        title="סגור"
+        aria-label="סגור"
+      >
+        ✕
+      </button>
+    </div>
   );
 }

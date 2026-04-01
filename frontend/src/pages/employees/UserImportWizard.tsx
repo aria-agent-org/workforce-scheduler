@@ -12,10 +12,29 @@ import {
 import {
   Upload, FileSpreadsheet, Users, CheckCircle2, AlertTriangle,
   ArrowLeft, ArrowRight, MapPin, UserPlus,
-  Loader2, X, Phone, Mail,
+  Loader2, X, Phone, Mail, Download,
 } from "lucide-react";
-import api, { tenantApi } from "@/lib/api";
+import api, { tenantApi, getTenantSlug } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
+
+// Israeli phone number validation
+function validateIsraeliPhone(phone: string): "valid" | "non-israeli" | "invalid" {
+  if (!phone) return "valid"; // empty is ok, not required
+  const cleaned = phone.replace(/[\s\-().]/g, "");
+  // Valid Israeli formats: 05X-XXXXXXX or +972-5X-XXXXXXX
+  if (/^(05[0-9]{8})$/.test(cleaned)) return "valid";
+  if (/^(\+972|00972|972)(5[0-9]{8})$/.test(cleaned)) return "valid";
+  // Non-Israeli international
+  if (/^\+[1-9][0-9]{6,14}$/.test(cleaned) || /^00[1-9][0-9]{6,14}$/.test(cleaned)) return "non-israeli";
+  // Truly invalid (too short, letters, etc.)
+  return "invalid";
+}
+
+// Split multi-role strings: "נהג, לוחם" → ["נהג", "לוחם"]
+function splitRoles(rolesStr: string): string[] {
+  if (!rolesStr) return [];
+  return rolesStr.split(/[,،;|]/).map(r => r.trim()).filter(Boolean);
+}
 
 interface ImportRow {
   id: string;
@@ -87,6 +106,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
 
   // Results
   const [importResults, setImportResults] = useState<any>(null);
+  const [registrationLinks, setRegistrationLinks] = useState<any[]>([]);
 
   const reset = () => {
     setStep(1);
@@ -105,6 +125,43 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
     setSkippedRowIds(new Set());
     setInvitationMethod("none");
     setImportResults(null);
+    setRegistrationLinks([]);
+  };
+
+  // ─── Download Registration Links ──────────────
+
+  const downloadRegistrationLinks = async () => {
+    try {
+      // Fetch bulk registration codes
+      const res = await api.post(tenantApi("/registration/generate-bulk-codes"), {});
+      const codes = res.data as Array<{
+        employee_id: string;
+        employee_name: string;
+        code: string;
+        status: string;
+      }>;
+      setRegistrationLinks(codes);
+
+      // Build CSV content
+      const baseUrl = `${window.location.origin}/register`;
+      const tenantSlug = getTenantSlug();
+      const header = "שם מלא,קוד הרשמה,קישור הרשמה,סטטוס\n";
+      const rows = codes.map(c => {
+        const link = c.code ? `${window.location.origin}/join-tenant?tenant=${tenantSlug}&code=${c.code}` : "";
+        return `"${c.employee_name}","${c.code || ""}","${link}","${c.status}"`;
+      }).join("\n");
+
+      const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "registration-links.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("success", `קובץ לינקים הורד — ${codes.length} עובדים`);
+    } catch (err: any) {
+      toast("error", getErrorMessage(err, "שגיאה בהורדת הקובץ"));
+    }
   };
 
   // ─── Step 1: Upload File ───────────────────
@@ -447,6 +504,29 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                 </div>
               )}
 
+              {/* Phone validation warnings */}
+              {(invalidRows.concat(warningRows)).some(r => r.phone && validateIsraeliPhone(r.phone) !== "valid") && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-yellow-600 flex items-center gap-1">
+                    <Phone className="h-4 w-4" /> בדיקת טלפונים ישראלים
+                  </h3>
+                  <div className="space-y-1 max-h-[120px] overflow-y-auto text-xs">
+                    {[...invalidRows, ...warningRows].filter(r => r.phone && validateIsraeliPhone(r.phone) !== "valid").map(row => {
+                      const validity = validateIsraeliPhone(row.phone);
+                      return (
+                        <div key={row.id} className="flex items-center justify-between p-2 rounded bg-yellow-50 dark:bg-yellow-900/20">
+                          <span>#{row.row_number} {row.full_name}: {row.phone}</span>
+                          <Badge className={validity === "non-israeli" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}>
+                            {validity === "non-israeli" ? "⚠️ לא ישראלי" : "❌ לא תקין"}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">שורות עם טלפון לא ישראלי יעברו ייבוא — ניתן לדלג עליהן בעמודה</p>
+                </div>
+              )}
+
               {/* Warning rows (valid but with warnings) */}
               {warningRows.length > 0 && (
                 <div className="space-y-2">
@@ -665,6 +745,26 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                     <p className="text-xs text-muted-foreground">הזמנות נשלחו</p>
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* Download Registration Links */}
+              <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
+                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">📥 הורדת קובץ לינקים</p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  הורד קובץ CSV עם קישורי הרשמה ייחודיים לכל עובד — שתף עם העובדים להרשמה עצמאית
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={downloadRegistrationLinks}
+                  className="min-h-[44px] border-blue-300 text-blue-700 hover:bg-blue-100"
+                >
+                  <Download className="me-1 h-4 w-4" />
+                  הורדת קובץ לינקים
+                </Button>
+                {registrationLinks.length > 0 && (
+                  <p className="text-xs text-green-600">✅ הקובץ הורד — {registrationLinks.length} עובדים</p>
+                )}
               </div>
             </div>
           )}

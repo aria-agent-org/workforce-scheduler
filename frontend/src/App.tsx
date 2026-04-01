@@ -20,6 +20,7 @@ const queryClient = new QueryClient({
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const AcceptInvitationPage = lazy(() => import("./pages/auth/AcceptInvitationPage"));
+const SelfRegistrationPage = lazy(() => import("./pages/auth/SelfRegistrationPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const SoldiersPage = lazy(() => import("./pages/soldiers/SoldiersPage"));
 const SoldierDetailPage = lazy(() => import("./pages/soldiers/SoldierDetailPage"));
@@ -68,6 +69,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
                 <Route path="/join/:token" element={<AcceptInvitationPage />} />
+                <Route path="/join-tenant" element={<SelfRegistrationPage />} />
                 <Route path="/onboarding" element={<OnboardingWizard />} />
 
                 {/* Main admin/manager layout — all guarded */}

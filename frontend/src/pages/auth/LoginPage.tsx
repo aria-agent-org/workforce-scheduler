@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent } from "react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/authStore";
@@ -9,6 +9,36 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import api from "@/lib/api";
 import { setTokens } from "@/lib/auth";
 import { ArrowRight, Mail, CheckCircle, Fingerprint } from "lucide-react";
+
+interface TenantBranding {
+  app_name?: string;
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  login_background_url?: string;
+  login_text?: string;
+}
+
+function useTenantBranding(): TenantBranding | null {
+  const [branding, setBranding] = useState<TenantBranding | null>(null);
+  useEffect(() => {
+    // Try to detect tenant from subdomain or URL param
+    const host = window.location.hostname;
+    const params = new URLSearchParams(window.location.search);
+    const tenantSlug = params.get("tenant") ||
+      (host !== "localhost" && host !== "shavtzak.site" && !host.endsWith(".localhost")
+        ? host.split(".")[0]
+        : null);
+    if (!tenantSlug) return;
+    api.get(`/api/v1/${tenantSlug}/channels/branding`)
+      .then(res => {
+        const b = res.data?.branding || {};
+        if (Object.keys(b).length > 0) setBranding(b);
+      })
+      .catch(() => {});
+  }, []);
+  return branding;
+}
 
 type View = "login" | "2fa" | "forgot-password" | "forgot-success" | "magic-link-sent";
 
@@ -36,6 +66,7 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
   const setUser = useAuthStore((s) => s.setUser);
+  const branding = useTenantBranding();
 
   const [view, setView] = useState<View>("login");
   const [email, setEmail] = useState("");
@@ -224,33 +255,65 @@ export default function LoginPage() {
     "magic-link-sent": t("magicLinkSent", "קישור נשלח"),
   };
 
+  // Apply branding CSS variables when branding loads
+  useEffect(() => {
+    if (!branding) return;
+    if (branding.primary_color) {
+      document.documentElement.style.setProperty("--color-primary-500", branding.primary_color);
+    }
+    if (branding.app_name) {
+      document.title = branding.app_name;
+    }
+  }, [branding]);
+
+  const bgStyle = branding?.login_background_url
+    ? { backgroundImage: `url(${branding.login_background_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : { background: "linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)" };
+
+  const primaryColor = branding?.primary_color || "#3b82f6";
+
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={{ background: "linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)" }}>
+    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={bgStyle}>
       {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        {/* Glowing orbs */}
-        <div className="absolute top-1/4 start-1/4 h-64 w-64 rounded-full bg-blue-600/20 blur-[80px] animate-float" />
-        <div className="absolute bottom-1/4 end-1/4 h-80 w-80 rounded-full bg-purple-600/15 blur-[100px] animate-float" style={{ animationDelay: "1.5s" }} />
-        <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-full bg-indigo-500/10 blur-[60px] animate-pulse-subtle" />
-        {/* Grid pattern */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(hsl(220 30% 50%) 1px, transparent 1px), linear-gradient(90deg, hsl(220 30% 50%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-      </div>
+      {!branding?.login_background_url && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+          {/* Glowing orbs */}
+          <div className="absolute top-1/4 start-1/4 h-64 w-64 rounded-full bg-blue-600/20 blur-[80px] animate-float" />
+          <div className="absolute bottom-1/4 end-1/4 h-80 w-80 rounded-full bg-purple-600/15 blur-[100px] animate-float" style={{ animationDelay: "1.5s" }} />
+          <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-full bg-indigo-500/10 blur-[60px] animate-pulse-subtle" />
+          {/* Grid pattern */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(hsl(220 30% 50%) 1px, transparent 1px), linear-gradient(90deg, hsl(220 30% 50%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+        </div>
+      )}
+      {branding?.login_background_url && <div className="absolute inset-0 bg-black/50" />}
       
       <Card className="w-full max-w-md shadow-elevation-5 relative animate-scale-in border border-white/10 backdrop-blur-xl" style={{ background: "rgba(15, 23, 42, 0.85)" }}>
         <CardHeader className="text-center pb-2">
           {/* Logo */}
           <div className="mx-auto mb-4 relative">
-            <div className="h-20 w-20 rounded-3xl flex items-center justify-center shadow-2xl relative" style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}>
-              <span className="text-4xl">🎯</span>
-              {/* Glow */}
-              <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }} />
+            {branding?.logo_url ? (
+              <div className="h-20 w-20 rounded-3xl flex items-center justify-center shadow-2xl relative bg-white/10 overflow-hidden">
+                <img src={branding.logo_url} alt={branding.app_name || "לוגו"} className="h-full w-full object-contain p-2" />
+              </div>
+            ) : (
+              <div className="h-20 w-20 rounded-3xl flex items-center justify-center shadow-2xl relative" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8b5cf6)` }}>
+                <span className="text-4xl">🎯</span>
+                {/* Glow */}
+                <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8b5cf6)` }} />
+              </div>
+            )}
+          </div>
+          <CardTitle className="text-3xl font-black tracking-tight" style={{ background: `linear-gradient(135deg, ${primaryColor}, #a78bfa)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            {branding?.app_name || "שבצק"}
+          </CardTitle>
+          <p className="text-sm mt-1 font-medium" style={{ color: "rgba(147, 197, 253, 0.7)" }}>
+            {branding?.login_text || "מערכת ניהול שיבוצים חכמה"}
+          </p>
+          {!branding && (
+            <div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold mt-2" style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(96, 165, 250, 0.2)", color: "#93c5fd" }}>
+              ✨ ספרינט 7 — גרסה 2.0
             </div>
-          </div>
-          <CardTitle className="text-3xl font-black tracking-tight" style={{ background: "linear-gradient(135deg, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>שבצק</CardTitle>
-          <p className="text-sm mt-1 font-medium" style={{ color: "rgba(147, 197, 253, 0.7)" }}>מערכת ניהול שיבוצים חכמה</p>
-          <div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold mt-2" style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(96, 165, 250, 0.2)", color: "#93c5fd" }}>
-            ✨ ספרינט 7 — גרסה 2.0
-          </div>
+          )}
           <p className="text-sm mt-3" style={{ color: "rgba(147, 197, 253, 0.6)" }}>{viewTitle[view]}</p>
         </CardHeader>
         <CardContent className="dark">

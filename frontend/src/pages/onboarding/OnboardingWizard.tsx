@@ -11,7 +11,7 @@ import {
   Building2, Users, ClipboardList, Target, UserPlus, Sheet, Bot,
   ChevronLeft, ChevronRight, ChevronDown, Check, Upload, Sparkles, HelpCircle,
   LayoutDashboard, Calendar, Shield, BarChart3, User, BookOpen,
-  GraduationCap, Rocket, Settings,
+  GraduationCap, Rocket, Settings, Loader2,
   CircleCheckBig,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
@@ -842,7 +842,18 @@ export default function OnboardingWizard() {
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
-        <div className="mb-8 text-center">
+        <div className="mb-8 text-center relative">
+          <button
+            onClick={async () => {
+              await skipOnboardingApi();
+              localStorage.setItem(COMPLETED_KEY, "true");
+              setIsCompleted(true);
+              setMode("help");
+            }}
+            className="absolute end-0 top-0 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1 rounded-lg hover:bg-muted"
+          >
+            דלג ←
+          </button>
           <h1 className="text-3xl font-bold text-primary-500 flex items-center justify-center gap-2">
             <Sparkles className="w-8 h-8" />
             הגדרת שבצק
@@ -1190,8 +1201,12 @@ export default function OnboardingWizard() {
                   <ChevronLeft className="ms-1 h-4 w-4 rtl:rotate-180" />
                 </Button>
               ) : (
-                <Button onClick={finishOnboarding} disabled={saving} className="min-h-[48px] bg-green-600 hover:bg-green-700">
-                  {saving ? "שומר..." : "סיום 🎉"}
+                <Button onClick={finishOnboarding} disabled={saving} className="min-h-[48px] bg-green-600 hover:bg-green-700 gap-2">
+                  {saving ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />שומר...</>
+                  ) : (
+                    <>🎉 סיום! המערכת מוכנה</>
+                  )}
                 </Button>
               )}
             </div>

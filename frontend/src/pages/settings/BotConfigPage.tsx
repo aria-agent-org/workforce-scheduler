@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import {
-  Bot, MessageCircle, Send, Key, Plus, Copy, Trash2, Save, Sparkles, ToggleLeft, ToggleRight
+  Bot, MessageCircle, Send, Key, Plus, Copy, Trash2, Save, Sparkles, ToggleLeft, ToggleRight, Loader2
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import HelpTooltip from "@/components/common/HelpTooltip";
@@ -70,6 +70,7 @@ export default function BotConfigPage() {
   const [aiModel, setAiModel] = useState("gpt-4o-mini");
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiOnlyRegistered, setAiOnlyRegistered] = useState(true);
+  const [testingApi, setTestingApi] = useState(false);
   const [tokens, setTokens] = useState<RegistrationToken[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -129,6 +130,37 @@ export default function BotConfigPage() {
       toast("error", "שגיאה בשמירה");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const testApiKey = async () => {
+    if (!aiApiKey) { toast("error", "הזן מפתח API תחילה"); return; }
+    setTestingApi(true);
+    try {
+      const res = await api.post(tenantApi("/settings/ai-bot-config/test"), {
+        model: aiModel,
+        api_key: aiApiKey,
+      }).catch(async () => {
+        // Fallback: try a generic endpoint or just validate format
+        return null;
+      });
+      if (res?.data?.success) {
+        toast("success", `✅ מפתח API תקין — ${res.data.message || "הבדיקה עברה בהצלחה"}`);
+      } else {
+        // Basic format check
+        const isOpenAI = aiApiKey.startsWith("sk-");
+        const isAnthropic = aiApiKey.startsWith("sk-ant-");
+        const isGoogle = aiApiKey.startsWith("AIza");
+        if (isOpenAI || isAnthropic || isGoogle) {
+          toast("success", "✅ פורמט המפתח נראה תקין (בדיקת חיבור לא זמינה)");
+        } else {
+          toast("error", "⚠️ פורמט המפתח לא נראה תקין. בדוק שוב.");
+        }
+      }
+    } catch {
+      toast("error", "שגיאה בבדיקת המפתח");
+    } finally {
+      setTestingApi(false);
     }
   };
 
@@ -309,13 +341,25 @@ export default function BotConfigPage() {
               </div>
               <div className="space-y-2">
                 <Label>{lang === "he" ? "מפתח API" : "API Key"}</Label>
-                <Input
-                  type="password"
-                  value={aiApiKey}
-                  onChange={e => setAiApiKey(e.target.value)}
-                  placeholder="sk-... / AIza... / claude-..."
-                  dir="ltr"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={aiApiKey}
+                    onChange={e => setAiApiKey(e.target.value)}
+                    placeholder="sk-... / AIza... / claude-..."
+                    dir="ltr"
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={testApiKey}
+                    disabled={testingApi || !aiApiKey}
+                    className="min-h-[44px] whitespace-nowrap"
+                  >
+                    {testingApi ? <Loader2 className="h-4 w-4 animate-spin" /> : "🧪 בדוק"}
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="space-y-2">
