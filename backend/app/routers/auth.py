@@ -614,7 +614,7 @@ async def webauthn_login_finish(
 
     # Final fallback: load ALL credentials and compare hex
     if not stored_cred:
-        _log.warning(f"No credential found for rawId. Loading all credentials for comparison.")
+        _log.warning("No credential found for rawId. Loading all credentials for comparison.")
         all_creds = await db.execute(select(UserWebAuthnCredential))
         for cred in all_creds.scalars().all():
             _log.info(f"  DB credential: hex={cred.credential_id.hex() if isinstance(cred.credential_id, bytes) else 'N/A'}")

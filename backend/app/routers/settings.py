@@ -1,7 +1,7 @@
 """Settings endpoints: tenant settings, work roles, role definitions, bot tokens."""
 
 import secrets
-from datetime import datetime, timezone, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status

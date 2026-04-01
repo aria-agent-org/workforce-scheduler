@@ -171,7 +171,7 @@ async def send_notification(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Send a notification to specified employees. For push channel, sends real webpush."""
-    from datetime import datetime, timezone, timezone
+    from datetime import datetime, timezone
 
     from app.models.user import User
     from app.routers.push import send_push_to_user
@@ -315,7 +315,7 @@ async def broadcast_notification(
     """
     import json
     import logging
-    from datetime import datetime, timezone, timezone
+    from datetime import datetime, timezone
 
     from app.models.push_subscription import PushSubscription
     from app.models.user import User
@@ -511,7 +511,7 @@ async def bulk_notification(
     """Send push notifications to a list of employee IDs."""
     import json
     import logging
-    from datetime import datetime, timezone, timezone
+    from datetime import datetime, timezone
 
     from app.models.push_subscription import PushSubscription
     from app.models.user import User

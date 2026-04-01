@@ -2306,7 +2306,7 @@ async def generate_daily_boards_from_template(
 
         # Parse template columns to create missions
         # Template columns contain mission type references; layout has the structure
-        columns = tmpl.columns or []
+        _columns = tmpl.columns or []  # noqa: F841
         layout = tmpl.layout or {}
 
         # If the template has structured sections with mission_type_ids, use those

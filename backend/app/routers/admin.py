@@ -550,7 +550,7 @@ async def get_system_stats(
     mission_count = (await db.execute(select(func.count(Mission.id)))).scalar() or 0
 
     # API request count from audit logs (last 24h and total)
-    from datetime import datetime, timezone, timezone, timedelta
+    from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(hours=24)
     audit_total = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0

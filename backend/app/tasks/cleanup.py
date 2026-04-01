@@ -1,7 +1,7 @@
 """Data retention cleanup tasks."""
 
 import logging
-from datetime import datetime, timezone, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select, delete, and_
 
