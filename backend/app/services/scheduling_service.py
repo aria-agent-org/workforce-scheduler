@@ -20,7 +20,7 @@ Scoring factors:
   mutual_partner: +25 if two employees prefer each other AND both fill slots (second pass)
 """
 
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 from uuid import UUID
 from collections import defaultdict
 
