@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
-from app.models.employee import Employee, EmployeePreference
+from app.models.employee import Employee, EmployeePreference, EmployeeProfile
 from app.schemas.employee import EmployeePreferencesUpdate, EmployeePreferencesResponse
 from app.models.scheduling import Mission, MissionAssignment, SwapRequest, MissionType
 from app.models.notification import NotificationLog
@@ -39,6 +39,7 @@ class ProfileUpdate(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     preferred_language: str | None = None
+    avatar_url: str | None = None  # base64 data URI or URL
 
 
 class ChangePasswordRequest(BaseModel):
@@ -69,12 +70,18 @@ async def get_my_profile(
         )
         emp = emp_res.scalar_one_or_none()
         if emp:
+            # Load avatar from EmployeeProfile
+            profile_res = await db.execute(
+                select(EmployeeProfile).where(EmployeeProfile.employee_id == emp.id)
+            )
+            emp_profile = profile_res.scalar_one_or_none()
             result["employee"] = {
                 "id": str(emp.id),
                 "employee_number": emp.employee_number,
                 "full_name": emp.full_name,
                 "status": emp.status,
                 "notification_channels": emp.notification_channels,
+                "avatar_url": emp_profile.avatar_url if emp_profile else None,
             }
 
     return result
@@ -91,7 +98,7 @@ async def update_my_profile(
         user.preferred_language = data.preferred_language
         await db.flush()
 
-    if user.employee_id and (data.full_name or data.phone):
+    if user.employee_id and (data.full_name or data.phone or data.avatar_url is not None):
         emp_res = await db.execute(
             select(Employee).where(Employee.id == user.employee_id)
         )
@@ -103,6 +110,20 @@ async def update_my_profile(
                 channels = emp.notification_channels or {}
                 channels["phone_whatsapp"] = data.phone
                 emp.notification_channels = channels
+            if data.avatar_url is not None:
+                # Save avatar to EmployeeProfile (upsert)
+                profile_res = await db.execute(
+                    select(EmployeeProfile).where(EmployeeProfile.employee_id == emp.id)
+                )
+                emp_profile = profile_res.scalar_one_or_none()
+                if emp_profile:
+                    emp_profile.avatar_url = data.avatar_url
+                else:
+                    emp_profile = EmployeeProfile(
+                        employee_id=emp.id,
+                        avatar_url=data.avatar_url,
+                    )
+                    db.add(emp_profile)
             await db.flush()
 
     await db.commit()
@@ -546,7 +567,7 @@ async def update_my_profile_put(
         user.preferred_language = data.preferred_language
         await db.flush()
 
-    if user.employee_id and (data.full_name or data.phone):
+    if user.employee_id and (data.full_name or data.phone or data.avatar_url is not None):
         emp_res = await db.execute(
             select(Employee).where(Employee.id == user.employee_id)
         )
@@ -558,6 +579,19 @@ async def update_my_profile_put(
                 channels = emp.notification_channels or {}
                 channels["phone_whatsapp"] = data.phone
                 emp.notification_channels = channels
+            if data.avatar_url is not None:
+                profile_res = await db.execute(
+                    select(EmployeeProfile).where(EmployeeProfile.employee_id == emp.id)
+                )
+                emp_profile = profile_res.scalar_one_or_none()
+                if emp_profile:
+                    emp_profile.avatar_url = data.avatar_url
+                else:
+                    emp_profile = EmployeeProfile(
+                        employee_id=emp.id,
+                        avatar_url=data.avatar_url,
+                    )
+                    db.add(emp_profile)
             await db.flush()
 
     await db.commit()

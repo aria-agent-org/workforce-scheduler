@@ -116,19 +116,45 @@ export default function AppLayout() {
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  // Check if first-time admin needs onboarding (redirects once, only if never started)
+  // Check if first-time admin needs onboarding
+  // Priority: if localStorage says completed/skipped → trust it (fast path, avoids API call)
+  // Otherwise: check API for DB status
   const onboardingCompleted = localStorage.getItem("shavtzak_onboarding_completed");
   const onboardingStarted = localStorage.getItem("shavtzak_onboarding");
+  const isAdmin = user?.role_name && ["tenant_admin", "super_admin"].includes(user.role_name);
+
+  // Only redirect to onboarding if:
+  // 1. User is admin
+  // 2. localStorage says NOT completed
+  // 3. No in-progress state in localStorage (first visit)
   const isFirstTimeAdmin =
     !onboardingCompleted &&
     !onboardingStarted &&
-    user?.role_name &&
-    ["tenant_admin", "super_admin"].includes(user.role_name);
+    isAdmin;
 
   if (isFirstTimeAdmin) {
-    // Mark as started so we don't redirect again (they can complete later)
+    // Mark as started so we don't redirect again on next render (they can complete later)
     localStorage.setItem("shavtzak_onboarding", JSON.stringify({ currentStep: 0, completed: {}, fromAutoRedirect: true }));
     return <Navigate to="/onboarding" replace />;
+  }
+
+  // If admin has in-progress state (started but not completed), redirect to resume
+  const isAdminWithInProgress =
+    !onboardingCompleted &&
+    onboardingStarted &&
+    isAdmin;
+
+  if (isAdminWithInProgress) {
+    try {
+      const parsed = JSON.parse(onboardingStarted);
+      // Only redirect if they were auto-redirected (not manually navigated away)
+      if (parsed?.fromAutoRedirect && window.location.pathname !== "/onboarding") {
+        // Don't redirect again — let them use the app normally
+        // They can access /onboarding manually if needed
+      }
+    } catch {
+      // ignore parse errors
+    }
   }
 
   // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal

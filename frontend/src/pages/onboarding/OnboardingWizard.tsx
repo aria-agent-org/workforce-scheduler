@@ -59,6 +59,50 @@ interface HelpArticle {
 const STORAGE_KEY = "shavtzak_onboarding";
 const COMPLETED_KEY = "shavtzak_onboarding_completed";
 
+// ─── Onboarding API helpers ──────────────────────
+
+interface OnboardingProgressData {
+  current_step: number;
+  completed_steps: Record<string, boolean>;
+  status: "in_progress" | "completed" | "skipped";
+}
+
+async function fetchOnboardingProgress(): Promise<OnboardingProgressData | null> {
+  try {
+    const res = await api.get(tenantApi("/onboarding/progress"));
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
+async function saveOnboardingProgress(current_step: number, completed_steps: Record<number, boolean>): Promise<void> {
+  try {
+    // Convert numeric keys to string keys for API
+    const steps: Record<string, boolean> = {};
+    Object.entries(completed_steps).forEach(([k, v]) => { steps[k] = v; });
+    await api.put(tenantApi("/onboarding/progress"), { current_step, completed_steps: steps });
+  } catch {
+    // Non-fatal: localStorage still acts as cache
+  }
+}
+
+async function skipOnboardingApi(): Promise<void> {
+  try {
+    await api.post(tenantApi("/onboarding/skip"));
+  } catch {
+    // Non-fatal
+  }
+}
+
+async function completeOnboardingApi(): Promise<void> {
+  try {
+    await api.post(tenantApi("/onboarding/complete"));
+  } catch {
+    // Non-fatal
+  }
+}
+
 const defaultState: WizardState = {
   currentStep: 0,
   completed: {},
@@ -244,14 +288,14 @@ export default function OnboardingWizard() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Detect if onboarding was already completed
+  // Detect if onboarding was already completed (localStorage as quick cache)
   const [isCompleted, setIsCompleted] = useState(() => {
     return localStorage.getItem(COMPLETED_KEY) === "true";
   });
 
   // Mode: setup wizard, interactive tour, or help center
   const [mode, setMode] = useState<OnboardingMode>(() => {
-    if (isCompleted) return "help";
+    if (localStorage.getItem(COMPLETED_KEY) === "true") return "help";
     return "setup";
   });
 
@@ -271,9 +315,53 @@ export default function OnboardingWizard() {
   });
   const [saving, setSaving] = useState(false);
 
+  // On mount: load progress from DB (authoritative source)
+  useEffect(() => {
+    (async () => {
+      const progress = await fetchOnboardingProgress();
+      if (!progress) return; // No DB record yet — stay with defaults
+
+      if (progress.status === "completed" || progress.status === "skipped") {
+        // Mark completed locally and switch to help mode
+        localStorage.setItem(COMPLETED_KEY, "true");
+        setIsCompleted(true);
+        setMode("help");
+        return;
+      }
+
+      // Resume from saved step
+      if (progress.status === "in_progress") {
+        const numericCompleted: Record<number, boolean> = {};
+        Object.entries(progress.completed_steps).forEach(([k, v]) => {
+          numericCompleted[parseInt(k)] = v as boolean;
+        });
+        setState(prev => ({
+          ...prev,
+          currentStep: progress.current_step,
+          completed: numericCompleted,
+        }));
+        // Sync localStorage cache
+        const saved = localStorage.getItem(STORAGE_KEY);
+        const localState = saved ? JSON.parse(saved) : {};
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          ...localState,
+          currentStep: progress.current_step,
+          completed: numericCompleted,
+        }));
+      }
+    })();
+  }, []);
+
+  // Save progress to DB (debounced via useEffect) + localStorage cache
   useEffect(() => {
     if (mode === "setup") {
+      // Sync localStorage immediately
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      // Persist to DB (debounced)
+      const timer = setTimeout(() => {
+        saveOnboardingProgress(state.currentStep, state.completed);
+      }, 800);
+      return () => clearTimeout(timer);
     }
   }, [state, mode]);
 
@@ -401,6 +489,9 @@ export default function OnboardingWizard() {
         if (state.botConfig.telegram_token) await api.post(tenantApi("/settings"), { key: "bot_telegram_token", value: state.botConfig.telegram_token, group: "bot" }).catch(() => {});
       }
 
+      // Mark onboarding as completed in DB
+      await completeOnboardingApi();
+
       localStorage.removeItem(STORAGE_KEY);
       localStorage.setItem(COMPLETED_KEY, "true");
       setIsCompleted(true);
@@ -459,7 +550,12 @@ export default function OnboardingWizard() {
                   {userRole === "admin" ? "מנהל" : userRole === "commander" ? "מפקד" : "חייל"}
                 </Badge>
                 <button
-                  onClick={() => { setMode("help"); localStorage.setItem(COMPLETED_KEY, "true"); setIsCompleted(true); }}
+                  onClick={async () => {
+                    await skipOnboardingApi();
+                    localStorage.setItem(COMPLETED_KEY, "true");
+                    setIsCompleted(true);
+                    setMode("help");
+                  }}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   דלג ←
@@ -529,7 +625,8 @@ export default function OnboardingWizard() {
                     </Button>
                   ) : (
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
+                        await skipOnboardingApi(); // mark tour as "done" too
                         localStorage.setItem(COMPLETED_KEY, "true");
                         setIsCompleted(true);
                         toast("success", "מעולה! סיום מוצלח של הסיור 🎉");

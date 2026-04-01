@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import CurrentUser, CurrentTenant
-from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference, EmployeeFieldDefinition
+from app.models.employee import Employee, EmployeeWorkRole, EmployeePreference, EmployeeFieldDefinition, EmployeeProfile
 from app.models.resource import WorkRole
 from app.models.audit import AuditLog
 from app.permissions import require_permission
@@ -195,6 +195,12 @@ async def list_employees(
                 "is_primary": ewr.is_primary,
             })
         emp_data["work_roles"] = roles
+        # Avatar
+        prof_res = await db.execute(
+            select(EmployeeProfile).where(EmployeeProfile.employee_id == e.id)
+        )
+        ep = prof_res.scalar_one_or_none()
+        emp_data["avatar_url"] = ep.avatar_url if ep else None
         items.append(emp_data)
 
     return {
@@ -278,6 +284,13 @@ async def get_employee(
             "is_primary": ewr.is_primary,
         })
     emp_data["work_roles"] = roles
+
+    # Avatar from EmployeeProfile
+    profile_res = await db.execute(
+        select(EmployeeProfile).where(EmployeeProfile.employee_id == employee.id)
+    )
+    emp_profile = profile_res.scalar_one_or_none()
+    emp_data["avatar_url"] = emp_profile.avatar_url if emp_profile else None
 
     return emp_data
 

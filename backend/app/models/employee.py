@@ -47,8 +47,8 @@ class EmployeeProfile(Base):
         UUID(as_uuid=True), ForeignKey("employees.id", ondelete="CASCADE"),
         nullable=False, unique=True,
     )
-    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    avatar_thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avatar_thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     emergency_contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     emergency_contact_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)

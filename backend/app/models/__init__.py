@@ -29,3 +29,4 @@ from app.models.audit import AuditLog  # noqa: F401
 from app.models.help import HelpTopic  # noqa: F401
 from app.models.push_subscription import PushSubscription  # noqa: F401
 from app.models.retention import DataRetentionConfig  # noqa: F401
+from app.models.onboarding import OnboardingProgress  # noqa: F401

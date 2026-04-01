@@ -124,69 +124,48 @@ export default function MyProfilePage() {
     if (node) node.setAttribute("accept", "image/*");
   }, []);
 
+  const resizeImageToBase64 = (file: File, maxSize = 200): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+          canvas.width = Math.round(img.width * ratio);
+          canvas.height = Math.round(img.height * ratio);
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("canvas not supported")); return; }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.onerror = reject;
+        img.src = ev.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Validate size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast("error", "הקובץ גדול מדי — מקסימום 2MB");
+    // Validate size (max 5MB before resize)
+    if (file.size > 5 * 1024 * 1024) {
+      toast("error", "הקובץ גדול מדי — מקסימום 5MB");
       return;
     }
     setUploadingAvatar(true);
     try {
-      // Try presigned URL approach first
-      let avatarSaved = false;
-      try {
-        const presignRes = await api.post(tenantApi("/my/avatar/presigned-url"), {
-          content_type: file.type,
-          file_name: file.name,
-        });
-        const { upload_url, avatar_url } = presignRes.data;
-        if (upload_url && avatar_url) {
-          await fetch(upload_url, {
-            method: "PUT",
-            body: file,
-            headers: { "Content-Type": file.type },
-          });
-          await api.patch(tenantApi("/my/profile"), { avatar_url }).catch(() => {});
-          setAvatarUrl(avatar_url + "?t=" + Date.now());
-          avatarSaved = true;
-        }
-      } catch {
-        // Presigned URL not available — fall back to base64
-      }
+      // Resize to 200×200 on canvas, convert to base64 JPEG
+      const resized = await resizeImageToBase64(file, 200);
 
-      if (!avatarSaved) {
-        // Fallback: convert to base64 and save inline
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = (ev) => resolve(ev.target?.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        // Resize if needed (canvas approach for large images)
-        const img = new Image();
-        const resized = await new Promise<string>((resolve) => {
-          img.onload = () => {
-            const maxSize = 200;
-            const canvas = document.createElement("canvas");
-            const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
-            canvas.width = img.width * ratio;
-            canvas.height = img.height * ratio;
-            const ctx = canvas.getContext("2d");
-            ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL("image/jpeg", 0.85));
-          };
-          img.src = base64;
-        });
-        await api.patch(tenantApi("/my/profile"), { avatar_url: resized }).catch(() => {
-          // If profile endpoint doesn't support avatar_url, store locally
-          localStorage.setItem("shavtzak_avatar", resized);
-        });
-        setAvatarUrl(resized);
-      }
+      // Save to backend — stored in employee_profiles.avatar_url
+      await api.patch(tenantApi("/my/profile"), { avatar_url: resized });
 
-      toast("success", "תמונת הפרופיל עודכנה");
+      // Update local display immediately (no localStorage)
+      setAvatarUrl(resized);
+      toast("success", "תמונת הפרופיל עודכנה ✅");
       loadProfile();
     } catch (err: any) {
       toast("error", getErrorMessage(err, "שגיאה בהעלאת תמונה"));
@@ -204,13 +183,8 @@ export default function MyProfilePage() {
         phone: res.data.employee?.notification_channels?.phone_whatsapp || "",
         preferred_language: res.data.user?.preferred_language || "he",
       });
-      if (res.data.employee?.avatar_url) {
-        setAvatarUrl(res.data.employee.avatar_url);
-      } else {
-        // Fallback: check localStorage
-        const localAvatar = localStorage.getItem("shavtzak_avatar");
-        if (localAvatar) setAvatarUrl(localAvatar);
-      }
+      // Avatar comes from the database (employee_profiles.avatar_url)
+      setAvatarUrl(res.data.employee?.avatar_url || null);
     } catch {
       toast("error", "שגיאה בטעינת פרופיל");
     } finally {
