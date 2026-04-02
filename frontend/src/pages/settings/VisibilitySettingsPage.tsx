@@ -164,7 +164,7 @@ export default function VisibilitySettingsPage() {
                 className={`relative flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
                   settings[opt.key] ? "bg-primary-500" : "bg-gray-300 dark:bg-gray-600"
                 }`}
-                style={{ width: '52px', height: '28px', minWidth: '52px' }}
+                style={{ width: '44px', height: '24px', minWidth: '44px' }}
               >
                 <span
                   className={`absolute top-[3px] h-[22px] w-[22px] transform rounded-full bg-white shadow-md transition-transform duration-200 ${

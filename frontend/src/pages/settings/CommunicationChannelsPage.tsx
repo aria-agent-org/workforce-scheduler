@@ -199,7 +199,7 @@ export default function CommunicationChannelsPage() {
                       )}
                       <button
                         onClick={() => toggleEnabled(ch.channel, !ch.is_enabled)}
-                        className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${
+                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
                           ch.is_enabled ? "bg-primary-500" : "bg-muted"
                         }`}
                       >
@@ -551,7 +551,7 @@ export default function CommunicationChannelsPage() {
               <Label className="font-semibold">ערוץ פעיל</Label>
               <button
                 onClick={() => setEditEnabled(!editEnabled)}
-                className={`relative w-12 h-7 rounded-full transition-colors ${
+                className={`relative w-11 h-6 rounded-full transition-colors ${
                   editEnabled ? "bg-primary-500" : "bg-muted"
                 }`}
               >

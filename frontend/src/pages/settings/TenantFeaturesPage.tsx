@@ -140,19 +140,19 @@ export default function TenantFeaturesPage() {
               role="button"
               tabIndex={0}
               aria-pressed={f.enabled}
-              className={`flex items-center justify-between gap-3 rounded-xl border p-4 cursor-pointer transition-all min-h-[64px] select-none ${
+              className={`flex items-center justify-between gap-2 sm:gap-3 rounded-xl border p-3 sm:p-4 cursor-pointer transition-all min-h-[56px] select-none ${
                 f.enabled
-                  ? "ring-1 ring-green-300 dark:ring-green-700 bg-green-50/30 dark:bg-green-900/10"
+                  ? "border-green-300 dark:border-green-700 bg-green-50/30 dark:bg-green-900/10"
                   : "opacity-70 hover:opacity-90"
               } hover:shadow-sm`}
               onClick={() => toggleFeature(f.key)}
               onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleFeature(f.key); } }}
             >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className="text-2xl flex-shrink-0">{f.icon}</span>
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <span className="text-xl sm:text-2xl flex-shrink-0">{f.icon}</span>
                 <div className="min-w-0">
-                  <p className="font-semibold text-sm">{f.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{f.description}</p>
+                  <p className="font-semibold text-xs sm:text-sm">{f.label}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 leading-relaxed truncate">{f.description}</p>
                 </div>
               </div>
               {/* Toggle switch */}
@@ -164,11 +164,11 @@ export default function TenantFeaturesPage() {
                 className={`relative rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
                   f.enabled ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
                 }`}
-                style={{ width: '52px', height: '28px', minWidth: '52px' }}
+                style={{ width: '44px', height: '24px', minWidth: '44px' }}
               >
                 <span
-                  className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    f.enabled ? "translate-x-[24px] rtl:-translate-x-[24px]" : "translate-x-[3px] rtl:-translate-x-[3px]"
+                  className={`absolute top-[2px] h-[20px] w-[20px] rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    f.enabled ? "translate-x-[20px] rtl:-translate-x-[20px]" : "translate-x-[2px] rtl:-translate-x-[2px]"
                   }`}
                 />
               </button>

@@ -1742,7 +1742,7 @@ export default function SchedulingPage() {
                           if (selectedWindow) loadWindowData(selectedWindow.id);
                         } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
                       }}
-                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors min-h-[44px] min-w-[44px] ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
                       title={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}
                     >
                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${tmpl.is_active === false ? "translate-x-1 rtl:-translate-x-1" : "translate-x-6 rtl:-translate-x-6"}`} />
