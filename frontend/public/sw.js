@@ -1,6 +1,6 @@
-// Build: 2026-04-02T08:00:00Z — PWA Enhancement v8
-const BUILD_TS = Date.now();
-const CACHE_VERSION = `v8-${BUILD_TS}`;
+// Build: 2026-04-02T12:55:00Z — PWA Enhancement v9 - fix cache issues
+const BUILD_TS = '20260402-1255';
+const CACHE_VERSION = `v9-${BUILD_TS}`;
 const STATIC_CACHE = `shavtzak-static-${CACHE_VERSION}`;
 const API_CACHE = `shavtzak-api-${CACHE_VERSION}`;
 const OFFLINE_PAGE = '/index.html';
@@ -39,8 +39,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // API requests: network-first, cache fallback for GET
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) {
+  // API & admin requests: network-first, cache fallback for GET
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/') || url.pathname.startsWith('/admin/')) {
     if (event.request.method === 'GET') {
       event.respondWith(
         fetch(event.request)
