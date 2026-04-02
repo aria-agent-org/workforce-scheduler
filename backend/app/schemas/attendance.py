@@ -1,6 +1,6 @@
 """Attendance schemas."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -45,6 +45,9 @@ class AttendanceStatusDefinitionResponse(BaseModel):
     color: str | None = None
     icon: str | None = None
     is_schedulable: bool
+    schedulable_from_time: time | None = None
+    schedulable_notes: dict | None = None
+    triggers_rule_category: str | None = None
     counts_as_present: bool
     sort_order: int
     is_system: bool
