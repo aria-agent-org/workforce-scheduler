@@ -33,7 +33,7 @@ TEMPLATE_VARIABLES = {
 
 
 class TemplateUpdate(BaseModel):
-    body_template: str | None = None
+    name: str | None = None
     subject_template: str | None = None
     is_active: bool | None = None
 
@@ -61,12 +61,14 @@ async def list_templates(
         "items": [
             {
                 "id": str(t.id),
+                "name": t.name,
                 "event_type_code": t.event_type_code,
-                "body_template": t.body_template,
+                "channels": t.channels,
                 "subject_template": getattr(t, "subject_template", None),
                 "channel": getattr(t, "channel", None),
                 "is_active": t.is_active,
                 "is_system": t.tenant_id is None,
+                "send_offset_minutes": t.send_offset_minutes,
                 "variables_schema": getattr(t, "variables_schema", None),
             }
             for t in templates
@@ -96,21 +98,18 @@ async def update_template(
     if template.tenant_id is None:
         override = NotificationTemplate(
             tenant_id=tenant.id,
+            name=body.name or template.name,
             event_type_code=template.event_type_code,
-            body_template=body.body_template or template.body_template,
+            channels=template.channels,
             is_active=body.is_active if body.is_active is not None else template.is_active,
         )
-        if body.subject_template:
-            override.subject_template = body.subject_template
         db.add(override)
         await db.commit()
         return {"message": "Template override created", "id": str(override.id)}
 
     # Update existing tenant template
-    if body.body_template is not None:
-        template.body_template = body.body_template
-    if body.subject_template is not None:
-        template.subject_template = body.subject_template
+    if body.name is not None:
+        template.name = body.name
     if body.is_active is not None:
         template.is_active = body.is_active
 
@@ -124,7 +123,6 @@ async def preview_template(
     user=Depends(get_current_user),
 ):
     """Preview a template with sample variables."""
-    # Default sample values
     sample_vars = {
         "employee_name": "ישראל ישראלי",
         "mission_name": "שמירה שער 3",

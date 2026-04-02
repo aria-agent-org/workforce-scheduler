@@ -58,11 +58,11 @@ async def get_activity_feed(
             "description": _format_action(entry),
             "icon": _get_action_icon(entry.action),
             "user_id": str(entry.user_id) if entry.user_id else None,
-            "user_name": entry.details.get("user_name", "") if entry.details else "",
+            "user_name": (entry.after_state or {}).get("user_name", ""),
             "entity_type": entry.entity_type,
             "entity_id": str(entry.entity_id) if entry.entity_id else None,
             "timestamp": entry.created_at.isoformat() if entry.created_at else None,
-            "metadata": entry.details or {},
+            "metadata": entry.after_state or {},
         })
 
     # Also get summary stats
@@ -115,7 +115,7 @@ def _format_action(entry: AuditLog) -> str:
         "settings.updated": "הגדרות עודכנו",
     }
 
-    details = getattr(entry, "details", None) or getattr(entry, "after_state", None) or {}
+    details = entry.after_state or {}
     base = action_map.get(entry.action, entry.action)
 
     # Add context from details

@@ -113,7 +113,6 @@ async def export_tenant_data(
         {
             "id": str(r.id),
             "name": r.name,
-            "rule_type": r.rule_type,
             "priority": r.priority,
             "is_active": r.is_active,
         }
