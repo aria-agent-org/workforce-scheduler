@@ -277,12 +277,29 @@ export default function CommunicationChannelsPage() {
                       try {
                         const res = await api.get(tenantApi("/channels/whatsapp/qr"));
                         const d = res.data;
-                        const instructions = (d.instructions || []).join("\n");
-                        alert(`📱 הוראות חיבור WhatsApp QR:\n\n${instructions}\n\nSession ID: ${d.session_id}`);
-                      } catch { alert("שגיאה בקבלת QR"); }
+                        setEditConfig((prev: Record<string, any>) => ({ ...prev, _qrData: d }));
+                      } catch { alert("שגיאה בקבלת QR — ודא שיש הרשאות מתאימות"); }
                     }}>
                       📱 הצג קוד QR לסריקה
                     </Button>
+                    {editConfig._qrData && (
+                      <div className="flex flex-col items-center gap-3 p-4 rounded-lg border bg-white">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(editConfig._qrData.qr_data || "")}`}
+                          alt="WhatsApp QR Code"
+                          className="rounded-lg"
+                          width={250}
+                          height={250}
+                        />
+                        <p className="text-sm font-medium text-center">{editConfig._qrData.message}</p>
+                        <ol className="text-xs text-muted-foreground space-y-1 text-start" dir="rtl">
+                          {(editConfig._qrData.instructions || []).map((inst: string, i: number) => (
+                            <li key={i}>{inst}</li>
+                          ))}
+                        </ol>
+                        <p className="text-[10px] text-muted-foreground font-mono">Session: {editConfig._qrData.session_id}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
