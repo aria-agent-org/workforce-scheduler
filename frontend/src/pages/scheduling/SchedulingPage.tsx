@@ -1802,7 +1802,7 @@ export default function SchedulingPage() {
               </div>
               <Input value={windowForm.name} onChange={e => setWindowForm({...windowForm, name: e.target.value})} placeholder="לדוגמה: מאי-יולי 2026" className="min-h-[44px]" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2"><Label>תאריך התחלה</Label><Input type="date" value={windowForm.start_date} onChange={e => setWindowForm({...windowForm, start_date: e.target.value})} /></div>
               <div className="space-y-2"><Label>תאריך סיום</Label><Input type="date" value={windowForm.end_date} onChange={e => setWindowForm({...windowForm, end_date: e.target.value})} /></div>
             </div>
@@ -1892,7 +1892,7 @@ export default function SchedulingPage() {
                 className="min-h-[44px]"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">שעת התחלה <span className="text-red-500">*</span></Label>
                 <Input 
@@ -1931,10 +1931,10 @@ export default function SchedulingPage() {
 
       {/* Mission Type Modal (Create/Edit) — bottom sheet on mobile */}
       <Dialog open={showTypeModal} onOpenChange={(open) => { setShowTypeModal(open); if (!open) setEditingTypeId(null); }}>
-        <DialogContent className="max-w-[700px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
+        <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
           <DialogHeader><DialogTitle>{editingTypeId ? t("editMissionType") : t("newMissionType")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label>שם (עברית) <span className="text-red-500">*</span></Label>
                 <Input value={typeForm.name_he} onChange={e => { setTypeForm({...typeForm, name_he: e.target.value}); if (typeFormErrors.name_he) setTypeFormErrors(prev => ({...prev, name_he: ""})); }} className={`min-h-[44px] ${typeFormErrors.name_he ? "border-red-500 ring-1 ring-red-500" : ""}`} />
@@ -1942,7 +1942,7 @@ export default function SchedulingPage() {
               </div>
               <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={typeForm.name_en} onChange={e => setTypeForm({...typeForm, name_en: e.target.value})} className="min-h-[44px]" /></div>
             </div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <div className="space-y-2"><Label>צבע</Label><Input type="color" value={typeForm.color} onChange={e => setTypeForm({...typeForm, color: e.target.value})} /></div>
               <div className="space-y-2"><Label>אייקון</Label><Input value={typeForm.icon} onChange={e => setTypeForm({...typeForm, icon: e.target.value})} placeholder="📋" /></div>
               <div className="space-y-2">
@@ -2013,7 +2013,7 @@ export default function SchedulingPage() {
               {typeFormErrors.required_slots && <p className="text-sm text-red-600">{typeFormErrors.required_slots}</p>}
               {typeForm.required_slots.map((slot, i) => (
                 <div key={i} className="p-3 bg-muted/30 rounded space-y-2">
-                  <div className="grid grid-cols-5 gap-2 items-end">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
                     <div><Label className="text-xs">שם (עב)</Label><Input value={slot.label_he} placeholder="יתמלא אוטומטית מהתפקיד" onChange={e => { const s = [...typeForm.required_slots]; s[i].label_he = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
                     <div><Label className="text-xs">שם (en)</Label><Input value={slot.label_en} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_en = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
                     <div>
@@ -2114,7 +2114,7 @@ export default function SchedulingPage() {
                 </Button>
               </div>
               {typeForm.pre_mission_events.map((evt, i) => (
-                <div key={i} className="grid grid-cols-4 gap-2 items-end p-2 bg-muted/30 rounded">
+                <div key={i} className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end p-2 bg-muted/30 rounded">
                   <div><Label className="text-xs">דקות לפני</Label><Input type="number" value={Math.abs(evt.offset_minutes)} onChange={e => { const arr = [...typeForm.pre_mission_events]; arr[i].offset_minutes = -Math.abs(Number(e.target.value)); setTypeForm({...typeForm, pre_mission_events: arr}); }} /></div>
                   <div><Label className="text-xs">שם</Label><Input value={evt.label_he} onChange={e => { const arr = [...typeForm.pre_mission_events]; arr[i].label_he = e.target.value; setTypeForm({...typeForm, pre_mission_events: arr}); }} /></div>
                   <div><Label className="text-xs">מיקום</Label><Input value={evt.location_he} onChange={e => { const arr = [...typeForm.pre_mission_events]; arr[i].location_he = e.target.value; setTypeForm({...typeForm, pre_mission_events: arr}); }} /></div>
@@ -2157,7 +2157,7 @@ export default function SchedulingPage() {
                       שעה מדויקת
                     </label>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 items-end">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
                     {ti.time_mode === "relative" ? (
                       <div><Label className="text-xs">דקות אחרי התחלה</Label><Input type="number" value={ti.offset_minutes} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].offset_minutes = Number(e.target.value); setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
                     ) : (
@@ -2274,7 +2274,7 @@ export default function SchedulingPage() {
 
       {/* Template Modal */}
       <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
-        <DialogContent className="max-w-[650px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[650px] max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingTemplateId ? "עריכת תבנית" : t("template.title")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label>{t("template.name")}</Label><Input value={templateForm.name} onChange={e => setTemplateForm({...templateForm, name: e.target.value})} placeholder="משמרת בוקר ניוד" /></div>
@@ -2353,7 +2353,7 @@ export default function SchedulingPage() {
                 ))}
               </div>
               {templateForm.time_slots.map((ts, i) => (
-                <div key={i} className="grid grid-cols-4 gap-2 items-end p-2 bg-muted/30 rounded">
+                <div key={i} className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end p-2 bg-muted/30 rounded">
                   <div><Label className="text-xs">שם</Label><Input value={ts.slot_key} onChange={e => { const arr = [...templateForm.time_slots]; arr[i].slot_key = e.target.value; setTemplateForm({...templateForm, time_slots: arr}); }} /></div>
                   <div><Label className="text-xs">התחלה</Label><Input type="time" value={ts.start} onChange={e => { const arr = [...templateForm.time_slots]; arr[i].start = e.target.value; setTemplateForm({...templateForm, time_slots: arr}); }} /></div>
                   <div><Label className="text-xs">סיום</Label><Input type="time" value={ts.end} onChange={e => { const arr = [...templateForm.time_slots]; arr[i].end = e.target.value; setTemplateForm({...templateForm, time_slots: arr}); }} /></div>
@@ -2411,7 +2411,7 @@ export default function SchedulingPage() {
 
       {/* Assign Soldier — bottom sheet on mobile */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
           <DialogHeader><DialogTitle>{t("assignSoldier")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             {/* Slot selection — show available slots from mission type */}
@@ -2679,7 +2679,7 @@ export default function SchedulingPage() {
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2"><Label>מתאריך</Label><Input type="date" value={generateForm.start_date} onChange={e => setGenerateForm({...generateForm, start_date: e.target.value})} /></div>
               <div className="space-y-2"><Label>עד תאריך</Label><Input type="date" value={generateForm.end_date} onChange={e => setGenerateForm({...generateForm, end_date: e.target.value})} /></div>
             </div>
@@ -2693,11 +2693,11 @@ export default function SchedulingPage() {
 
       {/* Auto-Assign Results */}
       <Dialog open={showAutoAssignResults} onOpenChange={setShowAutoAssignResults}>
-        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>תוצאות שיבוץ אוטומטי</DialogTitle></DialogHeader>
           {autoAssignResults && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <Card><CardContent className="p-4 text-center">
                   <p className="text-2xl font-bold text-green-600">{autoAssignResults.total_assigned}</p>
                   <p className="text-sm text-muted-foreground">שובצו בהצלחה</p>
@@ -2796,7 +2796,7 @@ export default function SchedulingPage() {
 
       {/* Import Soldiers Wizard — Multi-Step — bottom sheet on mobile */}
       <Dialog open={showImportWizard} onOpenChange={setShowImportWizard}>
-        <DialogContent className="max-w-[650px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
+        <DialogContent className="max-w-[95vw] sm:max-w-[650px] max-h-[85vh] overflow-y-auto mobile-bottom-sheet">
           <DialogHeader>
             <DialogTitle>הוסף חיילים ללוח עבודה</DialogTitle>
             {/* Step indicator */}
@@ -3336,7 +3336,7 @@ export default function SchedulingPage() {
 
       {/* === Daily Board Templates Modal === */}
       <Dialog open={showDailyBoardTemplatesModal} onOpenChange={setShowDailyBoardTemplatesModal}>
-        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <LayoutTemplate className="h-5 w-5" />

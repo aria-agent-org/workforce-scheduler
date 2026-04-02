@@ -263,7 +263,7 @@ function ChannelManagementPanel() {
 
       {/* Edit Channels Modal */}
       <Dialog open={!!editingTenant} onOpenChange={() => setEditingTenant(null)}>
-        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>ערוצי תקשורת — {editingTenant?.name}</DialogTitle>
           </DialogHeader>
@@ -962,7 +962,7 @@ export default function AdminPage() {
 
       {/* Tenant Modal */}
       <Dialog open={showTenantModal} onOpenChange={setShowTenantModal}>
-        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingTenant ? "עריכת טננט" : "טננט חדש"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
