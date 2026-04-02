@@ -45,6 +45,10 @@ from app.routers import activity_feed as activity_feed_router
 from app.routers import gps_checkin as gps_checkin_router
 from app.routers import compliance as compliance_router
 from app.routers import notification_templates as notification_templates_router
+from app.routers import chat as chat_router
+from app.routers import outgoing_webhooks as outgoing_webhooks_router
+from app.routers import calendar_sync as calendar_sync_router
+from app.routers import data_export as data_export_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
@@ -341,6 +345,34 @@ def create_app() -> FastAPI:
         notification_templates_router.router,
         prefix="/api/v1/{tenant_slug}",
         tags=["notification-templates"],
+    )
+
+    # In-app chat
+    app.include_router(
+        chat_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["chat"],
+    )
+
+    # Outgoing webhooks
+    app.include_router(
+        outgoing_webhooks_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["outgoing-webhooks"],
+    )
+
+    # Calendar sync / ICS export
+    app.include_router(
+        calendar_sync_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["calendar"],
+    )
+
+    # Data export (GDPR)
+    app.include_router(
+        data_export_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["data-export"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)
