@@ -348,6 +348,16 @@ async def update_status_definition(
     before = {"code": status_def.code, "name": status_def.name}
     for key, value in data.items():
         if hasattr(status_def, key) and key not in ("id", "tenant_id", "created_at", "updated_at"):
+            # Convert time strings to time objects for Time columns
+            if key == "schedulable_from_time" and isinstance(value, str):
+                from datetime import time as dt_time
+                try:
+                    parts = value.split(":")
+                    value = dt_time(int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0)
+                except (ValueError, IndexError):
+                    value = None
+            elif key == "schedulable_from_time" and value is None:
+                pass  # Allow setting to null
             setattr(status_def, key, value)
 
     await db.flush()
