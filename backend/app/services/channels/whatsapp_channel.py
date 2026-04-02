@@ -1,37 +1,70 @@
-"""WhatsApp notification channel via Meta Cloud API."""
+"""WhatsApp notification channel via Meta Cloud API — reads config from DB first, env fallback."""
 
 import logging
+import os
 
 import httpx
-
-from app.config import get_settings
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 WHATSAPP_API_BASE = "https://graph.facebook.com/v18.0"
 
 
-async def send_whatsapp(phone: str, message: str) -> bool:
+async def _get_whatsapp_config(db: AsyncSession | None = None) -> tuple[str, str]:
+    """Get WhatsApp API token and phone number ID from DB or env."""
+    api_token = ""
+    phone_number_id = ""
+
+    if db:
+        try:
+            from app.models.integration_config import IntegrationConfig
+            for key in ("whatsapp_api_token", "whatsapp_phone_number_id"):
+                result = await db.execute(
+                    select(IntegrationConfig).where(IntegrationConfig.key == key)
+                )
+                config = result.scalar_one_or_none()
+                if config and config.value:
+                    val = config.get_decrypted_value()
+                    if key == "whatsapp_api_token":
+                        api_token = val
+                    else:
+                        phone_number_id = val
+        except Exception:
+            pass
+
+    # Fallback to env
+    if not api_token:
+        from app.config import get_settings
+        settings = get_settings()
+        api_token = settings.whatsapp_api_token or ""
+    if not phone_number_id:
+        from app.config import get_settings
+        settings = get_settings()
+        phone_number_id = settings.whatsapp_phone_number_id or ""
+
+    return api_token, phone_number_id
+
+
+async def send_whatsapp(phone: str, message: str, db: AsyncSession | None = None) -> bool:
     """
     Send a WhatsApp message via the Meta Cloud API.
 
     Args:
         phone: Recipient phone number in international format (no +).
         message: Message text.
+        db: Optional database session to read config from DB.
 
     Returns:
         True if sent successfully, False otherwise.
     """
-    settings = get_settings()
-
-    api_token = settings.whatsapp_api_token
-    phone_number_id = settings.whatsapp_phone_number_id
+    api_token, phone_number_id = await _get_whatsapp_config(db)
 
     if not api_token or not phone_number_id:
         logger.error("WhatsApp not configured — missing WHATSAPP_API_TOKEN or WHATSAPP_PHONE_NUMBER_ID")
         return False
 
-    # Strip leading + if present
     phone = phone.lstrip("+")
 
     url = f"{WHATSAPP_API_BASE}/{phone_number_id}/messages"
