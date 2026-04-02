@@ -15,7 +15,7 @@ import {
   Building2, Users, CreditCard, Activity, Plus, Pencil, Power, PowerOff,
   UserX, ArrowRightLeft, Radio, FileSpreadsheet,
 } from "lucide-react";
-import api from "@/lib/api";
+import api, { tenantApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 
 import RolePermissionsPage from "../settings/RolePermissionsPage";
@@ -345,7 +345,7 @@ function GoogleSheetsConfigPanel() {
         if (res.data.length > 0) {
           try {
             // Check if we have existing google sheets config
-            const settingsRes = await api.get(`/settings/key/google_sheets_service_account`).catch(() => null);
+            const settingsRes = await api.get(tenantApi(`/settings/key/google_sheets_service_account`)).catch(() => null);
             if (settingsRes?.data?.value) {
               const val = typeof settingsRes.data.value === "string" ? JSON.parse(settingsRes.data.value) : settingsRes.data.value;
               setEmail(val.client_email || val.email || "");
@@ -361,7 +361,7 @@ function GoogleSheetsConfigPanel() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.post("/settings", {
+      await api.post(tenantApi("/settings"), {
         key: "google_sheets_service_account",
         value: { email, json_key: jsonKey },
         group: "integrations",
