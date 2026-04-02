@@ -284,20 +284,55 @@ export default function CommunicationChannelsPage() {
                     </Button>
                     {editConfig._qrData && (
                       <div className="flex flex-col items-center gap-3 p-4 rounded-lg border bg-white">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(editConfig._qrData.qr_data || "")}`}
-                          alt="WhatsApp QR Code"
-                          className="rounded-lg"
-                          width={250}
-                          height={250}
-                        />
-                        <p className="text-sm font-medium text-center">{editConfig._qrData.message}</p>
-                        <ol className="text-xs text-muted-foreground space-y-1 text-start" dir="rtl">
-                          {(editConfig._qrData.instructions || []).map((inst: string, i: number) => (
-                            <li key={i}>{inst}</li>
-                          ))}
-                        </ol>
-                        <p className="text-[10px] text-muted-foreground font-mono">Session: {editConfig._qrData.session_id}</p>
+                        {editConfig._qrData.status === "connected" ? (
+                          <div className="text-center space-y-2">
+                            <div className="text-4xl">✅</div>
+                            <p className="font-bold text-green-700">WhatsApp מחובר!</p>
+                            <p className="text-sm text-muted-foreground">מספר: {editConfig._qrData.connected_number}</p>
+                          </div>
+                        ) : editConfig._qrData.status === "error" ? (
+                          <div className="text-center space-y-2">
+                            <div className="text-4xl">❌</div>
+                            <p className="font-bold text-red-700">{editConfig._qrData.message}</p>
+                          </div>
+                        ) : editConfig._qrData.qr_image ? (
+                          <>
+                            <img
+                              src={editConfig._qrData.qr_image}
+                              alt="WhatsApp QR Code"
+                              className="rounded-lg"
+                              width={250}
+                              height={250}
+                            />
+                            <p className="text-sm font-medium text-center">{editConfig._qrData.message}</p>
+                            <ol className="text-xs text-muted-foreground space-y-1 text-start" dir="rtl">
+                              {(editConfig._qrData.instructions || []).map((inst: string, i: number) => (
+                                <li key={i}>{inst}</li>
+                              ))}
+                            </ol>
+                            <Button size="sm" variant="outline" onClick={async () => {
+                              try {
+                                const res = await api.get(tenantApi("/channels/whatsapp/qr"));
+                                setEditConfig((prev: Record<string, any>) => ({ ...prev, _qrData: res.data }));
+                              } catch { /* ignore */ }
+                            }}>
+                              🔄 רענן QR
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="text-center space-y-2">
+                            <div className="animate-spin text-2xl">⏳</div>
+                            <p className="text-sm">{editConfig._qrData.message || "ממתין לקוד QR..."}</p>
+                            <Button size="sm" variant="outline" onClick={async () => {
+                              try {
+                                const res = await api.get(tenantApi("/channels/whatsapp/qr"));
+                                setEditConfig((prev: Record<string, any>) => ({ ...prev, _qrData: res.data }));
+                              } catch { /* ignore */ }
+                            }}>
+                              🔄 נסה שוב
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

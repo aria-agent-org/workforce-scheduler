@@ -283,26 +283,39 @@ async def get_whatsapp_qr(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get WhatsApp QR code for session scanning (regular WhatsApp mode)."""
+    """Get WhatsApp QR code for session scanning via WhatsApp Bridge."""
     if channel != "whatsapp":
         raise HTTPException(400, "QR code only available for WhatsApp")
 
-    # In production, this would connect to a WhatsApp session manager (e.g., whatsapp-web.js)
-    # For now, return a placeholder QR with instructions
-    import secrets
-    session_id = secrets.token_urlsafe(16)
-    return {
-        "session_id": session_id,
-        "status": "pending",
-        "qr_data": f"whatsapp://qr/{session_id}",
-        "message": "סרוק את קוד ה-QR עם WhatsApp בטלפון שלך",
-        "instructions": [
-            "1. פתח את WhatsApp בטלפון",
-            "2. לחץ על ⋮ > מכשירים מקושרים",
-            "3. לחץ על 'קשר מכשיר'",
-            "4. סרוק את קוד ה-QR",
-        ],
-    }
+    import os
+    bridge_url = os.environ.get("WA_BRIDGE_URL", "http://whatsapp-bridge:3001")
+    bridge_key = os.environ.get("WA_BRIDGE_API_KEY", "shavtzak-wa-bridge-key")
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{bridge_url}/qr",
+                headers={"X-API-Key": bridge_key},
+            )
+            data = resp.json()
+            return {
+                "status": data.get("status", "unknown"),
+                "qr_image": data.get("qr_image"),
+                "qr_data": data.get("qr_data"),
+                "connected_number": data.get("connected_number"),
+                "message": data.get("message", ""),
+                "instructions": data.get("instructions", []),
+            }
+    except Exception as e:
+        logger.error(f"WhatsApp bridge error: {e}")
+        return {
+            "status": "error",
+            "message": f"שגיאה בחיבור לשירות WhatsApp: {str(e)}",
+            "instructions": [
+                "1. ודא ששירות WhatsApp Bridge רץ",
+                "2. בדוק את הלוגים של shavtzak-whatsapp",
+            ],
+        }
 
 
 @router.post("/{channel}/test", dependencies=[Depends(require_permission("settings", "write"))])

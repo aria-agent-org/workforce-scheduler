@@ -144,3 +144,25 @@ services:
 volumes:
   pgdata:
   redisdata:
+
+  whatsapp-bridge:
+    build:
+      context: ./whatsapp-bridge
+    container_name: shavtzak-whatsapp
+    restart: unless-stopped
+    environment:
+      WA_BRIDGE_PORT: "3001"
+      WA_API_KEY: ${WA_BRIDGE_API_KEY:-shavtzak-wa-bridge-key}
+      WA_AUTH_DIR: /data/wa-auth
+    volumes:
+      - wa-auth-data:/data/wa-auth
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/status?api_key=shavtzak-wa-bridge-key"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  wa-auth-data:
