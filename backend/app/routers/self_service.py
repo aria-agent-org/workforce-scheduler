@@ -760,7 +760,7 @@ async def get_my_stats(
     # Swap requests
     swap_result = await db.execute(
         select(sa_func.count(SwapRequest.id)).where(
-            SwapRequest.requester_id == user.employee_id,
+            SwapRequest.requester_employee_id == user.employee_id,
         )
     )
     total_swaps = swap_result.scalar() or 0
