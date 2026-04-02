@@ -300,7 +300,7 @@ export default function RulesPage() {
       { field: "employee.total_work_hours_today", type: "number", label: { he: "סה\"כ שעות עבודה היום", en: "Work hours today" }, description: { he: "כמה שעות החייל כבר עבד היום", en: "Total hours worked today" }, example: "8" },
       { field: "employee.total_work_hours_week", type: "number", label: { he: "סה\"כ שעות עבודה השבוע", en: "Work hours this week" }, description: { he: "כמה שעות החייל עבד השבוע הנוכחי (ראשון-שבת)", en: "Total hours worked this week" }, example: "40" },
       { field: "employee.consecutive_days_worked", type: "number", label: { he: "ימי עבודה רצופים", en: "Consecutive days worked" }, description: { he: "כמה ימים ברצף החייל עבד בלי יום חופש", en: "Days worked in a row without a day off" }, example: "6" },
-      { field: "employee.status", type: "select", label: { he: "סטטוס נוכחות", en: "Attendance status" }, description: { he: "הסטטוס הנוכחי של החייל (נוכח, בבית, חולה...)", en: "Current attendance status" }, options: ["present", "home", "sick", "vacation", "training", "reserve"], example: "present" },
+      { field: "employee.status", type: "select", label: { he: "סטטוס נוכחות", en: "Attendance status" }, description: { he: "הסטטוס הנוכחי של החייל (נוכח, בבית, חולה...)", en: "Current attendance status" }, options: [{value:"present",label:"נוכח"},{value:"home",label:"בבית"},{value:"sick",label:"חולה"},{value:"vacation",label:"חופשה"},{value:"training",label:"אימון"},{value:"reserve",label:"מילואים"}], example: "present" },
       { field: "employee.missions_week", type: "number", label: { he: "מספר משימות השבוע", en: "Missions this week" }, description: { he: "כמה משימות ביצע החייל השבוע", en: "Number of missions this week" }, example: "5" },
       { field: "mission.start_hour", type: "number", label: { he: "שעת התחלת המשימה", en: "Mission start hour" }, description: { he: "באיזו שעה המשימה מתחילה (0-23)", en: "Mission start hour (0-23)" }, example: "7" },
       { field: "mission.end_hour", type: "number", label: { he: "שעת סיום המשימה", en: "Mission end hour" }, description: { he: "באיזו שעה המשימה נגמרת (0-23)", en: "Mission end hour (0-23)" }, example: "15" },
@@ -969,14 +969,16 @@ export default function RulesPage() {
                                     <Label className="text-xs">ערכים (הפרד בפסיק)</Label>
                                     {fieldInfo?.type === "select" && fieldInfo.options ? (
                                       <div className="flex flex-wrap gap-1.5 rounded-lg border p-2 min-h-[44px]">
-                                        {fieldInfo.options.map((opt: string) => {
-                                          const selected = tags.includes(opt);
+                                        {fieldInfo.options.map((opt: any) => {
+                                          const optValue = typeof opt === "object" ? opt.value : opt;
+                                          const optLabel = typeof opt === "object" ? opt.label : opt;
+                                          const selected = tags.includes(optValue);
                                           return (
-                                            <button key={opt} type="button" onClick={() => {
-                                              const newTags = selected ? tags.filter(t => t !== opt) : [...tags, opt];
+                                            <button key={optValue} type="button" onClick={() => {
+                                              const newTags = selected ? tags.filter((t: string) => t !== optValue) : [...tags, optValue];
                                               updateCond({ value: newTags.join(",") });
                                             }} className={`text-xs px-2 py-1 rounded-lg border transition-colors ${selected ? "bg-primary-500 text-white border-primary-500" : "bg-muted hover:bg-accent"}`}>
-                                              {opt}
+                                              {optLabel}
                                             </button>
                                           );
                                         })}
@@ -1005,9 +1007,11 @@ export default function RulesPage() {
                                       className="min-h-[44px]"
                                     >
                                       <option value="">בחר...</option>
-                                      {fieldInfo.options.map((opt: string) => (
-                                        <option key={opt} value={opt}>{opt}</option>
-                                      ))}
+                                      {fieldInfo.options.map((opt: any) => {
+                                        const v = typeof opt === "object" ? opt.value : opt;
+                                        const l = typeof opt === "object" ? opt.label : opt;
+                                        return <option key={v} value={v}>{l}</option>;
+                                      })}
                                     </Select>
                                   ) : isDateField ? (
                                     <Input

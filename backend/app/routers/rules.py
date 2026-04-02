@@ -82,8 +82,30 @@ async def create_rule(
 @router.get("/condition-fields")
 async def get_condition_fields(
     tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Get available condition fields for rule building with Hebrew labels, descriptions, and examples."""
+    # Load tenant's actual attendance statuses for the status field options
+    from app.models.attendance import AttendanceStatusDefinition
+    status_result = await db.execute(
+        select(AttendanceStatusDefinition).where(
+            AttendanceStatusDefinition.tenant_id == tenant.id
+        ).order_by(AttendanceStatusDefinition.sort_order)
+    )
+    tenant_statuses = status_result.scalars().all()
+    status_options = []
+    for s in tenant_statuses:
+        label = s.name.get("he", s.code) if isinstance(s.name, dict) else str(s.name)
+        status_options.append({"value": s.code, "label": label})
+    # Fallback if no custom statuses
+    if not status_options:
+        status_options = [
+            {"value": "present", "label": "נוכח"},
+            {"value": "home", "label": "בבית"},
+            {"value": "sick", "label": "חולה"},
+            {"value": "vacation", "label": "חופשה"},
+        ]
+
     return [
         {
             "field": "employee.hours_since_last_mission", "type": "number",
@@ -131,8 +153,8 @@ async def get_condition_fields(
             "field": "employee.status", "type": "select",
             "label": {"he": "סטטוס נוכחות", "en": "Attendance status"},
             "description": {"he": "הסטטוס הנוכחי של החייל. רק חייל בסטטוס \"נוכח\" ניתן לשיבוץ בדרך כלל", "en": "Current attendance status of the employee"},
-            "options": ["present", "home", "sick", "vacation", "training", "reserve"],
-            "example": "present",
+            "options": status_options,
+            "example": status_options[0]["value"] if status_options else "present",
         },
         {
             "field": "mission.start_hour", "type": "number",
