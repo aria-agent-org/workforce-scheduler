@@ -3,6 +3,7 @@
 import logging
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 logger = logging.getLogger(__name__)
