@@ -616,7 +616,9 @@ async def create_mission_template(
 async def update_mission_template(
     tmpl_id: UUID, data: MissionTemplateUpdate, tenant: CurrentTenant, user: CurrentUser,
     db: AsyncSession = Depends(get_db),
+    propagate: bool = False,
 ) -> dict:
+    """Update a mission template. If propagate=true, also update all future missions created from this template."""
     result = await db.execute(
         select(MissionTemplate).where(MissionTemplate.id == tmpl_id, MissionTemplate.tenant_id == tenant.id)
     )
@@ -630,22 +632,76 @@ async def update_mission_template(
         setattr(tmpl, key, value)
     await db.flush()
     await db.refresh(tmpl)
+
+    # Propagate changes to future missions created from this template
+    propagated_count = 0
+    if propagate:
+        from datetime import date as date_type
+        future_missions = await db.execute(
+            select(Mission).where(
+                Mission.template_id == tmpl_id,
+                Mission.tenant_id == tenant.id,
+                Mission.date >= date_type.today(),
+                Mission.status.in_(["draft", "approved"]),
+            )
+        )
+        for m in future_missions.scalars().all():
+            if "name" in update_data:
+                m.name = update_data["name"]
+            if "start_time" in update_data:
+                m.start_time = update_data["start_time"]
+            if "end_time" in update_data:
+                m.end_time = update_data["end_time"]
+            m.version += 1
+            propagated_count += 1
+
     await db.commit()
-    return MissionTemplateResponse.model_validate(tmpl).model_dump()
+    resp = MissionTemplateResponse.model_validate(tmpl).model_dump()
+    resp["propagated_missions"] = propagated_count
+    return resp
 
 
-@router.delete("/mission-templates/{tmpl_id}", status_code=204)
+@router.delete("/mission-templates/{tmpl_id}", status_code=200)
 async def delete_mission_template(
     tmpl_id: UUID, tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
-) -> None:
+    delete_missions: str = "none",  # "none" | "all" | "future" | "template_only"
+) -> dict:
+    """Delete a mission template.
+    delete_missions options:
+    - none / template_only: only deactivate the template
+    - future: delete all future missions created from this template
+    - all: delete ALL missions created from this template
+    """
     result = await db.execute(
         select(MissionTemplate).where(MissionTemplate.id == tmpl_id, MissionTemplate.tenant_id == tenant.id)
     )
     tmpl = result.scalar_one_or_none()
     if not tmpl:
         raise HTTPException(status_code=404, detail="תבנית לא נמצאה")
+
+    deleted_missions = 0
+    if delete_missions in ("future", "all"):
+        from datetime import date as date_type
+        q = select(Mission).where(
+            Mission.template_id == tmpl_id,
+            Mission.tenant_id == tenant.id,
+        )
+        if delete_missions == "future":
+            q = q.where(Mission.date >= date_type.today())
+
+        missions_to_delete = await db.execute(q)
+        for m in missions_to_delete.scalars().all():
+            # Delete assignments first
+            await db.execute(
+                select(MissionAssignment).where(MissionAssignment.mission_id == m.id)
+            )
+            # Actually delete the mission
+            await db.delete(m)
+            deleted_missions += 1
+
     tmpl.is_active = False
     await db.commit()
+    return {"deleted_template": True, "deleted_missions": deleted_missions}
 
 
 # ═══════════════════════════════════════════
@@ -3097,3 +3153,82 @@ async def reassign_from_parent(
         "from_parent": str(mission.parent_mission_id),
         "message": f"הועתקו {copied} שיבוצים ממשימת האב",
     }
+
+
+# ═══════════════════════════════════════════
+# Template-Mission Relationship Management
+# ═══════════════════════════════════════════
+
+@router.get("/mission-templates/{tmpl_id}/missions", dependencies=[Depends(require_permission("missions", "read"))])
+async def list_template_missions(
+    tmpl_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    future_only: bool = False,
+) -> dict:
+    """List all missions created from a specific template."""
+    from datetime import date as date_type
+    q = select(Mission).where(
+        Mission.template_id == tmpl_id,
+        Mission.tenant_id == tenant.id,
+    ).order_by(Mission.date)
+    if future_only:
+        q = q.where(Mission.date >= date_type.today())
+
+    result = await db.execute(q)
+    missions = result.scalars().all()
+
+    return {
+        "template_id": str(tmpl_id),
+        "total": len(missions),
+        "missions": [
+            {
+                "id": str(m.id),
+                "name": m.name,
+                "date": str(m.date),
+                "start_time": str(m.start_time),
+                "end_time": str(m.end_time),
+                "status": m.status,
+                "assignments_count": len(m.assignments) if hasattr(m, "assignments") else 0,
+            }
+            for m in missions
+        ],
+    }
+
+
+@router.delete("/mission-templates/{tmpl_id}/missions", dependencies=[Depends(require_permission("missions", "write"))])
+async def delete_template_missions(
+    tmpl_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    scope: str = "future",  # "future" | "all" | "unassigned"
+) -> dict:
+    """Delete missions created from a template.
+    scope: future (only future), all (everything), unassigned (only missions with no assignments)
+    """
+    from datetime import date as date_type
+    q = select(Mission).where(
+        Mission.template_id == tmpl_id,
+        Mission.tenant_id == tenant.id,
+    )
+    if scope == "future":
+        q = q.where(Mission.date >= date_type.today())
+
+    result = await db.execute(q)
+    deleted = 0
+    skipped = 0
+    for m in result.scalars().all():
+        if scope == "unassigned":
+            # Count assignments
+            assign_result = await db.execute(
+                select(func.count(MissionAssignment.id)).where(
+                    MissionAssignment.mission_id == m.id,
+                    MissionAssignment.status != "replaced",
+                )
+            )
+            if assign_result.scalar() > 0:
+                skipped += 1
+                continue
+        await db.delete(m)
+        deleted += 1
+
+    await db.commit()
+    return {"deleted": deleted, "skipped": skipped}

@@ -425,13 +425,24 @@ export default function SchedulingPage() {
   };
 
   // === TEMPLATE DELETE ===
+  const [deleteTemplateMode, setDeleteTemplateMode] = useState<string>("none");
   const deleteTemplate = async (tmpl: any) => {
     try {
-      await api.delete(tenantApi(`/mission-templates/${tmpl.id}`));
-      toast("success", "תבנית נמחקה");
+      await api.delete(tenantApi(`/mission-templates/${tmpl.id}?delete_missions=${deleteTemplateMode}`));
+      const modeText = deleteTemplateMode === "future" ? " + משימות עתידיות" : deleteTemplateMode === "all" ? " + כל המשימות" : "";
+      toast("success", `תבנית נמחקה${modeText}`);
       setDeleteTemplateTarget(null);
+      setDeleteTemplateMode("none");
       if (selectedWindow) loadWindowData(selectedWindow.id);
     } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה במחיקת תבנית")); }
+  };
+
+  const propagateTemplateUpdate = async (tmplId: string) => {
+    try {
+      const res = await api.patch(tenantApi(`/mission-templates/${tmplId}?propagate=true`), {});
+      toast("success", `עודכנו ${res.data.propagated_missions} משימות עתידיות`);
+      if (selectedWindow) loadWindowData(selectedWindow.id);
+    } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה בעדכון משימות")); }
   };
 
   // === TEMPLATES ===
@@ -1730,6 +1741,13 @@ export default function SchedulingPage() {
                     }}>
                       <Calendar className="me-1 h-3.5 w-3.5" />צור משימות
                     </Button>
+                    <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px] text-blue-500 hover:bg-blue-50" title="עדכן משימות עתידיות שנוצרו מתבנית זו" onClick={() => {
+                      if (confirm("האם לעדכן את כל המשימות העתידיות שנוצרו מתבנית זו?")) {
+                        propagateTemplateUpdate(tmpl.id);
+                      }
+                    }}>
+                      🔄
+                    </Button>
                     <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px] text-red-500 hover:bg-red-50" onClick={() => setDeleteTemplateTarget(tmpl)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -2720,15 +2738,32 @@ export default function SchedulingPage() {
       />
 
       {/* Delete Template Confirm */}
-      <ConfirmDialog
-        open={!!deleteTemplateTarget}
-        onClose={() => setDeleteTemplateTarget(null)}
-        onConfirm={() => deleteTemplateTarget && deleteTemplate(deleteTemplateTarget)}
-        title="מחיקת תבנית"
-        description={`האם למחוק את התבנית "${deleteTemplateTarget?.name}"? פעולה זו לא ניתנת לביטול.`}
-        confirmText="מחק"
-        variant="destructive"
-      />
+      <Dialog open={!!deleteTemplateTarget} onOpenChange={() => { setDeleteTemplateTarget(null); setDeleteTemplateMode("none"); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>מחיקת תבנית</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-4">
+            <p className="text-sm">האם למחוק את התבנית "{deleteTemplateTarget?.name}"?</p>
+            <div className="space-y-2 text-sm">
+              <label className="flex items-center gap-2 p-2 rounded border hover:bg-muted cursor-pointer">
+                <input type="radio" name="deleteMode" value="none" checked={deleteTemplateMode === "none"} onChange={() => setDeleteTemplateMode("none")} />
+                <span>🗑️ מחק רק את התבנית (משימות קיימות יישארו)</span>
+              </label>
+              <label className="flex items-center gap-2 p-2 rounded border hover:bg-muted cursor-pointer">
+                <input type="radio" name="deleteMode" value="future" checked={deleteTemplateMode === "future"} onChange={() => setDeleteTemplateMode("future")} />
+                <span>📅 מחק תבנית + משימות עתידיות שנוצרו ממנה</span>
+              </label>
+              <label className="flex items-center gap-2 p-2 rounded border hover:bg-muted cursor-pointer">
+                <input type="radio" name="deleteMode" value="all" checked={deleteTemplateMode === "all"} onChange={() => setDeleteTemplateMode("all")} />
+                <span>⚠️ מחק תבנית + כל המשימות שנוצרו ממנה</span>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteTemplateTarget(null); setDeleteTemplateMode("none"); }}>ביטול</Button>
+            <Button variant="destructive" onClick={() => deleteTemplateTarget && deleteTemplate(deleteTemplateTarget)}>מחק</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Import Soldiers Wizard — Multi-Step — bottom sheet on mobile */}
       <Dialog open={showImportWizard} onOpenChange={setShowImportWizard}>
