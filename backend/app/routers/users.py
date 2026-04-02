@@ -137,9 +137,11 @@ async def _validate_import_rows(
     existing_emails_res = await db.execute(select(User.email))
     existing_emails = {r[0].lower() for r in existing_emails_res.all()}
 
-    # Pre-fetch role definitions for this tenant
+    # Pre-fetch role definitions (system roles) for this tenant
     roles_res = await db.execute(
-        select(RoleDefinition).where(RoleDefinition.tenant_id == tenant_id)
+        select(RoleDefinition).where(
+            (RoleDefinition.tenant_id == tenant_id) | (RoleDefinition.tenant_id.is_(None))
+        )
     )
     roles_by_name: dict[str, UUID] = {}
     for rd in roles_res.scalars().all():
@@ -147,10 +149,24 @@ async def _validate_import_rows(
         if rd.label:
             if isinstance(rd.label, dict):
                 for lang_val in rd.label.values():
-                    if isinstance(lang_val, str):
-                        roles_by_name[lang_val.lower()] = rd.id
+                    if isinstance(lang_val, str) and lang_val.strip():
+                        roles_by_name[lang_val.strip().lower()] = rd.id
             elif isinstance(rd.label, str):
-                roles_by_name[rd.label.lower()] = rd.id
+                roles_by_name[rd.label.strip().lower()] = rd.id
+
+    # Pre-fetch work roles (military/job roles) — these are what the CSV usually contains
+    from app.models.scheduling import WorkRole
+    work_roles_res = await db.execute(
+        select(WorkRole).where(WorkRole.tenant_id == tenant_id)
+    )
+    work_roles_by_name: dict[str, UUID] = {}
+    for wr in work_roles_res.scalars().all():
+        if isinstance(wr.name, dict):
+            for lang_val in wr.name.values():
+                if isinstance(lang_val, str) and lang_val.strip():
+                    work_roles_by_name[lang_val.strip().lower()] = wr.id
+        else:
+            work_roles_by_name[str(wr.name).strip().lower()] = wr.id
 
     seen_emp_numbers: set[str] = set()
     seen_emails: set[str] = set()
@@ -187,11 +203,13 @@ async def _validate_import_rows(
         elif email and email in existing_emails:
             row_errors.append({"row": row_num, "field": "email", "reason": "אימייל כבר קיים במערכת — פנה למנהל מערכת"})
 
-        # Resolve role
+        # Resolve role — check both system roles AND work roles
         role_definition_id = None
+        work_role_id = None
         if role_name:
             role_definition_id = roles_by_name.get(role_name.lower())
-            if not role_definition_id:
+            work_role_id = work_roles_by_name.get(role_name.lower())
+            if not role_definition_id and not work_role_id:
                 row_errors.append({"row": row_num, "field": "role_name", "reason": f"תפקיד '{role_name}' לא נמצא במערכת"})
 
         if row_errors:
@@ -207,6 +225,7 @@ async def _validate_import_rows(
                 "phone": phone,
                 "email": email,
                 "role_definition_id": role_definition_id,
+                "work_role_id": work_role_id,
             })
 
     return valid, errors
