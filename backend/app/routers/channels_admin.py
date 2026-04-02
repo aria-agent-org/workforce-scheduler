@@ -1,8 +1,11 @@
 """Communication channel admin configuration — WhatsApp, Telegram, Email, SMS."""
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

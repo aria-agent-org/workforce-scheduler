@@ -141,10 +141,6 @@ services:
     depends_on:
       - backend
 
-volumes:
-  pgdata:
-  redisdata:
-
   whatsapp-bridge:
     build:
       context: ./whatsapp-bridge
@@ -156,8 +152,6 @@ volumes:
       WA_AUTH_DIR: /data/wa-auth
     volumes:
       - wa-auth-data:/data/wa-auth
-    ports:
-      - "3001:3001"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/status?api_key=shavtzak-wa-bridge-key"]
       interval: 30s
@@ -165,4 +159,6 @@ volumes:
       retries: 3
 
 volumes:
+  pgdata:
+  redisdata:
   wa-auth-data:
