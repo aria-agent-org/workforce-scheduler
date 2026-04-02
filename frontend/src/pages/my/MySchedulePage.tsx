@@ -188,8 +188,32 @@ export default function MySchedulePage() {
     return now >= start && now <= end;
   });
 
+  // Load stats
+  const [stats, setStats] = useState<any>(null);
+  useEffect(() => {
+    api.get(tenantApi("/my/my-stats")).then(r => setStats(r.data)).catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-4 pb-20" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      {/* Quick Stats */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-2.5 text-center">
+            <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{stats.week_missions}</p>
+            <p className="text-[10px] text-blue-600 dark:text-blue-400">השבוע</p>
+          </div>
+          <div className="rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-2.5 text-center">
+            <p className="text-xl font-bold text-purple-700 dark:text-purple-300">{stats.upcoming_missions}</p>
+            <p className="text-[10px] text-purple-600 dark:text-purple-400">עתידיות</p>
+          </div>
+          <div className="rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-2.5 text-center">
+            <p className="text-xl font-bold text-green-700 dark:text-green-300">{stats.total_missions}</p>
+            <p className="text-[10px] text-green-600 dark:text-green-400">סה״כ</p>
+          </div>
+        </div>
+      )}
+
       {/* Countdown Banner */}
       {countdown && !currentMission && (
         <div className="glass-card p-3 flex items-center gap-3 animate-fade-in" role="status" aria-label="ספירה לאחור למשימה הבאה">
