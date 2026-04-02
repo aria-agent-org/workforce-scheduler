@@ -48,6 +48,7 @@ const MyProfilePage = lazy(() => import("./pages/my/MyProfilePage"));
 const MySettingsPage = lazy(() => import("./pages/my/MySettingsPage"));
 const GpsCheckinPage = lazy(() => import("./pages/my/GpsCheckinPage"));
 const CompliancePage = lazy(() => import("./pages/settings/CompliancePage"));
+const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
 
 function App() {
   const { i18n } = useTranslation();
@@ -143,6 +144,11 @@ function App() {
                   {/* Compliance — commander+ */}
                   <Route path="compliance" element={
                     <PermissionGuard page="rules"><CompliancePage /></PermissionGuard>
+                  } />
+
+                  {/* Analytics — commander+ */}
+                  <Route path="analytics" element={
+                    <PermissionGuard page="reports"><AnalyticsPage /></PermissionGuard>
                   } />
 
                   {/* Help / profile — everyone */}

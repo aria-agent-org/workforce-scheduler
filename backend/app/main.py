@@ -49,6 +49,9 @@ from app.routers import chat as chat_router
 from app.routers import outgoing_webhooks as outgoing_webhooks_router
 from app.routers import calendar_sync as calendar_sync_router
 from app.routers import data_export as data_export_router
+from app.routers import analytics as analytics_router
+from app.routers import kiosk as kiosk_router
+from app.routers import sso as sso_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
@@ -373,6 +376,27 @@ def create_app() -> FastAPI:
         data_export_router.router,
         prefix="/api/v1/{tenant_slug}",
         tags=["data-export"],
+    )
+
+    # Analytics dashboard
+    app.include_router(
+        analytics_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["analytics"],
+    )
+
+    # Kiosk mode (no auth for check-in)
+    app.include_router(
+        kiosk_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["kiosk"],
+    )
+
+    # SSO (Google OAuth, SAML)
+    app.include_router(
+        sso_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["sso"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)

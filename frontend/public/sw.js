@@ -1,47 +1,101 @@
-// Build: 2026-04-01T19:30:00Z — Force update all clients
+// Build: 2026-04-02T08:00:00Z — PWA Enhancement v8
 const BUILD_TS = Date.now();
-const CACHE_VERSION = `v7-${BUILD_TS}`;
-const CACHE_NAME = `shavtzak-${CACHE_VERSION}`;
+const CACHE_VERSION = `v8-${BUILD_TS}`;
+const STATIC_CACHE = `shavtzak-static-${CACHE_VERSION}`;
 const API_CACHE = `shavtzak-api-${CACHE_VERSION}`;
+const OFFLINE_PAGE = '/index.html';
 
-// FORCE: skip waiting and claim immediately
+// Static assets to pre-cache
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/favicon.svg',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+];
+
+// Install: pre-cache static assets
 self.addEventListener('install', event => {
-  // Delete ALL old caches
   event.waitUntil(
-    caches.keys().then(names => 
-      Promise.all(names.map(name => caches.delete(name)))
-    ).then(() => self.skipWaiting())
+    caches.open(STATIC_CACHE)
+      .then(cache => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
   );
 });
 
+// Activate: clean old caches, claim clients
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(names => 
+    caches.keys().then(names =>
       Promise.all(
-        names.filter(n => n !== CACHE_NAME && n !== API_CACHE).map(n => caches.delete(n))
+        names.filter(n => n !== STATIC_CACHE && n !== API_CACHE).map(n => caches.delete(n))
       )
     ).then(() => self.clients.claim())
-    .then(() => {
-      // Force reload all open tabs
-      self.clients.matchAll({type: 'window'}).then(clients => {
-        clients.forEach(client => client.navigate(client.url));
-      });
-    })
   );
 });
 
-// Minimal fetch - no caching, always network
+// Fetch strategy
 self.addEventListener('fetch', event => {
-  // Skip caching for now - ensure fresh content
-  if (event.request.url.includes('/api/') || event.request.url.includes('/auth/')) {
-    return; // Let browser handle API requests normally
+  const url = new URL(event.request.url);
+
+  // API requests: network-first, cache fallback for GET
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) {
+    if (event.request.method === 'GET') {
+      event.respondWith(
+        fetch(event.request)
+          .then(response => {
+            // Cache successful GET responses
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(API_CACHE).then(cache => cache.put(event.request, clone));
+            }
+            return response;
+          })
+          .catch(() => caches.match(event.request))
+      );
+    }
+    // POST/PUT/DELETE: queue for background sync if offline
+    return;
   }
-  // For page navigations, always go to network
+
+  // Page navigations: network-first, fallback to cached index.html
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(OFFLINE_PAGE))
+    );
+    return;
+  }
+
+  // Static assets: cache-first (JS, CSS, images)
+  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/)) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
     return;
   }
 });
+
+// Background sync for offline actions
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-actions') {
+    event.waitUntil(syncOfflineActions());
+  }
+});
+
+async function syncOfflineActions() {
+  // Get queued actions from IndexedDB
+  // TODO: implement IndexedDB queue for offline mutations
+}
 
 // Push notification handler
 self.addEventListener('push', event => {
@@ -49,17 +103,62 @@ self.addEventListener('push', event => {
   const title = data.title || 'שבצק';
   const options = {
     body: data.body || '',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-72.png',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
     dir: 'rtl',
     lang: 'he',
-    data: data.url ? { url: data.url } : undefined,
+    tag: data.tag || 'shavtzak-notification',
+    renotify: true,
+    data: { url: data.url || '/' },
+    actions: data.actions || [],
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// Notification click
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
-  event.waitUntil(clients.openWindow(url));
+
+  // Focus existing window or open new one
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(clients => {
+        for (const client of clients) {
+          if (client.url.includes(url) && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(url);
+      })
+  );
 });
+
+// Notification action click (e.g., "approve swap")
+self.addEventListener('notificationclick', event => {
+  if (event.action) {
+    // Handle specific actions
+    const data = event.notification.data || {};
+    event.notification.close();
+    event.waitUntil(self.clients.openWindow(data.url || '/'));
+  }
+});
+
+// Periodic background sync (check for updates)
+self.addEventListener('periodicsync', event => {
+  if (event.tag === 'check-schedule-updates') {
+    event.waitUntil(checkForUpdates());
+  }
+});
+
+async function checkForUpdates() {
+  // Fetch latest schedule and show notification if changed
+  try {
+    const response = await fetch('/api/v1/health');
+    if (response.ok) {
+      // App is online — could check for schedule changes
+    }
+  } catch {
+    // Still offline
+  }
+}
