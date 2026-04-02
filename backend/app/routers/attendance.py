@@ -31,8 +31,10 @@ async def list_attendance(
     employee_id: UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    status_code: str | None = None,
+    work_role_id: UUID | None = None,
 ) -> list[dict]:
-    """List attendance records with employee names."""
+    """List attendance records with employee names. Filter by status, work role, date range."""
     query = select(AttendanceSchedule, Employee).join(
         Employee, AttendanceSchedule.employee_id == Employee.id
     ).where(AttendanceSchedule.tenant_id == tenant.id)
@@ -45,6 +47,13 @@ async def list_attendance(
         query = query.where(AttendanceSchedule.date >= date_from)
     if date_to:
         query = query.where(AttendanceSchedule.date <= date_to)
+    if status_code:
+        query = query.where(AttendanceSchedule.status_code == status_code)
+    if work_role_id:
+        from app.models.employee import EmployeeWorkRole
+        query = query.join(
+            EmployeeWorkRole, EmployeeWorkRole.employee_id == Employee.id
+        ).where(EmployeeWorkRole.work_role_id == work_role_id)
 
     query = query.order_by(AttendanceSchedule.date, Employee.full_name)
     result = await db.execute(query)

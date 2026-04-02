@@ -740,6 +740,7 @@ async def list_missions(
 
     # Batch-load assignments
     mission_ids = [m.id for m in missions]
+    mission_mt_map = {str(m.id): str(m.mission_type_id) for m in missions}
     assignment_map: dict[str, list] = {str(mid): [] for mid in mission_ids}
     if mission_ids:
         assign_result = await db.execute(
@@ -748,12 +749,23 @@ async def list_missions(
             .where(MissionAssignment.mission_id.in_(mission_ids))
         )
         for ma, emp in assign_result.all():
+            # Resolve slot label from mission type
+            slot_label = ma.slot_id
+            mt_for_slot = mt_map.get(str(mission_mt_map.get(str(ma.mission_id), "")))
+            if mt_for_slot and mt_for_slot.required_slots:
+                for slot_def in mt_for_slot.required_slots:
+                    if slot_def.get("slot_id") == ma.slot_id:
+                        label = slot_def.get("label", {})
+                        slot_label = label.get("he") or label.get("en") or ma.slot_id
+                        break
+
             assignment_map[str(ma.mission_id)].append({
                 "id": str(ma.id),
                 "employee_id": str(ma.employee_id),
                 "employee_name": emp.full_name,
                 "work_role_id": str(ma.work_role_id),
                 "slot_id": ma.slot_id,
+                "slot_label": slot_label,
                 "status": ma.status,
                 "conflicts_detected": ma.conflicts_detected,
             })

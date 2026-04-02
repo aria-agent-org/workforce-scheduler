@@ -675,3 +675,101 @@ async def get_my_teammates(
         {"id": str(e.id), "employee_number": e.employee_number, "full_name": e.full_name}
         for e in result.scalars().all()
     ]
+
+
+# ═══════════════════════════════════════════
+# My Statistics
+# ═══════════════════════════════════════════
+
+@router.get("/my-stats")
+async def get_my_stats(
+    tenant: CurrentTenant, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get statistics for the current soldier — missions, hours, etc."""
+    if not user.employee_id:
+        raise HTTPException(status_code=400, detail="לא מקושר לעובד")
+
+    from datetime import date, timedelta, datetime, time
+    from sqlalchemy import func as sa_func
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())  # Monday
+    month_start = today.replace(day=1)
+
+    # Total missions ever
+    total_result = await db.execute(
+        select(sa_func.count(MissionAssignment.id)).where(
+            MissionAssignment.employee_id == user.employee_id,
+            MissionAssignment.status != "replaced",
+        )
+    )
+    total_missions = total_result.scalar() or 0
+
+    # Missions this week
+    week_result = await db.execute(
+        select(sa_func.count(MissionAssignment.id))
+        .join(Mission, MissionAssignment.mission_id == Mission.id)
+        .where(
+            MissionAssignment.employee_id == user.employee_id,
+            MissionAssignment.status != "replaced",
+            Mission.date >= week_start,
+            Mission.date <= today,
+        )
+    )
+    week_missions = week_result.scalar() or 0
+
+    # Missions this month
+    month_result = await db.execute(
+        select(sa_func.count(MissionAssignment.id))
+        .join(Mission, MissionAssignment.mission_id == Mission.id)
+        .where(
+            MissionAssignment.employee_id == user.employee_id,
+            MissionAssignment.status != "replaced",
+            Mission.date >= month_start,
+            Mission.date <= today,
+        )
+    )
+    month_missions = month_result.scalar() or 0
+
+    # Upcoming missions
+    upcoming_result = await db.execute(
+        select(sa_func.count(MissionAssignment.id))
+        .join(Mission, MissionAssignment.mission_id == Mission.id)
+        .where(
+            MissionAssignment.employee_id == user.employee_id,
+            MissionAssignment.status != "replaced",
+            Mission.date > today,
+        )
+    )
+    upcoming_missions = upcoming_result.scalar() or 0
+
+    # Night missions (23:00-07:00) this month
+    night_result = await db.execute(
+        select(sa_func.count(MissionAssignment.id))
+        .join(Mission, MissionAssignment.mission_id == Mission.id)
+        .where(
+            MissionAssignment.employee_id == user.employee_id,
+            MissionAssignment.status != "replaced",
+            Mission.date >= month_start,
+            (Mission.start_time >= time(23, 0)) | (Mission.start_time < time(7, 0)),
+        )
+    )
+    night_missions = night_result.scalar() or 0
+
+    # Swap requests
+    swap_result = await db.execute(
+        select(sa_func.count(SwapRequest.id)).where(
+            SwapRequest.requester_id == user.employee_id,
+        )
+    )
+    total_swaps = swap_result.scalar() or 0
+
+    return {
+        "total_missions": total_missions,
+        "week_missions": week_missions,
+        "month_missions": month_missions,
+        "upcoming_missions": upcoming_missions,
+        "night_missions_month": night_missions,
+        "total_swap_requests": total_swaps,
+    }
