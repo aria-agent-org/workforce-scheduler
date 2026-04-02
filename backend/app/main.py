@@ -41,6 +41,7 @@ from app.routers import import_wizard as import_wizard_router
 from app.routers import channels_admin as channels_admin_router
 from app.routers import onboarding as onboarding_router
 from app.routers import integration_settings as integration_settings_router
+from app.routers import activity_feed as activity_feed_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
@@ -309,6 +310,13 @@ def create_app() -> FastAPI:
     app.include_router(
         integration_settings_router.router,
         tags=["admin-integrations"],
+    )
+
+    # Activity feed (per-tenant dashboard events)
+    app.include_router(
+        activity_feed_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["activity-feed"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)

@@ -48,4 +48,12 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.cleanup.cleanup_expired_data",
         "schedule": crontab(hour=2, minute=30),
     },
+    "scheduled-reports-daily": {
+        "task": "tasks.send_scheduled_reports",
+        "schedule": crontab(hour=7, minute=30),
+    },
+    "scheduled-reports-weekly": {
+        "task": "tasks.send_scheduled_reports",
+        "schedule": crontab(hour=8, minute=0, day_of_week=0),  # Sunday 08:00
+    },
 }

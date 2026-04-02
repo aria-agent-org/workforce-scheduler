@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Users, Calendar, AlertTriangle, CheckCircle, Clock, BarChart3, ArrowLeftRight, Zap } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
+import ActivityFeed from "@/components/dashboard/ActivityFeed";
 
 interface DashboardStats {
   total_employees: number;
@@ -203,6 +204,9 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Activity Feed */}
+      <ActivityFeed />
 
       {/* Upcoming 48h + Weekly Workload */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
