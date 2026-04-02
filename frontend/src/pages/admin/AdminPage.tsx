@@ -449,22 +449,67 @@ export default function AdminPage() {
 
   // All available features for plans
   const ALL_FEATURES = [
-    { key: "max_employees", label: "מקסימום עובדים", type: "number" },
-    { key: "ai_bot", label: "בוט AI", type: "bool" },
-    { key: "custom_branding", label: "מיתוג מותאם", type: "bool" },
-    { key: "excel_export", label: "ייצוא Excel", type: "bool" },
-    { key: "pdf_export", label: "ייצוא PDF", type: "bool" },
-    { key: "audit_log", label: "יומן ביקורת", type: "bool" },
-    { key: "pwa_push", label: "התראות Push", type: "bool" },
-    { key: "telegram_bot", label: "בוט Telegram", type: "bool" },
-    { key: "whatsapp_bot", label: "בוט WhatsApp", type: "bool" },
-    { key: "google_sheets_sync", label: "סנכרון Google Sheets", type: "bool" },
+    // Limits
+    { key: "max_employees", label: "מקסימום חיילים", type: "number", category: "limits" },
+    { key: "max_schedule_windows", label: "מקסימום לוחות פעילים", type: "number", category: "limits" },
+    { key: "max_mission_types", label: "מקסימום סוגי משימות", type: "number", category: "limits" },
+    { key: "max_admins", label: "מקסימום מנהלים", type: "number", category: "limits" },
+    // Core features
+    { key: "auto_scheduling", label: "שיבוץ אוטומטי", type: "bool", category: "core" },
+    { key: "compliance_engine", label: "מנוע ציות (חוקי עבודה)", type: "bool", category: "core" },
+    { key: "swap_requests", label: "בקשות החלפה", type: "bool", category: "core" },
+    { key: "recurring_missions", label: "משימות חוזרות (תבניות)", type: "bool", category: "core" },
+    { key: "follow_up_missions", label: "משימות המשך (כוננות)", type: "bool", category: "core" },
+    { key: "kiosk_mode", label: "מצב קיוסק (טאבלט)", type: "bool", category: "core" },
+    { key: "gps_checkin", label: "דיווח נוכחות GPS", type: "bool", category: "core" },
+    // Communication
+    { key: "pwa_push", label: "התראות Push", type: "bool", category: "comm" },
+    { key: "telegram_bot", label: "בוט Telegram", type: "bool", category: "comm" },
+    { key: "whatsapp_bot", label: "בוט WhatsApp", type: "bool", category: "comm" },
+    { key: "whatsapp_qr", label: "חיבור WhatsApp QR", type: "bool", category: "comm" },
+    { key: "in_app_chat", label: "צ׳אט פנימי", type: "bool", category: "comm" },
+    { key: "email_notifications", label: "התראות אימייל", type: "bool", category: "comm" },
+    { key: "sms_notifications", label: "התראות SMS", type: "bool", category: "comm" },
+    // Export & Integration
+    { key: "excel_export", label: "ייצוא Excel", type: "bool", category: "export" },
+    { key: "pdf_export", label: "ייצוא PDF", type: "bool", category: "export" },
+    { key: "data_export", label: "ייצוא נתונים (ZIP)", type: "bool", category: "export" },
+    { key: "google_sheets_sync", label: "סנכרון Google Sheets", type: "bool", category: "export" },
+    { key: "calendar_sync", label: "סנכרון לוח שנה (ICS)", type: "bool", category: "export" },
+    { key: "outgoing_webhooks", label: "Webhooks יוצאים", type: "bool", category: "export" },
+    // Customization
+    { key: "custom_branding", label: "מיתוג מותאם (לוגו, צבעים)", type: "bool", category: "custom" },
+    { key: "custom_roles", label: "הרשאות מותאמות אישית", type: "bool", category: "custom" },
+    { key: "custom_statuses", label: "סטטוסי נוכחות מותאמים", type: "bool", category: "custom" },
+    { key: "custom_rules", label: "חוקים מותאמים אישית", type: "bool", category: "custom" },
+    { key: "custom_notification_templates", label: "תבניות התראות מותאמות", type: "bool", category: "custom" },
+    // Security & Admin
+    { key: "ai_bot", label: "בוט AI", type: "bool", category: "security" },
+    { key: "audit_log", label: "יומן ביקורת", type: "bool", category: "security" },
+    { key: "sso", label: "כניסה עם SSO (Google)", type: "bool", category: "security" },
+    { key: "passkey", label: "כניסה עם Passkey", type: "bool", category: "security" },
+    { key: "two_factor", label: "אימות דו-שלבי (2FA)", type: "bool", category: "security" },
+    { key: "ip_whitelist", label: "הגבלת IP", type: "bool", category: "security" },
+    // Analytics
+    { key: "analytics_dashboard", label: "דשבורד אנליטיקס", type: "bool", category: "analytics" },
+    { key: "scheduled_reports", label: "דוחות מתוזמנים", type: "bool", category: "analytics" },
+    { key: "activity_feed", label: "פיד פעילות", type: "bool", category: "analytics" },
+  ];
+
+  const FEATURE_CATEGORIES = [
+    { key: "limits", label: "📊 הגבלות", color: "blue" },
+    { key: "core", label: "⚡ יכולות ליבה", color: "purple" },
+    { key: "comm", label: "📱 תקשורת", color: "green" },
+    { key: "export", label: "📤 ייצוא ואינטגרציה", color: "orange" },
+    { key: "custom", label: "🎨 התאמה אישית", color: "pink" },
+    { key: "security", label: "🔒 אבטחה", color: "red" },
+    { key: "analytics", label: "📈 אנליטיקה", color: "indigo" },
   ];
 
   const PLAN_PRESETS: Record<string, Record<string, any>> = {
-    free: { max_employees: 10, ai_bot: false, custom_branding: false, excel_export: false, pdf_export: false, audit_log: false, pwa_push: true, telegram_bot: false, whatsapp_bot: false, google_sheets_sync: false },
-    pro: { max_employees: 100, ai_bot: true, custom_branding: true, excel_export: true, pdf_export: true, audit_log: true, pwa_push: true, telegram_bot: true, whatsapp_bot: false, google_sheets_sync: true },
-    enterprise: { max_employees: 9999, ai_bot: true, custom_branding: true, excel_export: true, pdf_export: true, audit_log: true, pwa_push: true, telegram_bot: true, whatsapp_bot: true, google_sheets_sync: true },
+    free: { max_employees: 10, max_schedule_windows: 2, max_mission_types: 5, max_admins: 1, auto_scheduling: false, compliance_engine: false, swap_requests: true, recurring_missions: true, follow_up_missions: false, kiosk_mode: false, gps_checkin: false, pwa_push: true, telegram_bot: false, whatsapp_bot: false, whatsapp_qr: false, in_app_chat: false, email_notifications: false, sms_notifications: false, excel_export: false, pdf_export: false, data_export: false, google_sheets_sync: false, calendar_sync: false, outgoing_webhooks: false, custom_branding: false, custom_roles: false, custom_statuses: false, custom_rules: false, custom_notification_templates: false, ai_bot: false, audit_log: false, sso: false, passkey: true, two_factor: false, ip_whitelist: false, analytics_dashboard: false, scheduled_reports: false, activity_feed: false },
+    pro: { max_employees: 100, max_schedule_windows: 10, max_mission_types: 20, max_admins: 5, auto_scheduling: true, compliance_engine: true, swap_requests: true, recurring_missions: true, follow_up_missions: true, kiosk_mode: true, gps_checkin: true, pwa_push: true, telegram_bot: true, whatsapp_bot: false, whatsapp_qr: true, in_app_chat: true, email_notifications: true, sms_notifications: false, excel_export: true, pdf_export: true, data_export: true, google_sheets_sync: true, calendar_sync: true, outgoing_webhooks: false, custom_branding: true, custom_roles: true, custom_statuses: true, custom_rules: true, custom_notification_templates: true, ai_bot: true, audit_log: true, sso: false, passkey: true, two_factor: true, ip_whitelist: false, analytics_dashboard: true, scheduled_reports: true, activity_feed: true },
+    enterprise: { max_employees: 9999, max_schedule_windows: 999, max_mission_types: 999, max_admins: 50, auto_scheduling: true, compliance_engine: true, swap_requests: true, recurring_missions: true, follow_up_missions: true, kiosk_mode: true, gps_checkin: true, pwa_push: true, telegram_bot: true, whatsapp_bot: true, whatsapp_qr: true, in_app_chat: true, email_notifications: true, sms_notifications: true, excel_export: true, pdf_export: true, data_export: true, google_sheets_sync: true, calendar_sync: true, outgoing_webhooks: true, custom_branding: true, custom_roles: true, custom_statuses: true, custom_rules: true, custom_notification_templates: true, ai_bot: true, audit_log: true, sso: true, passkey: true, two_factor: true, ip_whitelist: true, analytics_dashboard: true, scheduled_reports: true, activity_feed: true },
   };
 
   // Tenants
@@ -960,37 +1005,65 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Feature Checkboxes */}
+            {/* Feature Checkboxes — Grouped by Category */}
             <div className="space-y-2">
-              <Label>תכונות</Label>
-              <div className="rounded-lg border p-3 space-y-2 max-h-[250px] overflow-y-auto">
-                {ALL_FEATURES.map(f => (
-                  <label key={f.key} className="flex items-center justify-between gap-2 hover:bg-muted/50 rounded px-2 py-1.5">
-                    <div className="flex items-center gap-2">
-                      {f.type === "bool" ? (
-                        <input
-                          type="checkbox"
-                          checked={!!tenantForm.features[f.key]}
-                          onChange={e => setTenantForm({...tenantForm, features: {...tenantForm.features, [f.key]: e.target.checked}})}
-                          className="rounded h-4 w-4 accent-primary-500"
-                        />
-                      ) : (
-                        <Input
-                          type="number"
-                          value={tenantForm.features[f.key] ?? ""}
-                          onChange={e => setTenantForm({...tenantForm, features: {...tenantForm.features, [f.key]: Number(e.target.value)}})}
-                          className="w-20 h-8 text-sm"
-                        />
-                      )}
-                      <span className="text-sm">{f.label}</span>
+              <div className="flex items-center justify-between">
+                <Label>תכונות ({Object.values(tenantForm.features).filter(Boolean).length}/{ALL_FEATURES.length})</Label>
+                <div className="flex gap-1">
+                  <Button type="button" size="sm" variant="ghost" className="text-xs h-7" onClick={() => {
+                    const all: Record<string, any> = {};
+                    ALL_FEATURES.forEach(f => { all[f.key] = f.type === "number" ? 9999 : true; });
+                    setTenantForm({...tenantForm, features: all});
+                  }}>✅ הפעל הכל</Button>
+                  <Button type="button" size="sm" variant="ghost" className="text-xs h-7" onClick={() => setTenantForm({...tenantForm, features: {}})}>❌ כבה הכל</Button>
+                </div>
+              </div>
+              <div className="rounded-lg border p-3 space-y-3 max-h-[350px] overflow-y-auto">
+                {FEATURE_CATEGORIES.map(cat => {
+                  const catFeatures = ALL_FEATURES.filter(f => (f as any).category === cat.key);
+                  if (catFeatures.length === 0) return null;
+                  const enabledCount = catFeatures.filter(f => !!tenantForm.features[f.key]).length;
+                  return (
+                    <div key={cat.key} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-muted-foreground">{cat.label} ({enabledCount}/{catFeatures.length})</p>
+                        <button type="button" className="text-[10px] text-primary-500 hover:underline" onClick={() => {
+                          const updates = {...tenantForm.features};
+                          const allOn = catFeatures.every(f => f.type === "number" || !!updates[f.key]);
+                          catFeatures.forEach(f => { if (f.type === "bool") updates[f.key] = !allOn; });
+                          setTenantForm({...tenantForm, features: updates});
+                        }}>
+                          {catFeatures.filter(f => f.type === "bool").every(f => !!tenantForm.features[f.key]) ? "כבה קטגוריה" : "הפעל קטגוריה"}
+                        </button>
+                      </div>
+                      {catFeatures.map(f => (
+                        <label key={f.key} className="flex items-center justify-between gap-2 hover:bg-muted/50 rounded px-2 py-1">
+                          <div className="flex items-center gap-2">
+                            {f.type === "bool" ? (
+                              <input
+                                type="checkbox"
+                                checked={!!tenantForm.features[f.key]}
+                                onChange={e => setTenantForm({...tenantForm, features: {...tenantForm.features, [f.key]: e.target.checked}})}
+                                className="rounded h-4 w-4 accent-primary-500"
+                              />
+                            ) : (
+                              <Input
+                                type="number"
+                                value={tenantForm.features[f.key] ?? ""}
+                                onChange={e => setTenantForm({...tenantForm, features: {...tenantForm.features, [f.key]: Number(e.target.value)}})}
+                                className="w-20 h-7 text-sm"
+                              />
+                            )}
+                            <span className="text-xs">{f.label}</span>
+                          </div>
+                          <Badge className={`text-[10px] ${tenantForm.features[f.key] ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                            {f.type === "bool" ? (tenantForm.features[f.key] ? "✓" : "✗") : (tenantForm.features[f.key] ?? "—")}
+                          </Badge>
+                        </label>
+                      ))}
                     </div>
-                    <Badge className={tenantForm.features[f.key] ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}>
-                      {f.type === "bool"
-                        ? (tenantForm.features[f.key] ? "✓" : "✗")
-                        : (tenantForm.features[f.key] ?? "—")}
-                    </Badge>
-                  </label>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
