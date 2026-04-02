@@ -118,6 +118,7 @@ export default function SchedulingPage() {
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<any>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   // Form data
   const [windowForm, setWindowForm] = useState({ name: "", start_date: "", end_date: "" });
@@ -448,7 +449,7 @@ export default function SchedulingPage() {
   // === TEMPLATES ===
   const saveTemplate = async () => {
     try {
-      await api.post(tenantApi("/mission-templates"), {
+      const payload = {
         schedule_window_id: templateForm.schedule_window_id,
         mission_type_id: templateForm.mission_type_id,
         name: templateForm.name,
@@ -460,9 +461,19 @@ export default function SchedulingPage() {
           extra_dates: templateForm.extra_dates,
         },
         time_slots: templateForm.time_slots,
-      });
-      toast("success", "תבנית נוצרה בהצלחה");
+      };
+
+      if (editingTemplateId) {
+        // Edit existing — ask about propagation
+        const shouldPropagate = confirm("האם לעדכן גם את כל המשימות העתידיות שנוצרו מתבנית זו?");
+        await api.patch(tenantApi(`/mission-templates/${editingTemplateId}?propagate=${shouldPropagate}`), payload);
+        toast("success", shouldPropagate ? "תבנית עודכנה + משימות עתידיות עודכנו" : "תבנית עודכנה");
+      } else {
+        await api.post(tenantApi("/mission-templates"), payload);
+        toast("success", "תבנית נוצרה בהצלחה");
+      }
       setShowTemplateModal(false);
+      setEditingTemplateId(null);
       if (selectedWindow) loadWindowData(selectedWindow.id);
     } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
   };
@@ -930,6 +941,7 @@ export default function SchedulingPage() {
                 time_slots: [{ slot_key: "morning", start: "07:00", end: "15:00" }],
                 exceptions: [], extra_dates: [],
               });
+              setEditingTemplateId(null);
               setShowTemplateModal(true);
             }}>
               <Plus className="me-1 h-4 w-4" />תבנית חדשה
@@ -1741,6 +1753,23 @@ export default function SchedulingPage() {
                     }}>
                       <Calendar className="me-1 h-3.5 w-3.5" />צור משימות
                     </Button>
+                    <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px]" title="ערוך תבנית" onClick={() => {
+                      setEditingTemplateId(tmpl.id);
+                      setTemplateForm({
+                        schedule_window_id: tmpl.schedule_window_id || selectedWindow?.id || "",
+                        mission_type_id: tmpl.mission_type_id || "",
+                        name: tmpl.name || "",
+                        recurrence_type: tmpl.recurrence?.type || "daily",
+                        recurrence_days: tmpl.recurrence?.days_of_week || [],
+                        active_weeks: tmpl.recurrence?.active_weeks || "all",
+                        time_slots: tmpl.time_slots || [{ slot_key: "morning", start: "07:00", end: "15:00" }],
+                        exceptions: tmpl.recurrence?.exceptions || [],
+                        extra_dates: tmpl.recurrence?.extra_dates || [],
+                      });
+                      setShowTemplateModal(true);
+                    }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px] text-blue-500 hover:bg-blue-50" title="עדכן משימות עתידיות שנוצרו מתבנית זו" onClick={() => {
                       if (confirm("האם לעדכן את כל המשימות העתידיות שנוצרו מתבנית זו?")) {
                         propagateTemplateUpdate(tmpl.id);
@@ -2246,7 +2275,7 @@ export default function SchedulingPage() {
       {/* Template Modal */}
       <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
         <DialogContent className="max-w-[650px] max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{t("template.title")}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingTemplateId ? "עריכת תבנית" : t("template.title")}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label>{t("template.name")}</Label><Input value={templateForm.name} onChange={e => setTemplateForm({...templateForm, name: e.target.value})} placeholder="משמרת בוקר ניוד" /></div>
             <div className="space-y-2">
