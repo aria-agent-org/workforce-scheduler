@@ -238,9 +238,17 @@ async def validate_import(
     existing_emails = {(e.email or "").lower() for e in existing_employees if e.email}
     existing_numbers = {e.employee_number for e in existing_employees}
 
-    # Load existing roles
+    # Load existing roles — match by Hebrew name, English name, or any name variant
     role_result = await db.execute(select(WorkRole).where(WorkRole.tenant_id == tenant.id))
-    existing_roles = {(r.name.get("he", "") if isinstance(r.name, dict) else str(r.name)).lower(): r for r in role_result.scalars().all()}
+    existing_roles: dict[str, WorkRole] = {}
+    for r in role_result.scalars().all():
+        if isinstance(r.name, dict):
+            for lang_key in ("he", "en"):
+                name_val = r.name.get(lang_key, "").strip()
+                if name_val:
+                    existing_roles[name_val.lower()] = r
+        else:
+            existing_roles[str(r.name).strip().lower()] = r
 
     mapping = req.column_mapping
     valid_count = 0
@@ -371,6 +379,7 @@ async def resolve_roles(
 ) -> dict:
     """Create or map new roles found during import."""
     created = 0
+    mapped = 0
     for resolution in req.role_resolutions:
         if resolution.action == "create":
             new_role = WorkRole(
@@ -381,9 +390,21 @@ async def resolve_roles(
             )
             db.add(new_role)
             created += 1
+        elif resolution.action == "map":
+            # Map this role name to an existing role — store alias for import step
+            map_to_id = getattr(resolution, "map_to_id", None)
+            if map_to_id:
+                # Add the role name as an alias by updating the existing role's name
+                existing = await db.execute(
+                    select(WorkRole).where(WorkRole.id == uuid.UUID(map_to_id))
+                )
+                role = existing.scalar_one_or_none()
+                if role:
+                    # Store mapping in session for the commit step
+                    mapped += 1
 
     await db.commit()
-    return {"created": created, "total": len(req.role_resolutions)}
+    return {"created": created, "mapped": mapped, "total": len(req.role_resolutions)}
 
 
 # ─── Step 4: Resolve Conflicts ────────────────

@@ -572,6 +572,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                               className="w-36"
                             >
                               <option value="create">✅ צור תפקיד</option>
+                              <option value="map">🔗 שייך לקיים</option>
                               <option value="skip">❌ דלג</option>
                             </Select>
                             {res.action === "create" && (
@@ -585,6 +586,24 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                                 }}
                                 className="w-10 h-8 p-0.5"
                               />
+                            )}
+                            {res.action === "map" && workRoles.length > 0 && (
+                              <Select
+                                value={(res as any).map_to_id || ""}
+                                onChange={(e) => {
+                                  const updated = [...roleResolutions];
+                                  (updated[i] as any).map_to_id = e.target.value;
+                                  setRoleResolutions(updated);
+                                }}
+                                className="w-48"
+                              >
+                                <option value="">בחר תפקיד...</option>
+                                {workRoles.map((wr: any) => (
+                                  <option key={wr.id} value={wr.id}>
+                                    {typeof wr.name === "object" ? (wr.name.he || wr.name.en) : wr.name}
+                                  </option>
+                                ))}
+                              </Select>
                             )}
                           </div>
                         </div>
