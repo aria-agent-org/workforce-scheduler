@@ -64,3 +64,4 @@ openpyxl==3.1.5
 # Google Sheets
 google-api-python-client==2.155.0
 google-auth==2.36.0
+cryptography==42.0.8

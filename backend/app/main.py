@@ -40,6 +40,7 @@ from app.routers import help_topics as help_topics_router
 from app.routers import import_wizard as import_wizard_router
 from app.routers import channels_admin as channels_admin_router
 from app.routers import onboarding as onboarding_router
+from app.routers import integration_settings as integration_settings_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
@@ -302,6 +303,12 @@ def create_app() -> FastAPI:
         onboarding_router.router,
         prefix="/api/v1/{tenant_slug}/onboarding",
         tags=["onboarding"],
+    )
+
+    # Integration settings (admin — configure Telegram, WhatsApp, SMTP etc.)
+    app.include_router(
+        integration_settings_router.router,
+        tags=["admin-integrations"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)

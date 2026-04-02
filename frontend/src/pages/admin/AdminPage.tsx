@@ -19,9 +19,10 @@ import api from "@/lib/api";
 import { getErrorMessage } from "@/lib/errorUtils";
 
 import RolePermissionsPage from "../settings/RolePermissionsPage";
-import { Shield } from "lucide-react";
+import IntegrationsPanel from "./IntegrationsPanel";
+import { Shield, Plug } from "lucide-react";
 
-type AdminTab = "tenants" | "plans" | "users" | "roles" | "health" | "channels" | "google_sheets";
+type AdminTab = "tenants" | "plans" | "users" | "roles" | "health" | "channels" | "google_sheets" | "integrations";
 
 function SystemHealthDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -654,6 +655,7 @@ export default function AdminPage() {
     { key: "roles", label: "תפקידים והרשאות", icon: Shield },
     { key: "channels", label: "ערוצי תקשורת", icon: Radio },
     { key: "google_sheets", label: "Google Sheets", icon: FileSpreadsheet },
+    { key: "integrations", label: "אינטגרציות", icon: Plug },
     { key: "health", label: "בריאות מערכת", icon: Activity },
   ];
 
@@ -906,6 +908,9 @@ export default function AdminPage() {
 
       {/* Google Sheets Tab */}
       {activeTab === "google_sheets" && <GoogleSheetsConfigPanel />}
+
+      {/* Integrations Tab */}
+      {activeTab === "integrations" && <IntegrationsPanel />}
 
       {/* Health Tab */}
       {activeTab === "health" && <SystemHealthDashboard />}
