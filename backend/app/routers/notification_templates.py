@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_tenant, require_permission
+from app.dependencies import get_current_user, get_tenant
+from app.permissions import require_permission
 from app.models.notification import NotificationTemplate
 from app.models.tenant import Tenant
 
