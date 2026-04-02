@@ -1404,14 +1404,18 @@ async def get_eligible_soldiers(
             continue  # Skip soldiers with hard time conflicts
 
         # Check rest hours since last mission (look at yesterday + today)
+        # Standby missions that count as rest are excluded from rest calculation
         yesterday = mission.date - timedelta(days=1)
         recent_result = await db.execute(
             select(Mission)
             .join(MissionAssignment, MissionAssignment.mission_id == Mission.id)
+            .join(MissionType, Mission.mission_type_id == MissionType.id)
             .where(
                 MissionAssignment.employee_id == emp.id,
                 Mission.date.in_([yesterday, mission.date]),
                 MissionAssignment.status != "replaced",
+                # Exclude standby missions that count as rest
+                ~(MissionType.standby_can_count_as_rest.is_(True)),
             )
             .order_by(Mission.date.desc(), Mission.end_time.desc())
         )
@@ -2426,16 +2430,18 @@ async def validate_swap_request(
                     "time": f"{existing_m.start_time}-{existing_m.end_time}",
                 })
 
-        # Check rest hours for target
+        # Check rest hours for target (exclude standby-as-rest missions)
         yesterday = req_mission.date - timedelta(days=1)
         target_recent = await db.execute(
             select(Mission)
             .join(MissionAssignment, MissionAssignment.mission_id == Mission.id)
+            .join(MissionType, Mission.mission_type_id == MissionType.id)
             .where(
                 MissionAssignment.employee_id == sr.target_employee_id,
                 Mission.date.in_([yesterday, req_mission.date]),
                 Mission.id != req_mission.id,
                 MissionAssignment.status != "replaced",
+                ~(MissionType.standby_can_count_as_rest.is_(True)),
             )
             .order_by(Mission.date.desc(), Mission.end_time.desc())
         )

@@ -63,6 +63,7 @@ class MissionTypeCreate(BaseModel):
     icon: Optional[str] = None
     duration_hours: Optional[float] = None
     is_standby: bool = False
+    standby_can_count_as_rest: bool = False
     required_slots: Optional[list] = None
     pre_mission_events: Optional[list | dict] = None
     post_mission_rule: Optional[dict] = None
@@ -75,6 +76,7 @@ class MissionTypeUpdate(BaseModel):
     icon: Optional[str] = None
     duration_hours: Optional[float] = None
     is_standby: Optional[bool] = None
+    standby_can_count_as_rest: Optional[bool] = None
     required_slots: Optional[list] = None
     pre_mission_events: Optional[list | dict] = None
     post_mission_rule: Optional[dict] = None
@@ -90,6 +92,7 @@ class MissionTypeResponse(BaseModel):
     icon: Optional[str] = None
     duration_hours: Optional[float] = None
     is_standby: bool
+    standby_can_count_as_rest: bool = False
     required_slots: Optional[list] = None
     pre_mission_events: Optional[list | dict] = None
     post_mission_rule: Optional[dict] = None
