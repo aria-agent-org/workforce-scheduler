@@ -42,6 +42,9 @@ from app.routers import channels_admin as channels_admin_router
 from app.routers import onboarding as onboarding_router
 from app.routers import integration_settings as integration_settings_router
 from app.routers import activity_feed as activity_feed_router
+from app.routers import gps_checkin as gps_checkin_router
+from app.routers import compliance as compliance_router
+from app.routers import notification_templates as notification_templates_router
 from app.websockets.manager import manager as ws_manager
 
 settings = get_settings()
@@ -317,6 +320,27 @@ def create_app() -> FastAPI:
         activity_feed_router.router,
         prefix="/api/v1/{tenant_slug}",
         tags=["activity-feed"],
+    )
+
+    # GPS check-in/out (time clock with location)
+    app.include_router(
+        gps_checkin_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["gps-checkin"],
+    )
+
+    # Compliance engine (work law validation)
+    app.include_router(
+        compliance_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["compliance"],
+    )
+
+    # Notification templates editor
+    app.include_router(
+        notification_templates_router.router,
+        prefix="/api/v1/{tenant_slug}",
+        tags=["notification-templates"],
     )
 
     # Webhooks (WhatsApp / Telegram bots)

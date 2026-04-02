@@ -46,6 +46,8 @@ const SwapRequestPage = lazy(() => import("./pages/my/SwapRequestPage"));
 const MyNotificationsPage = lazy(() => import("./pages/my/MyNotificationsPage"));
 const MyProfilePage = lazy(() => import("./pages/my/MyProfilePage"));
 const MySettingsPage = lazy(() => import("./pages/my/MySettingsPage"));
+const GpsCheckinPage = lazy(() => import("./pages/my/GpsCheckinPage"));
+const CompliancePage = lazy(() => import("./pages/settings/CompliancePage"));
 
 function App() {
   const { i18n } = useTranslation();
@@ -138,6 +140,11 @@ function App() {
                     <PermissionGuard roles={["super_admin"]}><AdminPage /></PermissionGuard>
                   } />
 
+                  {/* Compliance — commander+ */}
+                  <Route path="compliance" element={
+                    <PermissionGuard page="rules"><CompliancePage /></PermissionGuard>
+                  } />
+
                   {/* Help / profile — everyone */}
                   <Route path="help" element={
                     <PermissionGuard page="help"><HelpPage /></PermissionGuard>
@@ -157,6 +164,7 @@ function App() {
                   <Route path="profile" element={<MyProfilePage />} />
                   <Route path="settings" element={<MySettingsPage />} />
                   <Route path="mission/:id" element={<MissionDetailPage />} />
+                  <Route path="checkin" element={<GpsCheckinPage />} />
                 </Route>
 
                 <Route path="*" element={<NotFoundPage />} />

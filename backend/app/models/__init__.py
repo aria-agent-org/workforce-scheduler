@@ -31,3 +31,5 @@ from app.models.push_subscription import PushSubscription  # noqa: F401
 from app.models.retention import DataRetentionConfig  # noqa: F401
 from app.models.onboarding import OnboardingProgress  # noqa: F401
 from app.models.integration_config import IntegrationConfig  # noqa: F401
+from app.models.gps_checkin import GpsCheckin, Location  # noqa: F401
+from app.models.compliance import ComplianceRule, ComplianceViolation  # noqa: F401
