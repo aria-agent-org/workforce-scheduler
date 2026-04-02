@@ -155,7 +155,7 @@ async def _validate_import_rows(
                 roles_by_name[rd.label.strip().lower()] = rd.id
 
     # Pre-fetch work roles (military/job roles) — these are what the CSV usually contains
-    from app.models.scheduling import WorkRole
+    from app.models.resource import WorkRole
     work_roles_res = await db.execute(
         select(WorkRole).where(WorkRole.tenant_id == tenant_id)
     )
