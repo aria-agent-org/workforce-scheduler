@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/authStore";
@@ -116,45 +116,40 @@ export default function AppLayout() {
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  // Check if first-time admin needs onboarding
-  // Priority: if localStorage says completed/skipped → trust it (fast path, avoids API call)
-  // Otherwise: check API for DB status
-  const onboardingCompleted = localStorage.getItem("shavtzak_onboarding_completed");
-  const onboardingStarted = localStorage.getItem("shavtzak_onboarding");
+  // Onboarding check: use DB state via API (localStorage is just a cache)
   const isAdmin = user?.role_name && ["tenant_admin", "super_admin"].includes(user.role_name);
+  const [onboardingChecked, setOnboardingChecked] = useState(
+    // Fast path: if localStorage says completed, skip the API call
+    !!localStorage.getItem("shavtzak_onboarding_completed")
+  );
+  const [shouldOnboard, setShouldOnboard] = useState(false);
 
-  // Only redirect to onboarding if:
-  // 1. User is admin
-  // 2. localStorage says NOT completed
-  // 3. No in-progress state in localStorage (first visit)
-  const isFirstTimeAdmin =
-    !onboardingCompleted &&
-    !onboardingStarted &&
-    isAdmin;
-
-  if (isFirstTimeAdmin) {
-    // Mark as started so we don't redirect again on next render (they can complete later)
-    localStorage.setItem("shavtzak_onboarding", JSON.stringify({ currentStep: 0, completed: {}, fromAutoRedirect: true }));
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // If admin has in-progress state (started but not completed), redirect to resume
-  const isAdminWithInProgress =
-    !onboardingCompleted &&
-    onboardingStarted &&
-    isAdmin;
-
-  if (isAdminWithInProgress) {
-    try {
-      const parsed = JSON.parse(onboardingStarted);
-      // Only redirect if they were auto-redirected (not manually navigated away)
-      if (parsed?.fromAutoRedirect && window.location.pathname !== "/onboarding") {
-        // Don't redirect again — let them use the app normally
-        // They can access /onboarding manually if needed
+  useEffect(() => {
+    if (onboardingChecked || !isAdmin || !isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(tenantApi("/onboarding/progress"));
+        const status = res.data?.status;
+        if (status === "completed" || status === "skipped") {
+          localStorage.setItem("shavtzak_onboarding_completed", "true");
+        } else if (!cancelled) {
+          // First time or in-progress — only redirect if never started
+          if (!status || status === "not_started") {
+            setShouldOnboard(true);
+          }
+        }
+      } catch {
+        // API error — don't redirect, let them use the app
       }
-    } catch {
-      // ignore parse errors
-    }
+      if (!cancelled) setOnboardingChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin, isAuthenticated, onboardingChecked]);
+
+  if (isAdmin && !onboardingChecked) return <LoadingSpinner />;
+  if (shouldOnboard) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal

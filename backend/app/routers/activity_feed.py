@@ -115,7 +115,7 @@ def _format_action(entry: AuditLog) -> str:
         "settings.updated": "הגדרות עודכנו",
     }
 
-    details = entry.details or {}
+    details = getattr(entry, "details", None) or getattr(entry, "after_state", None) or {}
     base = action_map.get(entry.action, entry.action)
 
     # Add context from details

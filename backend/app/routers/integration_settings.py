@@ -54,10 +54,16 @@ class TestResultOut(BaseModel):
 
 # ---------- Helpers ----------
 
-def _require_super_admin(user):
+async def _require_super_admin(user, db: AsyncSession):
     """Raise 403 if user is not super_admin."""
-    role = getattr(user, "role", None)
-    if role != "super_admin":
+    from app.models.resource import RoleDefinition
+    if not user.role_definition_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
+    result = await db.execute(
+        select(RoleDefinition.name).where(RoleDefinition.id == user.role_definition_id)
+    )
+    role_name = result.scalar_one_or_none()
+    if role_name != "super_admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
 
 
@@ -93,7 +99,7 @@ async def list_integrations(
     db: AsyncSession = Depends(get_db),
 ):
     """List all integration configs grouped by category."""
-    _require_super_admin(user)
+    await _require_super_admin(user, db)
 
     # Load all existing configs from DB
     result = await db.execute(select(IntegrationConfig))
@@ -151,7 +157,7 @@ async def update_integration(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an integration config value."""
-    _require_super_admin(user)
+    await _require_super_admin(user, db)
 
     if key not in INTEGRATION_KEYS:
         raise HTTPException(status_code=404, detail=f"Unknown integration key: {key}")
@@ -203,7 +209,7 @@ async def test_integration(
     db: AsyncSession = Depends(get_db),
 ):
     """Test an integration connection."""
-    _require_super_admin(user)
+    await _require_super_admin(user, db)
 
     try:
         if category == "telegram":
@@ -233,7 +239,7 @@ async def set_telegram_webhook(
     db: AsyncSession = Depends(get_db),
 ):
     """Register Telegram webhook automatically."""
-    _require_super_admin(user)
+    await _require_super_admin(user, db)
 
     bot_token = await get_integration_value("telegram_bot_token", db)
     if not bot_token:
