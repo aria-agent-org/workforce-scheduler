@@ -1423,7 +1423,11 @@ async def get_eligible_soldiers(
         if recent_missions:
             last = recent_missions[0]
             # Calculate hours since last mission ended
-            last_end = datetime.combine(last.date, last.end_time)
+            # For activated standby: use deactivated_at if available (actual end of activation)
+            if last.is_activated and last.deactivated_at:
+                last_end = last.deactivated_at.replace(tzinfo=None)
+            else:
+                last_end = datetime.combine(last.date, last.end_time)
             this_start = datetime.combine(mission.date, mission.start_time)
             hours_rest = (this_start - last_end).total_seconds() / 3600
             if hours_rest < 16:
@@ -1857,20 +1861,57 @@ async def mark_mission_activated(
     m = result.scalar_one_or_none()
     if not m:
         raise HTTPException(status_code=404, detail="משימה לא נמצאה")
-    if m.is_activated:
+    if m.is_activated and not m.deactivated_at:
         raise HTTPException(status_code=400, detail="משימה כבר מסומנת כמופעלת")
 
     m.is_activated = True
+    m.activated_at = datetime.now(timezone.utc)
+    m.deactivated_at = None  # Reset deactivation if re-activating
     m.version += 1
 
     db.add(AuditLog(
         tenant_id=tenant.id, user_id=user.id, action="mark_activated",
         entity_type="mission", entity_id=m.id,
-        after_state={"is_activated": True, "name": m.name},
+        after_state={"is_activated": True, "activated_at": m.activated_at.isoformat(), "name": m.name},
         ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
     ))
     await db.commit()
-    return {"id": str(m.id), "name": m.name, "is_activated": True, "version": m.version}
+    return {"id": str(m.id), "name": m.name, "is_activated": True, "activated_at": m.activated_at.isoformat(), "version": m.version}
+
+
+@router.post("/missions/{mission_id}/mark-deactivated", dependencies=[Depends(require_permission("missions", "write"))])
+async def mark_mission_deactivated(
+    mission_id: UUID, tenant: CurrentTenant, user: CurrentUser,
+    request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mark a standby mission as deactivated (activation ended). Records deactivated_at for rest calculation."""
+    result = await db.execute(
+        select(Mission).where(Mission.id == mission_id, Mission.tenant_id == tenant.id)
+    )
+    m = result.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="משימה לא נמצאה")
+    if not m.is_activated:
+        raise HTTPException(status_code=400, detail="משימה לא הוקפצה")
+    if m.deactivated_at:
+        raise HTTPException(status_code=400, detail="ההקפצה כבר הסתיימה")
+
+    m.deactivated_at = datetime.now(timezone.utc)
+    m.version += 1
+
+    db.add(AuditLog(
+        tenant_id=tenant.id, user_id=user.id, action="mark_deactivated",
+        entity_type="mission", entity_id=m.id,
+        after_state={"deactivated_at": m.deactivated_at.isoformat(), "name": m.name},
+        ip_address=getattr(request.state, "real_ip", request.client.host if request.client else None),
+    ))
+    await db.commit()
+    return {
+        "id": str(m.id), "name": m.name,
+        "is_activated": True, "activated_at": m.activated_at.isoformat() if m.activated_at else None,
+        "deactivated_at": m.deactivated_at.isoformat(),
+        "version": m.version,
+    }
 
 
 class OverrideRequest(PydanticBaseModel):

@@ -166,6 +166,8 @@ class MissionResponse(BaseModel):
     end_time: dt.time
     status: str
     is_activated: bool
+    activated_at: Optional[dt.datetime] = None
+    deactivated_at: Optional[dt.datetime] = None
     version: int
     assignments: list = []
     created_at: dt.datetime

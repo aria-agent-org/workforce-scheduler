@@ -1484,6 +1484,34 @@ export default function SchedulingPage() {
                               <Check className="me-1 h-3.5 w-3.5" />אשר
                             </Button>
                           )}
+                          {/* Standby activation/deactivation */}
+                          {missionTypes.find((mt: any) => mt.id === m.mission_type_id)?.is_standby && !m.is_activated && (
+                            <Button size="sm" variant="outline" className="min-h-[40px] border-red-300 text-red-700 hover:bg-red-50" onClick={async () => {
+                              try {
+                                await api.post(tenantApi(`/missions/${m.id}/mark-activated`));
+                                toast("success", "🚨 משימה הוקפצה!");
+                                if (selectedWindow) loadWindowData(selectedWindow.id);
+                              } catch (e: any) { toast("error", e?.response?.data?.detail || "שגיאה"); }
+                            }}>
+                              🚨 הקפץ
+                            </Button>
+                          )}
+                          {m.is_activated && !m.deactivated_at && (
+                            <Button size="sm" variant="outline" className="min-h-[40px] border-blue-300 text-blue-700 hover:bg-blue-50" onClick={async () => {
+                              try {
+                                await api.post(tenantApi(`/missions/${m.id}/mark-deactivated`));
+                                toast("success", "✅ ההקפצה הסתיימה");
+                                if (selectedWindow) loadWindowData(selectedWindow.id);
+                              } catch (e: any) { toast("error", e?.response?.data?.detail || "שגיאה"); }
+                            }}>
+                              ✅ סיים הקפצה
+                            </Button>
+                          )}
+                          {m.is_activated && (
+                            <Badge className={m.deactivated_at ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700 animate-pulse"}>
+                              {m.deactivated_at ? "הוקפצה (הסתיימה)" : "🚨 הוקפצה"}
+                            </Badge>
+                          )}
                           <Button size="sm" variant="ghost" className="min-h-[40px] text-orange-500 hover:bg-orange-50 hover:text-orange-600" onClick={async () => {
                             try {
                               await api.patch(tenantApi(`/missions/${m.id}`), { status: "archived" });
