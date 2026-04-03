@@ -180,18 +180,15 @@ export default function VisibilitySettingsPage() {
       </Card>
 
       {/* Manual Save Fallback */}
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            saveFn().then(() => toast("success", "נשמר בהצלחה")).catch(() => toast("error", "שגיאה"));
-          }}
-          className="min-h-[44px]"
-        >
-          שמור ידנית
-        </Button>
-      </div>
+      <Button
+        variant="outline"
+        onClick={() => {
+          saveFn().then(() => toast("success", "נשמר בהצלחה")).catch(() => toast("error", "שגיאה"));
+        }}
+        className="w-full h-10 text-sm"
+      >
+        💾 שמור ידנית
+      </Button>
     </div>
   );
 }
