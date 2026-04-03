@@ -66,15 +66,23 @@ export default function GoogleSheetsPage() {
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
+  const [serviceAccountConfigured, setServiceAccountConfigured] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [settingsRes, statusRes, confRes] = await Promise.all([
+      const [settingsRes, statusRes, confRes, serviceInfoRes] = await Promise.all([
         api.get(tenantApi("/settings")).catch(() => ({ data: [] })),
         api.get(tenantApi("/attendance/statuses")).catch(() => ({ data: [] })),
         api.get(tenantApi("/attendance/conflicts")).catch(() => ({ data: [] })),
+        api.get(tenantApi("/google-sheets/service-info")).catch(() => ({ data: { configured: false, service_account_email: null } })),
       ]);
+
+      // Service account info
+      const svcInfo = serviceInfoRes.data || {};
+      setServiceAccountConfigured(svcInfo.configured || false);
+      setServiceAccountEmail(svcInfo.service_account_email || null);
 
       setStatusDefs(statusRes.data || []);
       setConflicts(confRes.data || []);
@@ -241,6 +249,62 @@ export default function GoogleSheetsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Service Account Info — tells tenant which email to share with */}
+      {serviceAccountConfigured && serviceAccountEmail ? (
+        <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 text-blue-600 text-xl">📧</div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-1">שיתוף גיליון עם המערכת</h3>
+                <p className="text-sm text-blue-800 dark:text-blue-300 mb-2">
+                  כדי שהמערכת תוכל לקרוא ולעדכן את הגיליון, שתף אותו עם האימייל הבא ב-Google Sheets:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code
+                    className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded px-3 py-1.5 text-sm font-mono select-all cursor-pointer"
+                    dir="ltr"
+                    onClick={() => {
+                      navigator.clipboard.writeText(serviceAccountEmail);
+                      toast("success", "האימייל הועתק ללוח");
+                    }}
+                    title="לחץ להעתקה"
+                  >
+                    {serviceAccountEmail}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      navigator.clipboard.writeText(serviceAccountEmail);
+                      toast("success", "האימייל הועתק ללוח");
+                    }}
+                  >
+                    העתק
+                  </Button>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  💡 ב-Google Sheets: לחץ על "שיתוף" → הדבק את האימייל → תן הרשאת "עורך" (Editor)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-900/20">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+            <div>
+              <span className="text-yellow-800 dark:text-yellow-200 font-medium">Google Sheets לא מוגדר במערכת</span>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
+                יש לבקש ממנהל המערכת להגדיר חשבון שירות (Service Account) באינטגרציות
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Connection Settings */}
       <Card>

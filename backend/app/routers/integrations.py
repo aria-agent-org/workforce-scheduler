@@ -151,6 +151,47 @@ async def test_google_sheets_connection(
     }
 
 
+@router.get("/google-sheets/service-info")
+async def get_google_sheets_service_info(
+    tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the service account email so tenants know who to share their spreadsheet with.
+    
+    This endpoint is accessible to any authenticated tenant user — it only exposes the
+    service account email, not the full credentials JSON.
+    """
+    import json as _json
+    import os
+
+    from app.models.integration_config import IntegrationConfig, decrypt_value
+
+    # Try DB first
+    result = await db.execute(
+        select(IntegrationConfig).where(IntegrationConfig.key == "google_service_account_json")
+    )
+    config = result.scalar_one_or_none()
+    creds_json = None
+    if config and config.value:
+        try:
+            creds_json = decrypt_value(config.value)
+        except Exception:
+            creds_json = config.value
+
+    # Env fallback
+    if not creds_json:
+        creds_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+    if not creds_json:
+        return {"configured": False, "service_account_email": None}
+
+    try:
+        creds = _json.loads(creds_json) if isinstance(creds_json, str) else creds_json
+        email = creds.get("client_email", None)
+        return {"configured": bool(email), "service_account_email": email}
+    except Exception:
+        return {"configured": False, "service_account_email": None}
+
+
 @router.get("/google-sheets/conflicts", dependencies=[Depends(require_permission("settings", "read"))])
 async def list_google_sheets_conflicts(
     tenant: CurrentTenant, user: CurrentUser, db: AsyncSession = Depends(get_db),
