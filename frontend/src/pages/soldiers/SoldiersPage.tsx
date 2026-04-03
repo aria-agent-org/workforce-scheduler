@@ -962,7 +962,7 @@ export default function SoldiersPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {a.date && <span className="text-xs text-muted-foreground">{a.date}</span>}
-                          {(a.slot_label || a.slot_id) && <Badge className="text-[10px]">{a.slot_label || a.slot_id}</Badge>}
+                          {(a.slot_label || a.slot_id) && <Badge className="text-[10px]">{typeof a.slot_label === "object" ? (a.slot_label?.he || a.slot_label?.en || a.slot_id) : (a.slot_label || a.slot_id)}</Badge>}
                           <Badge variant={a.status === "assigned" ? "success" : "default"} className="text-[10px]">{a.status || "שובץ"}</Badge>
                         </div>
                       </div>

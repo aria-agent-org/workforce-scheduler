@@ -304,7 +304,7 @@ export default function SoldierDetailPage() {
                         <span className="text-muted-foreground">📅</span>
                         <div>
                           <p className="font-medium">{a.mission_name || a.name || "משימה"}</p>
-                          {a.slot_label && <p className="text-xs text-muted-foreground">{a.slot_label}</p>}
+                          {a.slot_label && <p className="text-xs text-muted-foreground">{typeof a.slot_label === "object" ? (a.slot_label?.he || a.slot_label?.en || a.slot_id) : (a.slot_label || "")}</p>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -344,7 +344,7 @@ export default function SoldierDetailPage() {
                           {(a.start_time || a.mission_start_time) && (
                             <span>⏰ {(a.start_time || a.mission_start_time)?.slice(0, 5)}{a.end_time || a.mission_end_time ? ` - ${(a.end_time || a.mission_end_time)?.slice(0, 5)}` : ""}</span>
                           )}
-                          {a.slot_label && <span>📍 {a.slot_label}</span>}
+                          {a.slot_label && <span>📍 {typeof a.slot_label === "object" ? (a.slot_label?.he || a.slot_label?.en || a.slot_id) : (a.slot_label || "")}</span>}
                         </div>
                       </div>
                       <Badge variant={a.status === "assigned" ? "success" : "default"} className="text-[10px] flex-shrink-0">

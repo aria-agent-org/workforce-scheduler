@@ -1,1 +1,1 @@
-{"private":true}
+{"private":true,"dependencies":{"playwright":"^1.59.1"}}

@@ -64,3 +64,26 @@ export function formatDateTime(dateStr: string): string {
     return dateStr;
   }
 }
+
+/**
+ * Safely extract a displayable string from a value that might be:
+ * - A plain string → return as-is
+ * - A JSONB object with {he, en} keys → extract by language
+ * - An object → JSON.stringify to prevent React error #300
+ * - null/undefined → return fallback
+ */
+export function safeStr(value: any, fallback = ""): string {
+  if (value == null) return fallback;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    // JSONB bilingual name pattern
+    if (value.he || value.en) {
+      const lang = localStorage.getItem("i18nextLng") || "he";
+      return value[lang] || value.he || value.en || fallback;
+    }
+    // Other object — stringify to prevent React crash
+    try { return JSON.stringify(value); } catch { return fallback; }
+  }
+  return String(value) || fallback;
+}
