@@ -1,10 +1,12 @@
 """Kiosk mode router — tablet check-in at entrance."""
 
 import logging
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,13 +22,35 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["kiosk"])
 
+# ─── Simple In-Memory Rate Limiter ────────────────
+# Max 30 requests per minute per IP for kiosk endpoints
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_RATE_LIMIT = 30
+_RATE_WINDOW = 60  # seconds
+
+
+def _check_rate_limit(request: Request):
+    """Raise 429 if IP exceeds rate limit."""
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    # Clean old entries
+    _rate_limit_store[ip] = [t for t in _rate_limit_store[ip] if now - t < _RATE_WINDOW]
+    if len(_rate_limit_store[ip]) >= _RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="יותר מדי בקשות. נסה שוב בעוד דקה.")
+    _rate_limit_store[ip].append(now)
+    # Periodic cleanup of stale IPs (every ~100 requests)
+    if len(_rate_limit_store) > 1000:
+        stale = [k for k, v in _rate_limit_store.items() if not v or now - v[-1] > 300]
+        for k in stale:
+            del _rate_limit_store[k]
+
 
 class KioskCheckinRequest(BaseModel):
     employee_number: str
     pin: str | None = None
 
 
-@router.post("/kiosk/checkin")
+@router.post("/kiosk/checkin", dependencies=[Depends(_check_rate_limit)])
 async def kiosk_checkin(
     body: KioskCheckinRequest,
     tenant: Tenant = Depends(get_tenant),
@@ -86,7 +110,7 @@ async def kiosk_checkin(
     }
 
 
-@router.get("/kiosk/today-board")
+@router.get("/kiosk/today-board", dependencies=[Depends(_check_rate_limit)])
 async def kiosk_today_board(
     tenant: Tenant = Depends(get_tenant),
     db: AsyncSession = Depends(get_db),

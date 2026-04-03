@@ -2,9 +2,11 @@
 
 import hashlib
 import secrets
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as PydanticBaseModel, EmailStr
 from sqlalchemy import select
@@ -33,6 +35,20 @@ from app.services.auth_service import AuthService
 
 router = APIRouter()
 
+# ─── Simple Auth Rate Limiter ────────────────
+_auth_attempts: dict[str, list[float]] = defaultdict(list)
+_AUTH_MAX = 10
+_AUTH_WINDOW = 300  # 5 minutes
+
+
+def _auth_rate_check(identifier: str):
+    """Raise 429 if too many auth attempts for this identifier (email or IP)."""
+    now = time.time()
+    _auth_attempts[identifier] = [t for t in _auth_attempts[identifier] if now - t < _AUTH_WINDOW]
+    if len(_auth_attempts[identifier]) >= _AUTH_MAX:
+        raise HTTPException(status_code=429, detail="יותר מדי ניסיונות. נסה שוב בעוד 5 דקות.")
+    _auth_attempts[identifier].append(now)
+
 
 # ── Login & Tokens ──────────────────────────────────────────────
 
@@ -47,7 +63,8 @@ async def login(
     If user has 2FA enabled, returns requires_2fa=True with a temp_token.
     Use /auth/2fa/login-verify with the temp_token to complete login.
     """
-    # TODO: rate limit — max 5 attempts per email per 15 min
+    # Rate limit: max 10 attempts per IP per 5 min
+    _auth_rate_check(request.email)
     service = AuthService(db)
     result = await service.authenticate(request.email, request.password)
     if result is None:
@@ -275,6 +292,7 @@ async def request_magic_link(
 
     Always returns success to prevent email enumeration.
     """
+    _auth_rate_check(data.email)  # Rate limit magic link requests
     result = await db.execute(
         select(User).where(User.email == data.email, User.is_active.is_(True))
     )
