@@ -195,6 +195,14 @@ export default function LoginPage() {
       );
 
       setTokens(loginResult.access_token, loginResult.refresh_token);
+      // Set tenant slug and user data for API calls
+      if (loginResult.user?.tenant_slug) {
+        localStorage.setItem("tenant_slug", loginResult.user.tenant_slug);
+      }
+      // Update auth store with user data from passkey login
+      if (loginResult.user) {
+        useAuthStore.getState().setUser(loginResult.user);
+      }
       navigate("/dashboard");
     } catch (err: any) {
       const errName = err?.name || "";

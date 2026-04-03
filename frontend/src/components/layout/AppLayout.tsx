@@ -113,10 +113,8 @@ export default function AppLayout() {
     })();
   }, [isAuthenticated]);
 
-  if (isLoading) return <LoadingSpinner />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-
   // Onboarding check: use DB state via API (localStorage is just a cache)
+  // NOTE: All hooks MUST be called before any conditional returns (React rules of hooks)
   const isAdmin = user?.role_name && ["tenant_admin", "super_admin"].includes(user.role_name);
   const [onboardingChecked, setOnboardingChecked] = useState(
     // Fast path: if localStorage says completed, skip the API call
@@ -134,7 +132,6 @@ export default function AppLayout() {
         if (status === "completed" || status === "skipped") {
           localStorage.setItem("shavtzak_onboarding_completed", "true");
         } else if (!cancelled) {
-          // First time or in-progress — only redirect if never started
           if (!status || status === "not_started") {
             setShouldOnboard(true);
           }
@@ -147,20 +144,16 @@ export default function AppLayout() {
     return () => { cancelled = true; };
   }, [isAdmin, isAuthenticated, onboardingChecked]);
 
+  // Conditional returns AFTER all hooks
+  if (isLoading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isAdmin && !onboardingChecked) return <LoadingSpinner />;
-  if (shouldOnboard) {
-    return <Navigate to="/onboarding" replace />;
-  }
+  if (shouldOnboard) return <Navigate to="/onboarding" replace />;
 
-  // Soldiers/viewers/unauthenticated roles → redirect to soldier self-service portal
-  // BUT only if they have an employee_id (otherwise they can't use /my/)
+  // Soldiers/viewers → redirect to soldier self-service portal
   const role = resolveRole(user?.role_name);
-  if (role === "soldier" || role === "viewer" || role === "none") {
-    if (user?.employee_id) {
-      return <Navigate to="/my/schedule" replace />;
-    }
-    // User with no role AND no employee — show limited dashboard
-    // Don't redirect, let them see what PermissionGuard allows
+  if ((role === "soldier" || role === "viewer" || role === "none") && user?.employee_id) {
+    return <Navigate to="/my/schedule" replace />;
   }
 
   return (

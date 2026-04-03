@@ -733,11 +733,39 @@ async def webauthn_login_finish(
     user.last_login = datetime.now(timezone.utc)
     await db.commit()
 
+    # Build user info for frontend (same as normal login)
+    from app.models.tenant import Tenant
+    tenant_slug = None
+    if user.tenant_id:
+        tenant_result = await db.execute(
+            select(Tenant.slug).where(Tenant.id == user.tenant_id)
+        )
+        tenant_slug = tenant_result.scalar_one_or_none()
+
+    role_name = None
+    if user.role_definition_id:
+        from app.models.resource import RoleDefinition
+        role_result = await db.execute(
+            select(RoleDefinition.name).where(RoleDefinition.id == user.role_definition_id)
+        )
+        role_name = role_result.scalar_one_or_none()
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
         "expires_in": expires_in,
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+            "tenant_slug": tenant_slug,
+            "role_name": role_name,
+            "employee_id": str(user.employee_id) if hasattr(user, 'employee_id') and user.employee_id else None,
+            "preferred_language": getattr(user, 'preferred_language', 'he'),
+            "is_active": user.is_active,
+            "two_factor_enabled": getattr(user, 'two_factor_enabled', False),
+        },
     }
 
 
