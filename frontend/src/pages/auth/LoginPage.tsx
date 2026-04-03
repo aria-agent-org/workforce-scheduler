@@ -276,7 +276,7 @@ export default function LoginPage() {
 
   const bgStyle = branding?.login_background_url
     ? { backgroundImage: `url(${branding.login_background_url})`, backgroundSize: "cover", backgroundPosition: "center" }
-    : { background: "linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)" };
+    : { background: "linear-gradient(145deg, #111310 0%, #1D2118 40%, #111310 100%)" };
 
   const primaryColor = branding?.primary_color || "#6B7F3B";
 
@@ -287,15 +287,15 @@ export default function LoginPage() {
         <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
           {/* Glowing orbs */}
           <div className="absolute top-1/4 start-1/4 h-64 w-64 rounded-full bg-primary-600/20 blur-[80px] animate-float" />
-          <div className="absolute bottom-1/4 end-1/4 h-80 w-80 rounded-full bg-purple-600/15 blur-[100px] animate-float" style={{ animationDelay: "1.5s" }} />
+          <div className="absolute bottom-1/4 end-1/4 h-80 w-80 rounded-full bg-primary-600/15 blur-[100px] animate-float" style={{ animationDelay: "1.5s" }} />
           <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-full bg-primary-500/10 blur-[60px] animate-pulse-subtle" />
           {/* Grid pattern */}
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(hsl(220 30% 50%) 1px, transparent 1px), linear-gradient(90deg, hsl(220 30% 50%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(hsl(80 30% 40%) 1px, transparent 1px), linear-gradient(90deg, hsl(80 30% 40%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
         </div>
       )}
       {branding?.login_background_url && <div className="absolute inset-0 bg-black/50" />}
       
-      <Card className="w-full max-w-md shadow-elevation-5 relative animate-scale-in border border-white/10 backdrop-blur-xl" style={{ background: "rgba(15, 23, 42, 0.85)" }}>
+      <Card className="w-full max-w-md shadow-elevation-5 relative animate-scale-in border border-primary-900/30 backdrop-blur-xl" style={{ background: "rgba(17, 19, 16, 0.9)" }}>
         <CardHeader className="text-center pb-2">
           {/* Logo */}
           <div className="mx-auto mb-4 relative">
@@ -304,17 +304,17 @@ export default function LoginPage() {
                 <img src={branding.logo_url} alt={branding.app_name || "לוגו"} className="h-full w-full object-contain p-2" />
               </div>
             ) : (
-              <div className="h-20 w-20 rounded-3xl flex items-center justify-center shadow-2xl relative" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8b5cf6)` }}>
+              <div className="h-20 w-20 rounded-3xl flex items-center justify-center shadow-2xl relative" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8FA458)` }}>
                 <span className="text-4xl">🎯</span>
                 {/* Glow */}
-                <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8b5cf6)` }} />
+                <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8FA458)` }} />
               </div>
             )}
           </div>
-          <CardTitle className="text-3xl font-black tracking-tight" style={{ background: `linear-gradient(135deg, ${primaryColor}, #a78bfa)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <CardTitle className="text-3xl font-black tracking-tight" style={{ background: `linear-gradient(135deg, ${primaryColor}, #8FA458)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             {branding?.app_name || "שבצק"}
           </CardTitle>
-          <p className="text-sm mt-1 font-medium" style={{ color: "rgba(147, 197, 253, 0.7)" }}>
+          <p className="text-sm mt-1 font-medium" style={{ color: "rgba(143, 164, 88, 0.7)" }}>
             {branding?.login_text || "מערכת ניהול שיבוצים חכמה"}
           </p>
           {!branding && (
@@ -363,10 +363,10 @@ export default function LoginPage() {
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
+                  <span className="w-full border-t border-primary-900/30" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="px-2 text-xs" style={{ background: "rgba(15, 23, 42, 0.85)", color: "rgba(147, 197, 253, 0.5)" }}>{t("or")}</span>
+                  <span className="px-2 text-xs" style={{ background: "rgba(17, 19, 16, 0.9)", color: "rgba(147, 197, 253, 0.5)" }}>{t("or")}</span>
                 </div>
               </div>
 

@@ -146,7 +146,7 @@ export default function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b glass-surface px-4 md:px-6 shadow-elevation-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-30 flex h-12 sm:h-14 items-center justify-between border-b border-border/30 px-3 md:px-6 bg-background/80 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? "סגור תפריט" : "פתח תפריט"} aria-expanded={mobileOpen}>
             {mobileOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
