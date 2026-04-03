@@ -12,10 +12,10 @@ import {
 import {
   LayoutTemplate, Plus, Save, Eye, Trash2,
   Clock, User, Minus, SplitSquareHorizontal,
-  AlignRight, AlignCenter, AlignLeft, Bold, Square, ChevronDown,
-  ChevronUp, Grid3X3, PanelRightOpen, PanelRightClose,
-  RotateCcw, Download, Upload, Table2, Columns, Rows, LayoutGrid,
-  Wand2, Variable, Calendar,
+  AlignRight, AlignCenter, AlignLeft, Bold, Square,
+  Grid3X3, PanelRightOpen, PanelRightClose,
+  RotateCcw, Download, Upload, Table2,
+  Wand2, Variable, Calendar, GripVertical,
 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -45,24 +45,16 @@ interface GridCell {
   timeRange?: { start: string; end: string };
 }
 
-interface BoardSection {
-  id: string;
-  name: string;
-  grid: GridCell[][];
-  rows: number;
-  cols: number;
-  colWidths: number[];
-}
-
-type LayoutMode = "vertical" | "horizontal" | "grid";
-
-interface AdvancedBoardTemplate {
+interface BoardTemplate {
   id: string;
   _dbId?: string;
   name: string;
   scheduleWindowId?: string;
-  layoutMode: LayoutMode;
-  sections: BoardSection[];
+  grid: GridCell[][];
+  rows: number;
+  cols: number;
+  colWidths: number[];
+  rowHeights: number[];
   globalStyles: {
     headerColor: string;
     subheaderColor: string;
@@ -71,7 +63,7 @@ interface AdvancedBoardTemplate {
   };
 }
 
-// ─── Variables System ────────────────────────────
+// ─── Template Variables ──────────────────────────
 
 interface TemplateVariable {
   key: string;
@@ -133,19 +125,25 @@ function renderVariableChips(value: string) {
 
 interface MissionType {
   id: string;
-  name: string;
+  name: string | { he?: string; en?: string };
   color?: string;
 }
 
 interface WorkRole {
   id: string;
-  name: string;
+  name: string | { he?: string; en?: string };
 }
 
 // ─── Helpers ─────────────────────────────────────
 
 let _id = Date.now();
 const uid = () => `c${++_id}_${Math.random().toString(36).slice(2, 8)}`;
+
+function getName(n: string | { he?: string; en?: string } | any): string {
+  if (!n) return "";
+  if (typeof n === "string") return n;
+  return n.he || n.en || String(n);
+}
 
 function createCell(overrides: Partial<GridCell> = {}): GridCell {
   return {
@@ -167,56 +165,97 @@ function createCell(overrides: Partial<GridCell> = {}): GridCell {
   };
 }
 
-function createSection(name: string, rows = 6, cols = 5): BoardSection {
+function createEmptyGrid(rows: number, cols: number): GridCell[][] {
   const grid: GridCell[][] = [];
   for (let r = 0; r < rows; r++) {
     const row: GridCell[] = [];
     for (let c = 0; c < cols; c++) {
-      if (r === 0) {
-        row.push(createCell({ type: "header", fontWeight: "bold", backgroundColor: "#166534", textColor: "#ffffff", value: c === 0 ? "שעה" : `עמודה ${c}` }));
-      } else {
-        row.push(createCell());
-      }
+      row.push(createCell());
     }
     grid.push(row);
   }
+  return grid;
+}
+
+function createDefaultTemplate(): BoardTemplate {
+  const rows = 14;
+  const cols = 15;
+  const grid = createEmptyGrid(rows, cols);
+
+  // Row 0: Title spanning all cols
+  grid[0][0] = createCell({ type: "header", value: "שבצ\"ק יום ___", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff", colspan: cols, textAlign: "center" });
+  for (let c = 1; c < cols; c++) grid[0][c] = createCell({ merged: true, mergedBy: grid[0][0].id });
+
+  // Row 1: Mission type headers
+  // Right side: time header
+  grid[1][0] = createCell({ type: "header", value: "", fontWeight: "bold", backgroundColor: "#15803d", textColor: "#fff" });
+  // Mission groups from right to left: ש.ג (1 col), סיור (4 cols), כרמל א (4 cols), חמ"ל (1 col), then more...
+  grid[1][1] = createCell({ type: "header", value: "חמ\"ל", fontWeight: "bold", backgroundColor: "#15803d", textColor: "#fff" });
+  grid[1][2] = createCell({ type: "header", value: "כרמל א'", fontWeight: "bold", backgroundColor: "#15803d", textColor: "#fff", colspan: 4 });
+  for (let c = 3; c <= 5; c++) grid[1][c] = createCell({ merged: true, mergedBy: grid[1][2].id });
+  grid[1][6] = createCell({ type: "header", value: "סיור", fontWeight: "bold", backgroundColor: "#15803d", textColor: "#fff", colspan: 4 });
+  for (let c = 7; c <= 9; c++) grid[1][c] = createCell({ merged: true, mergedBy: grid[1][6].id });
+  grid[1][10] = createCell({ type: "header", value: "ש.ג", fontWeight: "bold", backgroundColor: "#15803d", textColor: "#fff", colspan: 2 });
+  grid[1][11] = createCell({ merged: true, mergedBy: grid[1][10].id });
+  for (let c = 12; c < cols; c++) grid[1][c] = createCell({ type: "empty", backgroundColor: "#15803d" });
+
+  // Row 2: Numbers (personnel count)
+  grid[2][0] = createCell({ type: "subheader", value: "", backgroundColor: "#dcfce7" });
+  grid[2][1] = createCell({ type: "subheader", value: "3", fontWeight: "bold", backgroundColor: "#dcfce7" });
+  grid[2][2] = createCell({ type: "subheader", value: "12", fontWeight: "bold", backgroundColor: "#dcfce7", colspan: 4 });
+  for (let c = 3; c <= 5; c++) grid[2][c] = createCell({ merged: true, mergedBy: grid[2][2].id });
+  grid[2][6] = createCell({ type: "subheader", value: "12", fontWeight: "bold", backgroundColor: "#dcfce7", colspan: 4 });
+  for (let c = 7; c <= 9; c++) grid[2][c] = createCell({ merged: true, mergedBy: grid[2][6].id });
+  grid[2][10] = createCell({ type: "subheader", value: "9", fontWeight: "bold", backgroundColor: "#dcfce7", colspan: 2 });
+  grid[2][11] = createCell({ merged: true, mergedBy: grid[2][10].id });
+  for (let c = 12; c < cols; c++) grid[2][c] = createCell({ backgroundColor: "#dcfce7" });
+
+  // Row 3: Role sub-headers
+  grid[3][0] = createCell({ type: "subheader", value: "", backgroundColor: "#f0fdf4" });
+  grid[3][1] = createCell({ type: "subheader", value: "", backgroundColor: "#f0fdf4" });
+  grid[3][2] = createCell({ type: "role_label", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][3] = createCell({ type: "role_label", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][4] = createCell({ type: "role_label", value: "נהג", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][5] = createCell({ type: "role_label", value: "מפקד", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][6] = createCell({ type: "role_label", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][7] = createCell({ type: "role_label", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][8] = createCell({ type: "role_label", value: "נהג", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][9] = createCell({ type: "role_label", value: "מפקד", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][10] = createCell({ type: "role_label", value: "מפקד", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  grid[3][11] = createCell({ type: "role_label", value: "", fontWeight: "bold", backgroundColor: "#f0fdf4" });
+  for (let c = 12; c < cols; c++) grid[3][c] = createCell({ backgroundColor: "#f0fdf4" });
+
+  // Rows 4-9: Time slots + empty soldier cells
+  const times = ["7:00-11:00", "11:00-15:00", "15:00-19:00", "19:00-23:00", "23:00-3:00", "3:00-7:00"];
+  for (let t = 0; t < times.length; t++) {
+    const r = 4 + t;
+    grid[r][0] = createCell({ type: "time", value: times[t], fontWeight: "bold", backgroundColor: "#f9fafb" });
+    for (let c = 1; c < cols; c++) {
+      grid[r][c] = createCell({ type: "soldier_slot" });
+    }
+  }
+
+  // Rows 10-13: Second section (empty, user fills in)
+  grid[10][0] = createCell({ type: "separator", backgroundColor: "#e5e7eb", colspan: cols });
+  for (let c = 1; c < cols; c++) grid[10][c] = createCell({ merged: true, mergedBy: grid[10][0].id });
+
+  grid[11][0] = createCell({ type: "header", value: "כרמל ב' - הגנת מחנה", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff", colspan: cols, textAlign: "center" });
+  for (let c = 1; c < cols; c++) grid[11][c] = createCell({ merged: true, mergedBy: grid[11][0].id });
+
+  for (let r = 12; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      grid[r][c] = createCell({ type: "empty" });
+    }
+  }
+
   return {
     id: uid(),
-    name,
+    name: "תבנית חדשה",
     grid,
     rows,
     cols,
-    colWidths: Array(cols).fill(120),
-  };
-}
-
-function createDefaultTemplate(): AdvancedBoardTemplate {
-  const section1 = createSection("סיור", 8, 6);
-  // Set up a sample header row
-  section1.grid[0][0] = createCell({ type: "header", value: "שעה", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
-  section1.grid[0][1] = createCell({ type: "header", value: "מפקד", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
-  section1.grid[0][2] = createCell({ type: "header", value: "נהג", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
-  section1.grid[0][3] = createCell({ type: "header", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
-  section1.grid[0][4] = createCell({ type: "header", value: "לוחמ/ת", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
-  section1.grid[0][5] = createCell({ type: "header", value: "הערות", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" });
-  // Time slots
-  const times = ["07:00-11:00", "11:00-15:00", "15:00-19:00", "19:00-23:00", "23:00-03:00", "03:00-07:00"];
-  for (let i = 0; i < times.length && i + 1 < section1.rows; i++) {
-    section1.grid[i + 1][0] = createCell({ type: "time", value: times[i], fontWeight: "bold", backgroundColor: "#f0fdf4" });
-    for (let c = 1; c < 5; c++) {
-      section1.grid[i + 1][c] = createCell({ type: "soldier_slot" });
-    }
-    section1.grid[i + 1][5] = createCell({ type: "empty" });
-  }
-  // Set first row time range
-  section1.grid[1][0].timeRange = { start: "07:00", end: "11:00" };
-  section1.colWidths = [100, 120, 120, 120, 120, 150];
-
-  return {
-    id: uid(),
-    name: "תבנית ברירת מחדל",
-    layoutMode: "vertical" as LayoutMode,
-    sections: [section1],
+    colWidths: Array(cols).fill(90),
+    rowHeights: Array(rows).fill(36),
     globalStyles: {
       headerColor: "#166534",
       subheaderColor: "#15803d",
@@ -226,16 +265,97 @@ function createDefaultTemplate(): AdvancedBoardTemplate {
   };
 }
 
-function cloneTemplate(t: AdvancedBoardTemplate): AdvancedBoardTemplate {
+function cloneTemplate(t: BoardTemplate): BoardTemplate {
   return JSON.parse(JSON.stringify(t));
 }
 
-// Get cells in a rectangular selection
-function getSelectionBounds(cells: GridCell[][], selectedIds: Set<string>): { minR: number; maxR: number; minC: number; maxC: number } | null {
+/** Flatten old multi-section template into single grid */
+function flattenSections(oldData: any): BoardTemplate {
+  const sections = oldData.sections || oldData.layout?.sections || [];
+  if (sections.length === 0) {
+    return createDefaultTemplate();
+  }
+
+  // Find max cols across all sections
+  let maxCols = 0;
+  for (const s of sections) {
+    const sCols = s.cols || (s.grid?.[0]?.length || 0);
+    if (sCols > maxCols) maxCols = sCols;
+  }
+  if (maxCols === 0) maxCols = 10;
+
+  // Flatten: stack sections vertically with separator rows
+  const allRows: GridCell[][] = [];
+  const allRowHeights: number[] = [];
+
+  for (let si = 0; si < sections.length; si++) {
+    const s = sections[si];
+    const sGrid = s.grid || [];
+    const sCols = s.cols || (sGrid[0]?.length || maxCols);
+
+    // Add section title row
+    if (si > 0) {
+      // Separator
+      const sepRow: GridCell[] = [];
+      sepRow.push(createCell({ type: "separator", backgroundColor: "#e5e7eb", colspan: maxCols }));
+      for (let c = 1; c < maxCols; c++) sepRow.push(createCell({ merged: true, mergedBy: sepRow[0].id }));
+      allRows.push(sepRow);
+      allRowHeights.push(8);
+    }
+
+    // Section name as header row
+    const headerRow: GridCell[] = [];
+    headerRow.push(createCell({
+      type: "header", value: s.name || `קטע ${si + 1}`, fontWeight: "bold",
+      backgroundColor: "#166534", textColor: "#fff", colspan: maxCols, textAlign: "center",
+    }));
+    for (let c = 1; c < maxCols; c++) headerRow.push(createCell({ merged: true, mergedBy: headerRow[0].id }));
+    allRows.push(headerRow);
+    allRowHeights.push(36);
+
+    // Grid rows
+    for (const row of sGrid) {
+      const newRow: GridCell[] = [];
+      for (let c = 0; c < maxCols; c++) {
+        if (c < row.length) {
+          newRow.push({ ...row[c], id: uid() });
+        } else {
+          newRow.push(createCell());
+        }
+      }
+      allRows.push(newRow);
+      allRowHeights.push(36);
+    }
+  }
+
+  // Collect colWidths from first section
+  const firstWidths = sections[0]?.colWidths || [];
+  const colWidths: number[] = [];
+  for (let c = 0; c < maxCols; c++) {
+    colWidths.push(firstWidths[c] || 90);
+  }
+
+  return {
+    id: oldData.id || uid(),
+    _dbId: oldData._dbId || oldData.id,
+    name: oldData.name || "תבנית מיובאת",
+    scheduleWindowId: oldData.scheduleWindowId || oldData.layout?.scheduleWindowId,
+    grid: allRows,
+    rows: allRows.length,
+    cols: maxCols,
+    colWidths,
+    rowHeights: allRowHeights,
+    globalStyles: oldData.globalStyles || oldData.layout?.globalStyles || {
+      headerColor: "#166534", subheaderColor: "#15803d", borderColor: "#d1d5db", fontFamily: "inherit",
+    },
+  };
+}
+
+function getSelectionBounds(grid: GridCell[][], selectedIds: Set<string>): { minR: number; maxR: number; minC: number; maxC: number } | null {
   let minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
-  for (let r = 0; r < cells.length; r++) {
-    for (let c = 0; c < cells[r].length; c++) {
-      if (selectedIds.has(cells[r][c].id)) {
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r].length; c++) {
+      if (selectedIds.has(grid[r][c].id)) {
         minR = Math.min(minR, r);
         maxR = Math.max(maxR, r);
         minC = Math.min(minC, c);
@@ -247,7 +367,7 @@ function getSelectionBounds(cells: GridCell[][], selectedIds: Set<string>): { mi
   return { minR, maxR, minC, maxC };
 }
 
-// ─── Context Menu Component ───────────────────────
+// ─── Context Menu ─────────────────────────────────
 
 interface ContextMenuProps {
   x: number;
@@ -258,7 +378,6 @@ interface ContextMenuProps {
 
 function ContextMenu({ x, y, onClose, items }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
@@ -268,21 +387,14 @@ function ContextMenu({ x, y, onClose, items }: ContextMenuProps) {
   }, [onClose]);
 
   return (
-    <div
-      ref={ref}
-      className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[200px]"
-      style={{ left: x, top: y }}
-    >
+    <div ref={ref} className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[200px]" style={{ left: x, top: y }}>
       {items.map((item, i) =>
         item.separator ? (
           <div key={i} className="border-t border-border my-1" />
         ) : (
           <button
             key={i}
-            className={cn(
-              "w-full px-3 py-2 text-right text-sm flex items-center gap-2 hover:bg-muted transition-colors",
-              item.disabled && "opacity-40 cursor-not-allowed"
-            )}
+            className={cn("w-full px-3 py-2 text-right text-sm flex items-center gap-2 hover:bg-muted transition-colors", item.disabled && "opacity-40 cursor-not-allowed")}
             onClick={() => { if (!item.disabled) { item.onClick(); onClose(); } }}
             disabled={item.disabled}
           >
@@ -295,7 +407,7 @@ function ContextMenu({ x, y, onClose, items }: ContextMenuProps) {
   );
 }
 
-// ─── Color Picker Popover ─────────────────────────
+// ─── Color Picker ─────────────────────────────────
 
 const PRESET_COLORS = [
   "#ffffff", "#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280", "#374151", "#1f2937", "#111827", "#000000",
@@ -337,31 +449,16 @@ function ColorPickerPopover({ color, onChange, label }: { color: string; onChang
             {PRESET_COLORS.map((c) => (
               <button
                 key={c}
-                className={cn(
-                  "w-5 h-5 rounded border transition-transform hover:scale-125",
-                  c === color ? "ring-2 ring-blue-500 ring-offset-1" : "border-border"
-                )}
+                className={cn("w-5 h-5 rounded border transition-transform hover:scale-125", c === color ? "ring-2 ring-blue-500 ring-offset-1" : "border-border")}
                 style={{ backgroundColor: c }}
                 onClick={() => { onChange(c); setOpen(false); }}
               />
             ))}
           </div>
           <div className="flex gap-1 mt-2">
-            <Input
-              type="color"
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              className="w-8 h-8 p-0 border-0 cursor-pointer"
-            />
-            <Input
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              className="flex-1 h-8 text-xs"
-              placeholder="#hex"
-            />
-            <Button size="sm" className="h-8 text-xs" onClick={() => { onChange(custom); setOpen(false); }}>
-              בחר
-            </Button>
+            <Input type="color" value={custom} onChange={(e) => setCustom(e.target.value)} className="w-8 h-8 p-0 border-0 cursor-pointer" />
+            <Input value={custom} onChange={(e) => setCustom(e.target.value)} className="flex-1 h-8 text-xs" placeholder="#hex" />
+            <Button size="sm" className="h-8 text-xs" onClick={() => { onChange(custom); setOpen(false); }}>בחר</Button>
           </div>
         </div>
       )}
@@ -375,33 +472,37 @@ export default function BoardTemplateEditor() {
   const { toast } = useToast();
 
   // Data
-  const [templates, setTemplates] = useState<AdvancedBoardTemplate[]>([]);
-  const [activeTemplate, setActiveTemplate] = useState<AdvancedBoardTemplate | null>(null);
+  const [templates, setTemplates] = useState<BoardTemplate[]>([]);
+  const [activeTemplate, setActiveTemplate] = useState<BoardTemplate | null>(null);
   const [missionTypes, setMissionTypes] = useState<MissionType[]>([]);
   const [workRoles, setWorkRoles] = useState<WorkRole[]>([]);
   const [scheduleWindows, setScheduleWindows] = useState<any[]>([]);
 
   // UI state
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
-  const [activeSectionId, setActiveSectionId] = useState<string>("");
   const [editingCellId, setEditingCellId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sectionId: string; row: number; col: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: number; col: number } | null>(null);
   const [showSidePanel, setShowSidePanel] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateList, setShowTemplateList] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dragItem, setDragItem] = useState<{ type: string; data: any } | null>(null);
-  const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
-  const [sectionNameInput, setSectionNameInput] = useState("");
-  const [undoStack, setUndoStack] = useState<AdvancedBoardTemplate[]>([]);
+  const [undoStack, setUndoStack] = useState<BoardTemplate[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [generateDateFrom, setGenerateDateFrom] = useState("");
   const [generateDateTo, setGenerateDateTo] = useState("");
   const [generating, setGenerating] = useState(false);
 
+  // Selection drag
+  const [selectionStart, setSelectionStart] = useState<{ row: number; col: number } | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{ row: number; col: number } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
   // Column resize
-  const [resizingCol, setResizingCol] = useState<{ sectionId: string; colIndex: number; startX: number; startWidth: number } | null>(null);
+  const [resizingCol, setResizingCol] = useState<{ colIndex: number; startX: number; startWidth: number } | null>(null);
+  // Row resize
+  const [resizingRow, setResizingRow] = useState<{ rowIndex: number; startY: number; startHeight: number } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -414,9 +515,7 @@ export default function BoardTemplateEditor() {
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
@@ -435,79 +534,43 @@ export default function BoardTemplateEditor() {
       const res = await api.get(tenantApi("/daily-board-templates"));
       const loaded = Array.isArray(res.data) ? res.data : [];
       if (loaded.length > 0) {
-        // Convert DB format to advanced template format
-        const converted = loaded.map((t: any) => {
-          if (t.layout?.sections) {
-            // Already in advanced format — ensure colWidths exist on each section
-            const sections = (t.layout.sections || []).map((s: any) => ({
-              ...s,
-              grid: s.grid || [],
-              rows: s.rows || (s.grid?.length || 0),
-              cols: s.cols || (s.grid?.[0]?.length || 5),
-              colWidths: s.colWidths || Array(s.cols || s.grid?.[0]?.length || 5).fill(120),
-            }));
+        const converted: BoardTemplate[] = loaded.map((t: any) => {
+          // New format: layout has flat grid
+          if (t.layout?.grid && !t.layout?.sections) {
             return {
               id: t.layout.id || t.id,
               _dbId: t.id,
               name: t.name,
-              layoutMode: (t.layout.layoutMode || "vertical") as LayoutMode,
-              sections,
-              globalStyles: t.layout.globalStyles || { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
-              scheduleWindowId: t.layout.scheduleWindowId || null,
-            };
+              grid: t.layout.grid,
+              rows: t.layout.rows || t.layout.grid.length,
+              cols: t.layout.cols || (t.layout.grid[0]?.length || 10),
+              colWidths: t.layout.colWidths || Array(t.layout.cols || 10).fill(90),
+              rowHeights: t.layout.rowHeights || Array(t.layout.rows || 10).fill(36),
+              globalStyles: t.layout.globalStyles || { headerColor: "#166534", subheaderColor: "#15803d", borderColor: "#d1d5db", fontFamily: "inherit" },
+              scheduleWindowId: t.layout.scheduleWindowId,
+            } as BoardTemplate;
           }
-          // Basic template — create a proper default section with grid
-          const defaultGrid: any[][] = [];
-          const defaultRows = 6;
-          const defaultCols = 6;
-          for (let r = 0; r < defaultRows; r++) {
-            defaultGrid[r] = [];
-            for (let c = 0; c < defaultCols; c++) {
-              defaultGrid[r][c] = createCell(r === 0 ? { type: "header", fontWeight: "bold", backgroundColor: "#166534", textColor: "#fff" } : { type: "empty" });
-            }
+          // Old format: has sections → flatten
+          if (t.layout?.sections) {
+            const flat = flattenSections({ ...t.layout, name: t.name, _dbId: t.id, id: t.id });
+            return flat;
           }
-          return {
-            id: t.id,
-            _dbId: t.id,
-            name: t.name,
-            layoutMode: "vertical" as LayoutMode,
-            sections: [{ id: `sec_${Date.now()}`, name: t.name, grid: defaultGrid, rows: defaultRows, cols: defaultCols, colWidths: Array(defaultCols).fill(120) }],
-            globalStyles: { headerColor: "#166534", subheaderColor: "#22c55e", borderColor: "#d1d5db", fontFamily: "inherit" },
-            scheduleWindowId: null,
-          };
+          // Fallback: create default
+          const def = createDefaultTemplate();
+          def._dbId = t.id;
+          def.name = t.name;
+          return def;
         });
         setTemplates(converted);
-        if (converted.length > 0 && !activeTemplate) {
-          setActiveTemplate(converted[0]);
-        }
-      }
-    } catch { /* silent */ }
-    
-    // Also try loading from settings (backup/legacy)
-    try {
-      const settingsRes = await api.get(tenantApi("/settings"));
-      const settings = settingsRes.data || [];
-      for (const s of settings) {
-        if (s.key?.startsWith("board_grid_template") && s.value) {
-          try {
-            const raw = typeof s.value === "string" ? JSON.parse(s.value)
-              : s.value._v ? (typeof s.value._v === "string" ? JSON.parse(s.value._v) : s.value._v)
-              : s.value;
-            if (raw.sections && templates.length === 0) {
-              setTemplates([raw]);
-              if (!activeTemplate) setActiveTemplate(raw);
-            }
-          } catch { /* parse error */ }
-        }
       }
     } catch { /* silent */ }
   };
 
-  // ─── Push Undo ──────────────────────────────────
+  // ─── Undo ───────────────────────────────────────
 
   const pushUndo = useCallback(() => {
     if (!activeTemplate) return;
-    setUndoStack((prev) => [...prev.slice(-19), cloneTemplate(activeTemplate)]);
+    setUndoStack((prev) => [...prev.slice(-29), cloneTemplate(activeTemplate)]);
   }, [activeTemplate]);
 
   const undo = useCallback(() => {
@@ -522,14 +585,12 @@ export default function BoardTemplateEditor() {
   const createNewTemplate = () => {
     const t = createDefaultTemplate();
     setActiveTemplate(t);
-    setActiveSectionId(t.sections[0]?.id || "");
     setShowTemplateList(false);
     setSelectedCells(new Set());
   };
 
-  const openTemplate = (t: AdvancedBoardTemplate) => {
+  const openTemplate = (t: BoardTemplate) => {
     setActiveTemplate(cloneTemplate(t));
-    setActiveSectionId(t.sections[0]?.id || "");
     setShowTemplateList(false);
     setSelectedCells(new Set());
   };
@@ -541,54 +602,43 @@ export default function BoardTemplateEditor() {
       const payload = {
         name: activeTemplate.name,
         layout: {
-          sections: activeTemplate.sections,
+          id: activeTemplate.id,
+          grid: activeTemplate.grid,
+          rows: activeTemplate.rows,
+          cols: activeTemplate.cols,
+          colWidths: activeTemplate.colWidths,
+          rowHeights: activeTemplate.rowHeights,
           globalStyles: activeTemplate.globalStyles,
           scheduleWindowId: activeTemplate.scheduleWindowId,
-          layoutMode: activeTemplate.layoutMode || "vertical",
         },
-        columns: { version: "advanced_v2" },
+        columns: { version: "flat_v1" },
       };
 
-      // Check if template already exists in DB (has a UUID id)
-      const isExisting = templates.some((t) => t.id === activeTemplate.id && t._dbId);
-      
-      if (isExisting) {
-        // Update existing
-        const dbId = templates.find((t) => t.id === activeTemplate.id)?._dbId;
-        if (dbId) {
-          await api.patch(tenantApi(`/daily-board-templates/${dbId}`), payload);
-        } else {
-          // Fallback: create new if dbId missing
-          const res = await api.post(tenantApi("/daily-board-templates"), payload);
-          setTemplates((prev) => prev.map((t) =>
-            t.id === activeTemplate.id ? { ...t, _dbId: res.data.id } : t
-          ));
-        }
+      const existingDbId = activeTemplate._dbId || templates.find((t) => t.id === activeTemplate.id)?._dbId;
+
+      if (existingDbId) {
+        await api.patch(tenantApi(`/daily-board-templates/${existingDbId}`), payload);
       } else {
-        // Create new
         const res = await api.post(tenantApi("/daily-board-templates"), payload);
-        // Add to templates list with DB id
         const saved = { ...activeTemplate, _dbId: res.data.id };
+        setActiveTemplate(saved);
         setTemplates((prev) => {
           const exists = prev.some((t) => t.id === activeTemplate.id);
-          if (exists) {
-            return prev.map((t) => t.id === activeTemplate.id ? saved : t);
-          }
+          if (exists) return prev.map((t) => t.id === activeTemplate.id ? saved : t);
           return [...prev, saved];
         });
       }
 
-      // Also save to settings as backup
+      // Backup to settings
       try {
         const key = activeTemplate.scheduleWindowId
           ? `board_grid_template_${activeTemplate.scheduleWindowId}`
           : `board_grid_template_default`;
         await api.post(tenantApi("/settings"), { key, value: JSON.stringify(activeTemplate) });
-      } catch { /* settings backup is optional */ }
+      } catch { /* optional */ }
 
       toast("success", "התבנית נשמרה בהצלחה");
     } catch (err: any) {
-      console.error("Save template error:", err);
       toast("error", err.response?.data?.detail || "שגיאה בשמירת התבנית");
     } finally {
       setSaving(false);
@@ -613,22 +663,41 @@ export default function BoardTemplateEditor() {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
-        if (data.sections && data.globalStyles) {
+        if (data.grid && data.globalStyles) {
           setActiveTemplate(data);
-          setActiveSectionId(data.sections[0]?.id || "");
           toast("success", "התבנית יובאה בהצלחה");
+        } else if (data.sections) {
+          // Old format
+          setActiveTemplate(flattenSections(data));
+          toast("success", "התבנית יובאה והומרה לפורמט חדש");
         } else {
           toast("error", "קובץ לא תקין");
         }
-      } catch {
-        toast("error", "שגיאה בקריאת הקובץ");
-      }
+      } catch { toast("error", "שגיאה בקריאת הקובץ"); }
     };
     reader.readAsText(file);
     e.target.value = "";
   };
 
-  // ─── Generate Board from Template ────────────────
+  const deleteTemplate = async (t: BoardTemplate) => {
+    if (!t._dbId) {
+      setTemplates((prev) => prev.filter((x) => x.id !== t.id));
+      return;
+    }
+    try {
+      await api.delete(tenantApi(`/daily-board-templates/${t._dbId}`));
+      setTemplates((prev) => prev.filter((x) => x.id !== t.id));
+      if (activeTemplate?.id === t.id) {
+        setActiveTemplate(null);
+        setShowTemplateList(true);
+      }
+      toast("success", "התבנית נמחקה");
+    } catch {
+      toast("error", "שגיאה במחיקת התבנית");
+    }
+  };
+
+  // ─── Generate Board ─────────────────────────────
 
   const generateBoard = async () => {
     if (!activeTemplate || !generateDateFrom || !generateDateTo) {
@@ -639,7 +708,6 @@ export default function BoardTemplateEditor() {
     try {
       const dbId = activeTemplate._dbId || templates.find(t => t.id === activeTemplate.id)?._dbId;
       if (!dbId) {
-        // Save first if no DB id
         await saveTemplate();
         toast("error", "התבנית נשמרה. לחץ שוב על יצירת לוח.");
         setGenerating(false);
@@ -649,164 +717,114 @@ export default function BoardTemplateEditor() {
         date_from: generateDateFrom,
         date_to: generateDateTo,
       });
-      toast("success", `לוחות יומיים נוצרו בהצלחה לתאריכים ${generateDateFrom} עד ${generateDateTo}`);
+      toast("success", `לוחות יומיים נוצרו בהצלחה`);
       setShowGenerateDialog(false);
     } catch (err: any) {
-      const detail = err.response?.data?.detail || "שגיאה ביצירת לוחות יומיים";
-      toast("error", detail);
+      toast("error", err.response?.data?.detail || "שגיאה ביצירת לוחות");
     } finally {
       setGenerating(false);
     }
   };
 
-  // ─── Section Operations ────────────────────────
-
-  const activeSection = useMemo(
-    () => activeTemplate?.sections.find((s) => s.id === activeSectionId) || null,
-    [activeTemplate, activeSectionId]
-  );
-
-  const updateSection = useCallback(
-    (sectionId: string, updater: (s: BoardSection) => BoardSection) => {
-      if (!activeTemplate) return;
-      pushUndo();
-      setActiveTemplate((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          sections: prev.sections.map((s) => (s.id === sectionId ? updater({ ...s }) : s)),
-        };
-      });
-    },
-    [activeTemplate, pushUndo]
-  );
-
-  const addSection = () => {
-    if (!activeTemplate) return;
-    pushUndo();
-    const s = createSection(`קטע ${activeTemplate.sections.length + 1}`);
-    setActiveTemplate((prev) => prev ? { ...prev, sections: [...prev.sections, s] } : prev);
-    setActiveSectionId(s.id);
-  };
-
-  const removeSection = (id: string) => {
-    if (!activeTemplate || activeTemplate.sections.length <= 1) return;
-    pushUndo();
-    setActiveTemplate((prev) => {
-      if (!prev) return prev;
-      const sections = prev.sections.filter((s) => s.id !== id);
-      return { ...prev, sections };
-    });
-    if (activeSectionId === id) {
-      setActiveSectionId(activeTemplate.sections.find((s) => s.id !== id)?.id || "");
-    }
-  };
-
-  const moveSectionUp = (id: string) => {
-    if (!activeTemplate) return;
-    const idx = activeTemplate.sections.findIndex((s) => s.id === id);
-    if (idx <= 0) return;
-    pushUndo();
-    setActiveTemplate((prev) => {
-      if (!prev) return prev;
-      const sections = [...prev.sections];
-      [sections[idx - 1], sections[idx]] = [sections[idx], sections[idx - 1]];
-      return { ...prev, sections };
-    });
-  };
-
-  const moveSectionDown = (id: string) => {
-    if (!activeTemplate) return;
-    const idx = activeTemplate.sections.findIndex((s) => s.id === id);
-    if (idx < 0 || idx >= activeTemplate.sections.length - 1) return;
-    pushUndo();
-    setActiveTemplate((prev) => {
-      if (!prev) return prev;
-      const sections = [...prev.sections];
-      [sections[idx], sections[idx + 1]] = [sections[idx + 1], sections[idx]];
-      return { ...prev, sections };
-    });
-  };
-
   // ─── Grid Operations ───────────────────────────
 
-  const addRow = useCallback((sectionId: string, afterRow: number) => {
-    updateSection(sectionId, (s) => {
-      const newRow = Array.from({ length: s.cols }, () => createCell());
-      const grid = [...s.grid];
-      grid.splice(afterRow + 1, 0, newRow);
-      return { ...s, grid, rows: s.rows + 1 };
+  const updateGrid = useCallback((updater: (g: GridCell[][]) => GridCell[][]) => {
+    if (!activeTemplate) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const newGrid = updater(prev.grid.map(row => row.map(cell => ({ ...cell }))));
+      return { ...prev, grid: newGrid, rows: newGrid.length, cols: newGrid[0]?.length || prev.cols };
     });
-  }, [updateSection]);
+  }, [activeTemplate, pushUndo]);
 
-  const addCol = useCallback((sectionId: string, afterCol: number) => {
-    updateSection(sectionId, (s) => {
-      const grid = s.grid.map((row) => {
+  const addRow = useCallback((afterRow: number) => {
+    if (!activeTemplate) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const newRow = Array.from({ length: prev.cols }, () => createCell());
+      const grid = [...prev.grid];
+      grid.splice(afterRow + 1, 0, newRow);
+      const rowHeights = [...prev.rowHeights];
+      rowHeights.splice(afterRow + 1, 0, 36);
+      return { ...prev, grid, rows: prev.rows + 1, rowHeights };
+    });
+  }, [activeTemplate, pushUndo]);
+
+  const addCol = useCallback((afterCol: number) => {
+    if (!activeTemplate) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const grid = prev.grid.map((row) => {
         const newRow = [...row];
         newRow.splice(afterCol + 1, 0, createCell());
         return newRow;
       });
-      const colWidths = [...(s.colWidths || [])];
-      colWidths.splice(afterCol + 1, 0, 120);
-      return { ...s, grid, cols: s.cols + 1, colWidths };
+      const colWidths = [...prev.colWidths];
+      colWidths.splice(afterCol + 1, 0, 90);
+      return { ...prev, grid, cols: prev.cols + 1, colWidths };
     });
-  }, [updateSection]);
+  }, [activeTemplate, pushUndo]);
 
-  const deleteRow = useCallback((sectionId: string, rowIdx: number) => {
-    updateSection(sectionId, (s) => {
-      if (s.rows <= 1) return s;
-      const grid = s.grid.filter((_, i) => i !== rowIdx);
-      return { ...s, grid, rows: s.rows - 1 };
+  const deleteRow = useCallback((rowIdx: number) => {
+    if (!activeTemplate || activeTemplate.rows <= 1) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const grid = prev.grid.filter((_, i) => i !== rowIdx);
+      const rowHeights = prev.rowHeights.filter((_, i) => i !== rowIdx);
+      return { ...prev, grid, rows: prev.rows - 1, rowHeights };
     });
-  }, [updateSection]);
+  }, [activeTemplate, pushUndo]);
 
-  const deleteCol = useCallback((sectionId: string, colIdx: number) => {
-    updateSection(sectionId, (s) => {
-      if (s.cols <= 1) return s;
-      const grid = s.grid.map((row) => row.filter((_, i) => i !== colIdx));
-      const colWidths = (s.colWidths || []).filter((_, i) => i !== colIdx);
-      return { ...s, grid, cols: s.cols - 1, colWidths };
+  const deleteCol = useCallback((colIdx: number) => {
+    if (!activeTemplate || activeTemplate.cols <= 1) return;
+    pushUndo();
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const grid = prev.grid.map((row) => row.filter((_, i) => i !== colIdx));
+      const colWidths = prev.colWidths.filter((_, i) => i !== colIdx);
+      return { ...prev, grid, cols: prev.cols - 1, colWidths };
     });
-  }, [updateSection]);
+  }, [activeTemplate, pushUndo]);
 
   // ─── Merge / Split ─────────────────────────────
 
   const mergeCells = useCallback(() => {
-    if (!activeSection || selectedCells.size < 2) return;
-    const bounds = getSelectionBounds(activeSection.grid, selectedCells);
+    if (!activeTemplate || selectedCells.size < 2) return;
+    const bounds = getSelectionBounds(activeTemplate.grid, selectedCells);
     if (!bounds) return;
 
     const { minR, maxR, minC, maxC } = bounds;
-    // Verify all cells in rectangle are selected (must be a perfect rectangle)
+    // Verify rectangle is clean
     for (let r = minR; r <= maxR; r++) {
       for (let c = minC; c <= maxC; c++) {
-        if (activeSection.grid[r][c].merged) {
-          toast("error", "לא ניתן למזג תאים שכבר ממוזגים. פצל אותם קודם.");
+        if (activeTemplate.grid[r][c].merged) {
+          toast("error", "לא ניתן למזג תאים שכבר ממוזגים");
           return;
         }
       }
     }
 
-    updateSection(activeSectionId, (s) => {
-      const grid = s.grid.map((row) => row.map((cell) => ({ ...cell })));
+    updateGrid((grid) => {
       const topLeft = grid[minR][minC];
       topLeft.colspan = maxC - minC + 1;
       topLeft.rowspan = maxR - minR + 1;
-
       for (let r = minR; r <= maxR; r++) {
         for (let c = minC; c <= maxC; c++) {
           if (r === minR && c === minC) continue;
           grid[r][c] = { ...grid[r][c], merged: true, mergedBy: topLeft.id };
         }
       }
-      return { ...s, grid };
+      return grid;
     });
     setSelectedCells(new Set());
-  }, [activeSection, selectedCells, activeSectionId, updateSection, toast]);
+  }, [activeTemplate, selectedCells, updateGrid, toast]);
 
-  const splitCell = useCallback((sectionId: string, cellId: string) => {
-    updateSection(sectionId, (s) => {
-      const grid = s.grid.map((row) => row.map((cell) => ({ ...cell })));
+  const splitCell = useCallback((cellId: string) => {
+    updateGrid((grid) => {
       for (let r = 0; r < grid.length; r++) {
         for (let c = 0; c < grid[r].length; c++) {
           const cell = grid[r][c];
@@ -818,22 +836,18 @@ export default function BoardTemplateEditor() {
                 grid[rr][cc] = { ...grid[rr][cc], merged: false, mergedBy: undefined, colspan: 1, rowspan: 1 };
               }
             }
-            return { ...s, grid };
+            return grid;
           }
         }
       }
-      return s;
+      return grid;
     });
-  }, [updateSection]);
+  }, [updateGrid]);
 
-  // ─── Cell Selection ─────────────────────────────
+  // ─── Cell Selection (click + drag) ─────────────
 
-  const handleCellClick = useCallback((cellId: string, sectionId: string, e: React.MouseEvent) => {
-    if (sectionId !== activeSectionId) {
-      setActiveSectionId(sectionId);
-      setSelectedCells(new Set([cellId]));
-      return;
-    }
+  const handleCellMouseDown = useCallback((cellId: string, row: number, col: number, e: React.MouseEvent) => {
+    if (e.button === 2) return; // right-click handled by context menu
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
       setSelectedCells((prev) => {
         const next = new Set(prev);
@@ -843,107 +857,116 @@ export default function BoardTemplateEditor() {
       });
     } else {
       setSelectedCells(new Set([cellId]));
+      setSelectionStart({ row, col });
+      setSelectionEnd({ row, col });
+      setIsSelecting(true);
     }
-  }, [activeSectionId]);
+  }, []);
+
+  const handleCellMouseEnter = useCallback((row: number, col: number) => {
+    if (isSelecting && activeTemplate) {
+      setSelectionEnd({ row, col });
+      // Build selection from start to current
+      if (selectionStart) {
+        const minR = Math.min(selectionStart.row, row);
+        const maxR = Math.max(selectionStart.row, row);
+        const minC = Math.min(selectionStart.col, col);
+        const maxC = Math.max(selectionStart.col, col);
+        const ids = new Set<string>();
+        for (let r = minR; r <= maxR; r++) {
+          for (let c = minC; c <= maxC; c++) {
+            if (activeTemplate.grid[r]?.[c]) {
+              ids.add(activeTemplate.grid[r][c].id);
+            }
+          }
+        }
+        setSelectedCells(ids);
+      }
+    }
+  }, [isSelecting, selectionStart, activeTemplate]);
+
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setIsSelecting(false);
+    };
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => document.removeEventListener("mouseup", handleMouseUp);
+  }, []);
 
   const handleCellDoubleClick = useCallback((cellId: string) => {
     setEditingCellId(cellId);
   }, []);
 
-  const handleCellEdit = useCallback((sectionId: string, cellId: string, value: string) => {
-    updateSection(sectionId, (s) => ({
-      ...s,
-      grid: s.grid.map((row) =>
-        row.map((cell) => (cell.id === cellId ? { ...cell, value } : cell))
-      ),
-    }));
-  }, [updateSection]);
+  const handleCellEdit = useCallback((cellId: string, value: string) => {
+    if (!activeTemplate) return;
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        grid: prev.grid.map((row) =>
+          row.map((cell) => (cell.id === cellId ? { ...cell, value } : cell))
+        ),
+      };
+    });
+  }, [activeTemplate]);
 
-  const handleCellContextMenu = useCallback((e: React.MouseEvent, sectionId: string, row: number, col: number) => {
+  const handleCellContextMenu = useCallback((e: React.MouseEvent, row: number, col: number) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, sectionId, row, col });
+    setContextMenu({ x: e.clientX, y: e.clientY, row, col });
   }, []);
 
-  // ─── Apply Styles to Selection ──────────────────
+  // ─── Apply to Selection ─────────────────────────
 
   const applyToSelected = useCallback(
     (updater: (cell: GridCell) => GridCell) => {
-      if (!activeSectionId || selectedCells.size === 0) return;
+      if (!activeTemplate || selectedCells.size === 0) return;
       pushUndo();
       setActiveTemplate((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          sections: prev.sections.map((s) =>
-            s.id === activeSectionId
-              ? {
-                  ...s,
-                  grid: s.grid.map((row) =>
-                    row.map((cell) => (selectedCells.has(cell.id) ? updater({ ...cell }) : cell))
-                  ),
-                }
-              : s
+          grid: prev.grid.map((row) =>
+            row.map((cell) => (selectedCells.has(cell.id) ? updater({ ...cell }) : cell))
           ),
         };
       });
     },
-    [activeSectionId, selectedCells, pushUndo]
+    [activeTemplate, selectedCells, pushUndo]
   );
 
-  // Get first selected cell for property display
   const selectedCell = useMemo(() => {
-    if (!activeSection || selectedCells.size === 0) return null;
-    for (const row of activeSection.grid) {
+    if (!activeTemplate || selectedCells.size === 0) return null;
+    for (const row of activeTemplate.grid) {
       for (const cell of row) {
         if (selectedCells.has(cell.id)) return cell;
       }
     }
     return null;
-  }, [activeSection, selectedCells]);
+  }, [activeTemplate, selectedCells]);
 
   // ─── Drag & Drop ────────────────────────────────
 
-  const handleDragStart = (type: string, data: any) => {
-    setDragItem({ type, data });
-  };
-
-  const handleDrop = useCallback((sectionId: string, row: number, col: number) => {
-    if (!dragItem) return;
+  const handleDrop = useCallback((row: number, col: number) => {
+    if (!dragItem || !activeTemplate) return;
     pushUndo();
-    updateSection(sectionId, (s) => {
-      const grid = s.grid.map((r) => r.map((c) => ({ ...c })));
+    setActiveTemplate((prev) => {
+      if (!prev) return prev;
+      const grid = prev.grid.map((r) => r.map((c) => ({ ...c })));
       const cell = grid[row]?.[col];
-      if (!cell || cell.merged) return s;
+      if (!cell || cell.merged) return prev;
 
       if (dragItem.type === "variable") {
-        const varKey = dragItem.data.key;
-        if (cell.value && isVariable(cell.value)) {
-          cell.value = cell.value + " " + varKey;
-        } else if (cell.value) {
-          cell.value = cell.value + " " + varKey;
-        } else {
-          cell.value = varKey;
-        }
-        cell.type = cell.type === "empty" ? "soldier_slot" : cell.type;
+        cell.value = cell.value ? cell.value + " " + dragItem.data.key : dragItem.data.key;
+        if (cell.type === "empty") cell.type = "soldier_slot";
       } else if (dragItem.type === "missionType") {
-        const n = dragItem.data.name;
-        const newName = typeof n === 'object' ? (n.he || n.en || '') : String(n);
-        // Multi-mission: if cell already has a value, append with pipe separator
-        if (cell.value && cell.missionTypeId) {
-          cell.value = cell.value + " | " + newName;
-          cell.missionTypeId = cell.missionTypeId + "|" + dragItem.data.id;
-        } else {
-          cell.value = newName;
-          cell.missionTypeId = dragItem.data.id;
-        }
+        const n = getName(dragItem.data.name);
+        cell.value = n;
+        cell.missionTypeId = dragItem.data.id;
         cell.type = "header";
         cell.fontWeight = "bold";
-        if (dragItem.data.color && !cell.backgroundColor?.includes("#166534")) {
-          cell.backgroundColor = dragItem.data.color;
-        }
+        if (dragItem.data.color) cell.backgroundColor = dragItem.data.color;
       } else if (dragItem.type === "workRole") {
-        const n = dragItem.data.name;
-        cell.value = typeof n === 'object' ? (n.he || n.en || '') : String(n);
+        cell.value = getName(dragItem.data.name);
         cell.workRoleId = dragItem.data.id;
         cell.type = "role_label";
         cell.fontWeight = "bold";
@@ -952,42 +975,50 @@ export default function BoardTemplateEditor() {
         cell.timeRange = dragItem.data;
         cell.type = "time";
       }
-
-      return { ...s, grid };
+      return { ...prev, grid };
     });
     setDragItem(null);
-  }, [dragItem, pushUndo, updateSection]);
+  }, [dragItem, activeTemplate, pushUndo]);
 
-  // ─── Column Resize ─────────────────────────────
+  // ─── Resize Handlers ───────────────────────────
 
   useEffect(() => {
     if (!resizingCol) return;
     const handleMove = (e: MouseEvent) => {
       const diff = e.clientX - resizingCol.startX;
-      const newWidth = Math.max(50, resizingCol.startWidth + diff);
+      const newWidth = Math.max(40, resizingCol.startWidth + diff);
       setActiveTemplate((prev) => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          sections: prev.sections.map((s) => {
-            if (s.id !== resizingCol.sectionId) return s;
-            const colWidths = [...(s.colWidths || [])];
-            colWidths[resizingCol.colIndex] = newWidth;
-            return { ...s, colWidths };
-          }),
-        };
+        const colWidths = [...prev.colWidths];
+        colWidths[resizingCol.colIndex] = newWidth;
+        return { ...prev, colWidths };
       });
     };
     const handleUp = () => setResizingCol(null);
     document.addEventListener("mousemove", handleMove);
     document.addEventListener("mouseup", handleUp);
-    return () => {
-      document.removeEventListener("mousemove", handleMove);
-      document.removeEventListener("mouseup", handleUp);
-    };
+    return () => { document.removeEventListener("mousemove", handleMove); document.removeEventListener("mouseup", handleUp); };
   }, [resizingCol]);
 
-  // ─── Keyboard Shortcuts ─────────────────────────
+  useEffect(() => {
+    if (!resizingRow) return;
+    const handleMove = (e: MouseEvent) => {
+      const diff = e.clientY - resizingRow.startY;
+      const newHeight = Math.max(20, resizingRow.startHeight + diff);
+      setActiveTemplate((prev) => {
+        if (!prev) return prev;
+        const rowHeights = [...prev.rowHeights];
+        rowHeights[resizingRow.rowIndex] = newHeight;
+        return { ...prev, rowHeights };
+      });
+    };
+    const handleUp = () => setResizingRow(null);
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleUp);
+    return () => { document.removeEventListener("mousemove", handleMove); document.removeEventListener("mouseup", handleUp); };
+  }, [resizingRow]);
+
+  // ─── Keyboard ───────────────────────────────────
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -999,6 +1030,10 @@ export default function BoardTemplateEditor() {
       if ((e.ctrlKey || e.metaKey) && e.key === "z") {
         e.preventDefault();
         undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "b" && selectedCells.size > 0) {
+        e.preventDefault();
+        applyToSelected((c) => ({ ...c, fontWeight: c.fontWeight === "bold" ? "normal" : "bold" }));
       }
       if (e.key === "Delete" && selectedCells.size > 0 && !editingCellId) {
         applyToSelected((c) => ({ ...c, value: "" }));
@@ -1017,9 +1052,9 @@ export default function BoardTemplateEditor() {
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <LayoutTemplate className="w-6 h-6" />
-              עורך לוח מתקדם
+              עורך לוח שיבוצים
             </h2>
-            <p className="text-muted-foreground text-sm mt-1">עריכת תבניות לוח שיבוצים בסגנון Excel — מיזוג תאים, צבעים, קטעים מרובים</p>
+            <p className="text-muted-foreground text-sm mt-1">עריכת תבניות לוח בגמישות מלאה — גריד חופשי כמו Excel</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={createNewTemplate}>
@@ -1028,9 +1063,7 @@ export default function BoardTemplateEditor() {
             </Button>
             <label className="cursor-pointer">
               <input type="file" accept=".json" className="hidden" onChange={importTemplate} />
-              <Button variant="outline" asChild>
-                <span><Upload className="w-4 h-4 ml-1" />ייבוא</span>
-              </Button>
+              <Button variant="outline" asChild><span><Upload className="w-4 h-4 ml-1" />ייבוא</span></Button>
             </label>
           </div>
         </div>
@@ -1040,7 +1073,7 @@ export default function BoardTemplateEditor() {
             <CardContent className="py-16 text-center">
               <Table2 className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
               <p className="text-muted-foreground text-lg mb-2">אין תבניות לוח עדיין</p>
-              <p className="text-muted-foreground/70 text-sm mb-6">צור תבנית חדשה כדי להתחיל לעצב את לוח השיבוצים</p>
+              <p className="text-muted-foreground/70 text-sm mb-6">צור תבנית חדשה — גריד חופשי עם מיזוג תאים, צבעים, וגרירת משימות</p>
               <Button onClick={createNewTemplate}>
                 <Plus className="w-4 h-4 ml-1" />
                 צור תבנית ראשונה
@@ -1050,32 +1083,44 @@ export default function BoardTemplateEditor() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map((t) => (
-              <Card
-                key={t.id}
-                className="cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
-                onClick={() => openTemplate(t)}
-              >
+              <Card key={t.id} className="cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group" onClick={() => openTemplate(t)}>
                 <CardContent className="py-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold">{t.name}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        {t.sections.length} קטעים • {t.sections.reduce((a, s) => a + s.rows, 0)} שורות
-                      </p>
+                      <p className="text-xs text-muted-foreground">{t.rows} שורות × {t.cols} עמודות</p>
                     </div>
-                    <Badge className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">{t.scheduleWindowId ? "מקושר" : "כללי"}</Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                        {t.scheduleWindowId ? "מקושר" : "כללי"}
+                      </Badge>
+                      <button
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-600 transition-all"
+                        onClick={(e) => { e.stopPropagation(); deleteTemplate(t); }}
+                        title="מחק תבנית"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  {/* Mini preview */}
-                  <div className="border rounded p-2 bg-muted/50 space-y-1">
-                    {t.sections.slice(0, 2).map((s) => (
-                      <div key={s.id} className="text-xs">
-                        <span className="font-medium">{s.name}</span>
-                        <span className="text-muted-foreground mr-1">({s.rows}×{s.cols})</span>
-                      </div>
-                    ))}
-                    {t.sections.length > 2 && (
-                      <span className="text-xs text-muted-foreground">+{t.sections.length - 2} עוד...</span>
-                    )}
+                  {/* Mini grid preview */}
+                  <div className="border rounded p-1 bg-muted/50 overflow-hidden" style={{ maxHeight: 80 }}>
+                    <div className="flex flex-col gap-px">
+                      {t.grid.slice(0, 4).map((row, ri) => (
+                        <div key={ri} className="flex gap-px">
+                          {row.slice(0, 8).map((cell, ci) => (
+                            <div
+                              key={ci}
+                              className="h-3 flex-1 rounded-sm text-[5px] overflow-hidden"
+                              style={{
+                                backgroundColor: cell.merged ? "transparent" : (cell.backgroundColor !== "#ffffff" ? cell.backgroundColor : "#f3f4f6"),
+                                minWidth: 8,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1089,12 +1134,6 @@ export default function BoardTemplateEditor() {
   // ─── Preview Mode ───────────────────────────────
 
   if (showPreview && activeTemplate) {
-    const layoutClass = activeTemplate.layoutMode === "horizontal"
-      ? "flex gap-4 overflow-x-auto"
-      : activeTemplate.layoutMode === "grid"
-        ? "grid grid-cols-2 gap-4"
-        : "space-y-4";
-
     return (
       <div className="space-y-4" dir="rtl">
         <div className="flex items-center justify-between">
@@ -1102,52 +1141,25 @@ export default function BoardTemplateEditor() {
             <Eye className="w-5 h-5" />
             תצוגה מקדימה — {activeTemplate.name}
           </h2>
-          <div className="flex gap-2">
-            <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-              {activeTemplate.layoutMode === "horizontal" ? "פריסה אופקית" : activeTemplate.layoutMode === "grid" ? "רשת" : "פריסה אנכית"}
-            </Badge>
-            <Badge className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-              משתנים מוצגים עם נתוני דוגמה
-            </Badge>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              חזרה לעריכה
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => setShowPreview(false)}>חזרה לעריכה</Button>
         </div>
-        <div className={layoutClass}>
-          {activeTemplate.sections.map((section) => (
-            <div key={section.id} className={cn(
-              "border rounded-lg overflow-hidden",
-              activeTemplate.layoutMode === "horizontal" && "min-w-[400px] flex-shrink-0"
-            )}>
-              <div className="bg-gray-800 text-white px-4 py-2 font-bold text-center text-lg">
-                {section.name}
-              </div>
-              <div
-                className="overflow-x-auto"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${w}px`).join(" "),
-                  direction: "rtl",
-                }}
-              >
-                {(section.grid || []).flatMap((row, rIdx) =>
-                  row.map((cell, cIdx) => {
+        <div className="border rounded-lg overflow-auto bg-white p-2">
+          <table className="border-collapse" dir="rtl" style={{ fontFamily: activeTemplate.globalStyles.fontFamily }}>
+            <tbody>
+              {activeTemplate.grid.map((row, rIdx) => (
+                <tr key={rIdx} style={{ height: activeTemplate.rowHeights[rIdx] || 36 }}>
+                  {row.map((cell, cIdx) => {
                     if (cell.merged) return null;
-                    // Find mission type for color overlay
-                    const mt = cell.missionTypeId ? missionTypes.find(m => m.id === cell.missionTypeId?.split("|")[0]) : null;
-                    const bgColor = mt?.color ? mt.color + "20" : cell.backgroundColor;
-                    // Resolve variables with sample data
                     const displayValue = isVariable(cell.value)
                       ? resolveVariables(cell.value, rIdx, cIdx, cell.timeRange)
                       : cell.value;
                     return (
-                      <div
-                        key={cell.id}
+                      <td
+                        key={cIdx}
+                        colSpan={cell.colspan}
+                        rowSpan={cell.rowspan}
                         style={{
-                          gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
-                          gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
-                          backgroundColor: bgColor,
+                          backgroundColor: cell.backgroundColor,
                           color: cell.textColor,
                           fontWeight: cell.fontWeight,
                           textAlign: cell.textAlign,
@@ -1155,26 +1167,21 @@ export default function BoardTemplateEditor() {
                           borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
                           borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
                           borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                          padding: "6px 8px",
-                          minHeight: "32px",
-                          fontSize: "13px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
-                          position: "relative",
+                          padding: "4px 8px",
+                          fontSize: 13,
+                          whiteSpace: "nowrap",
+                          width: activeTemplate.colWidths[cIdx],
+                          minWidth: activeTemplate.colWidths[cIdx],
                         }}
                       >
                         {displayValue}
-                        {mt && (
-                          <span className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: mt.color }} />
-                        )}
-                      </div>
+                      </td>
                     );
-                  })
-                )}
-              </div>
-            </div>
-          ))}
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -1182,87 +1189,60 @@ export default function BoardTemplateEditor() {
 
   if (!activeTemplate) return null;
 
-  // ─── Mobile Read-Only ───────────────────────────
+  // ─── Mobile ─────────────────────────────────────
 
   if (isMobile) {
     return (
       <div className="space-y-4 p-4" dir="rtl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">{activeTemplate.name}</h2>
-          <Button variant="outline" size="sm" onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}>
-            חזרה
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}>חזרה</Button>
         </div>
         <p className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2">
           📱 תצוגה בלבד — העריכה זמינה במחשב שולחני
         </p>
-        {activeTemplate.sections.map((section) => (
-          <div key={section.id} className="border rounded-lg overflow-x-auto">
-            <div className="bg-gray-800 text-white px-3 py-1.5 font-bold text-center">
-              {section.name}
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${Math.max(60, w * 0.7)}px`).join(" "),
-                direction: "rtl",
-                fontSize: "11px",
-              }}
-            >
-              {(section.grid || []).flatMap((row, rIdx) =>
-                row.map((cell, cIdx) => {
-                  if (cell.merged) return null;
-                  return (
-                    <div
-                      key={cell.id}
-                      style={{
-                        gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
-                        gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
-                        backgroundColor: cell.backgroundColor,
-                        color: cell.textColor,
-                        fontWeight: cell.fontWeight,
-                        textAlign: cell.textAlign,
-                        border: `1px solid ${activeTemplate.globalStyles.borderColor}`,
-                        padding: "3px 4px",
-                        minHeight: "24px",
-                      }}
-                    >
-                      {cell.value}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        ))}
+        <div className="border rounded overflow-x-auto">
+          <table className="border-collapse text-[11px]" dir="rtl">
+            <tbody>
+              {activeTemplate.grid.map((row, rIdx) => (
+                <tr key={rIdx}>
+                  {row.map((cell, cIdx) => {
+                    if (cell.merged) return null;
+                    return (
+                      <td
+                        key={cIdx}
+                        colSpan={cell.colspan}
+                        rowSpan={cell.rowspan}
+                        style={{
+                          backgroundColor: cell.backgroundColor,
+                          color: cell.textColor,
+                          fontWeight: cell.fontWeight,
+                          textAlign: cell.textAlign,
+                          border: `1px solid ${activeTemplate.globalStyles.borderColor}`,
+                          padding: "2px 4px",
+                          minWidth: 40,
+                        }}
+                      >
+                        {cell.value}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
 
   // ─── Editor View ────────────────────────────────
 
-  // Safety: if no active template, show template list
-  if (!activeTemplate) {
-    return (
-      <div className="p-8 text-center text-muted-foreground" dir="rtl">
-        <LayoutTemplate className="w-12 h-12 mx-auto mb-4 opacity-30" />
-        <p className="text-lg font-medium">לא נבחרה תבנית</p>
-        <Button className="mt-4" onClick={() => { setShowTemplateList(true); }}>
-          חזור לרשימת התבניות
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full min-h-[600px]" dir="rtl">
       {/* ─── Top Bar ─────────────────────────────── */}
-      <div className="border-b bg-card px-4 py-2 flex items-center gap-2 flex-wrap">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}
-        >
+      <div className="border-b bg-card px-3 py-2 flex items-center gap-2 flex-wrap">
+        <Button variant="ghost" size="sm" onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}>
           ← חזרה
         </Button>
 
@@ -1270,19 +1250,13 @@ export default function BoardTemplateEditor() {
 
         <Input
           value={activeTemplate.name}
-          onChange={(e) =>
-            setActiveTemplate((prev) => prev ? { ...prev, name: e.target.value } : prev)
-          }
+          onChange={(e) => setActiveTemplate((prev) => prev ? { ...prev, name: e.target.value } : prev)}
           className="w-48 h-8 text-sm font-semibold"
         />
 
         <Select
           value={activeTemplate.scheduleWindowId || ""}
-          onChange={(e) =>
-            setActiveTemplate((prev) =>
-              prev ? { ...prev, scheduleWindowId: e.target.value || undefined } : prev
-            )
-          }
+          onChange={(e) => setActiveTemplate((prev) => prev ? { ...prev, scheduleWindowId: e.target.value || undefined } : prev)}
           className="w-44 h-8 text-xs"
         >
           <option value="">ללא חלון שיבוץ</option>
@@ -1293,35 +1267,21 @@ export default function BoardTemplateEditor() {
 
         <div className="h-6 border-r border-border mx-1" />
 
-        <Button variant="outline" size="sm" onClick={addSection} className="text-xs h-7">
-          <Plus className="w-3 h-3 ml-1" />
-          הוסף קטע
+        {/* Merge / Split */}
+        <Button variant="outline" size="sm" className="text-xs h-7" disabled={selectedCells.size < 2} onClick={mergeCells}>
+          <Grid3X3 className="w-3 h-3 ml-1" />מזג
         </Button>
-
         <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
-          disabled={selectedCells.size < 2}
-          onClick={mergeCells}
-        >
-          <Grid3X3 className="w-3 h-3 ml-1" />
-          מזג תאים
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
+          variant="outline" size="sm" className="text-xs h-7"
           disabled={!selectedCell || (selectedCell.colspan <= 1 && selectedCell.rowspan <= 1)}
-          onClick={() => selectedCell && splitCell(activeSectionId, selectedCell.id)}
+          onClick={() => selectedCell && splitCell(selectedCell.id)}
         >
-          <SplitSquareHorizontal className="w-3 h-3 ml-1" />
-          פצל
+          <SplitSquareHorizontal className="w-3 h-3 ml-1" />פצל
         </Button>
 
         <div className="h-6 border-r border-border mx-1" />
 
+        {/* Colors */}
         <ColorPickerPopover
           color={selectedCell?.backgroundColor || "#ffffff"}
           onChange={(c) => applyToSelected((cell) => ({ ...cell, backgroundColor: c }))}
@@ -1333,26 +1293,22 @@ export default function BoardTemplateEditor() {
           label="טקסט"
         />
 
+        {/* Bold */}
         <button
-          className={cn(
-            "px-2 py-1 rounded border text-xs h-7",
-            selectedCell?.fontWeight === "bold" ? "bg-accent border-border" : "border-border hover:bg-muted/50"
-          )}
+          className={cn("px-2 py-1 rounded border text-xs h-7", selectedCell?.fontWeight === "bold" ? "bg-accent border-border" : "border-border hover:bg-muted/50")}
           onClick={() => applyToSelected((c) => ({ ...c, fontWeight: c.fontWeight === "bold" ? "normal" : "bold" }))}
         >
           <Bold className="w-3 h-3" />
         </button>
 
+        {/* Alignment */}
         <div className="flex border rounded overflow-hidden h-7">
           {(["right", "center", "left"] as const).map((align) => {
             const Icon = align === "right" ? AlignRight : align === "center" ? AlignCenter : AlignLeft;
             return (
               <button
                 key={align}
-                className={cn(
-                  "px-1.5 text-xs border-l first:border-l-0",
-                  selectedCell?.textAlign === align ? "bg-accent" : "hover:bg-muted/50"
-                )}
+                className={cn("px-1.5 text-xs border-l first:border-l-0", selectedCell?.textAlign === align ? "bg-accent" : "hover:bg-muted/50")}
                 onClick={() => applyToSelected((c) => ({ ...c, textAlign: align }))}
               >
                 <Icon className="w-3 h-3" />
@@ -1361,11 +1317,9 @@ export default function BoardTemplateEditor() {
           })}
         </div>
 
+        {/* Borders */}
         <button
-          className={cn(
-            "px-2 py-1 rounded border text-xs h-7",
-            selectedCell?.borderTop ? "bg-accent border-border" : "border-border"
-          )}
+          className={cn("px-2 py-1 rounded border text-xs h-7", selectedCell?.borderTop ? "bg-accent border-border" : "border-border")}
           onClick={() =>
             applyToSelected((c) => {
               const allOn = c.borderTop && c.borderBottom && c.borderLeft && c.borderRight;
@@ -1379,351 +1333,184 @@ export default function BoardTemplateEditor() {
 
         <div className="h-6 border-r border-border mx-1" />
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
-          onClick={() => activeSection && addRow(activeSectionId, (activeSection.rows || 1) - 1)}
-        >
+        {/* Add row/col */}
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => addRow(activeTemplate.rows - 1)}>
           <Plus className="w-3 h-3 ml-0.5" />שורה
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
-          onClick={() => activeSection && addCol(activeSectionId, (activeSection.cols || 1) - 1)}
-        >
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => addCol(activeTemplate.cols - 1)}>
           <Plus className="w-3 h-3 ml-0.5" />עמודה
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
-          title="התאמת רוחב עמודות לפי משך זמן"
-          onClick={() => {
-            if (!activeSection) return;
-            pushUndo();
-            // Fit column widths based on time ranges in cells
-            updateSection(activeSectionId, (s) => {
-              const colWidths = [...s.colWidths];
-              const BASE_UNIT = 30; // pixels per hour
-              // Scan first column for time ranges and adjust row heights proportionally
-              // Scan all columns for time ranges
-              for (let c = 0; c < s.cols; c++) {
-                let totalDuration = 0;
-                let timeCount = 0;
-                for (let r = 0; r < s.rows; r++) {
-                  const cell = s.grid[r]?.[c];
-                  if (cell?.timeRange?.start && cell?.timeRange?.end) {
-                    const [sh, sm] = cell.timeRange.start.split(":").map(Number);
-                    const [eh, em] = cell.timeRange.end.split(":").map(Number);
-                    let dur = (eh * 60 + em) - (sh * 60 + sm);
-                    if (dur <= 0) dur += 24 * 60; // overnight
-                    totalDuration += dur / 60;
-                    timeCount++;
-                  }
-                }
-                if (timeCount > 0) {
-                  const avgDuration = totalDuration / timeCount;
-                  colWidths[c] = Math.max(60, Math.round(avgDuration * BASE_UNIT));
-                }
-              }
-              return { ...s, colWidths };
-            });
-            toast("success", "רוחב עמודות הותאם לפי משך זמן");
-          }}
-        >
-          <Clock className="w-3 h-3 ml-0.5" />התאם לזמן
         </Button>
 
         <div className="flex-1" />
 
+        {/* Right side actions */}
         <Button variant="ghost" size="sm" className="text-xs h-7" onClick={undo} disabled={undoStack.length === 0}>
-          <RotateCcw className="w-3 h-3 ml-1" />
-          ביטול
+          <RotateCcw className="w-3 h-3 ml-1" />ביטול
         </Button>
-        {/* Layout Mode Toggle */}
-        <div className="flex border rounded overflow-hidden h-7">
-          {([
-            { mode: "vertical" as LayoutMode, icon: Rows, label: "אנכי" },
-            { mode: "horizontal" as LayoutMode, icon: Columns, label: "אופקי" },
-            { mode: "grid" as LayoutMode, icon: LayoutGrid, label: "רשת" },
-          ]).map(({ mode, icon: Icon, label }) => (
-            <button
-              key={mode}
-              className={cn(
-                "px-1.5 text-xs border-l first:border-l-0",
-                activeTemplate.layoutMode === mode ? "bg-accent" : "hover:bg-muted/50"
-              )}
-              onClick={() => setActiveTemplate(prev => prev ? { ...prev, layoutMode: mode } : prev)}
-              title={`פריסת קטעים: ${label}`}
-            >
-              <Icon className="w-3 h-3" />
-            </button>
-          ))}
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
-          onClick={() => setShowGenerateDialog(true)}
-          title="יצירת לוחות יומיים מהתבנית"
-        >
-          <Wand2 className="w-3 h-3 ml-1" />
-          ייצור לוח
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setShowGenerateDialog(true)}>
+          <Wand2 className="w-3 h-3 ml-1" />ייצור לוח
         </Button>
-
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={exportTemplate}>
-          <Download className="w-3 h-3 ml-1" />
-          ייצוא
+          <Download className="w-3 h-3 ml-1" />ייצוא
         </Button>
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setShowPreview(true)}>
-          <Eye className="w-3 h-3 ml-1" />
-          תצוגה מקדימה
+          <Eye className="w-3 h-3 ml-1" />תצוגה מקדימה
         </Button>
         <button
           className="p-1.5 rounded hover:bg-muted text-muted-foreground"
           onClick={() => setShowSidePanel(!showSidePanel)}
-          title={showSidePanel ? "הסתר פאנל" : "הצג פאנל"}
         >
           {showSidePanel ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
         </button>
         <Button size="sm" className="h-7 text-xs" onClick={saveTemplate} disabled={saving}>
-          <Save className="w-3 h-3 ml-1" />
-          {saving ? "שומר..." : "שמור"}
+          <Save className="w-3 h-3 ml-1" />{saving ? "שומר..." : "שמור"}
         </Button>
-      </div>
-
-      {/* ─── Section Tabs ────────────────────────── */}
-      <div className="border-b bg-muted/50 px-4 py-1 flex items-center gap-1 overflow-x-auto">
-        {activeTemplate.sections.map((s) => (
-          <div
-            key={s.id}
-            className={cn(
-              "flex items-center gap-1 px-3 py-1 rounded-t text-sm cursor-pointer border border-b-0 transition-colors",
-              s.id === activeSectionId
-                ? "bg-card border-border font-semibold"
-                : "bg-muted border-transparent hover:bg-accent text-foreground/80"
-            )}
-            onClick={() => setActiveSectionId(s.id)}
-          >
-            {editingSectionName === s.id ? (
-              <Input
-                value={sectionNameInput}
-                onChange={(e) => setSectionNameInput(e.target.value)}
-                onBlur={() => {
-                  updateSection(s.id, (sec) => ({ ...sec, name: sectionNameInput || sec.name }));
-                  setEditingSectionName(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    updateSection(s.id, (sec) => ({ ...sec, name: sectionNameInput || sec.name }));
-                    setEditingSectionName(null);
-                  }
-                }}
-                className="w-24 h-5 text-xs px-1"
-                autoFocus
-              />
-            ) : (
-              <span
-                onDoubleClick={() => {
-                  setEditingSectionName(s.id);
-                  setSectionNameInput(s.name);
-                }}
-              >
-                {s.name}
-              </span>
-            )}
-            <span className="text-[10px] text-muted-foreground">({s.rows}×{s.cols})</span>
-            <div className="flex gap-0.5 mr-1">
-              <button onClick={(e) => { e.stopPropagation(); moveSectionUp(s.id); }} className="hover:text-blue-600" title="הזז למעלה">
-                <ChevronUp className="w-3 h-3" />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); moveSectionDown(s.id); }} className="hover:text-blue-600" title="הזז למטה">
-                <ChevronDown className="w-3 h-3" />
-              </button>
-              {activeTemplate.sections.length > 1 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); removeSection(s.id); }}
-                  className="hover:text-red-600"
-                  title="מחק קטע"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-        <button
-          className="px-2 py-1 text-muted-foreground hover:text-foreground/80 text-sm"
-          onClick={addSection}
-          title="הוסף קטע"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
       </div>
 
       {/* ─── Main Content ────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Grid Area */}
-        <div className={cn(
-          "flex-1 overflow-auto p-4 bg-muted",
-          activeTemplate.layoutMode === "horizontal" && "flex gap-4",
-          activeTemplate.layoutMode === "grid" && "grid grid-cols-2 gap-4",
-        )} ref={gridRef}>
-          {activeTemplate.sections.map((section) => (
-            <div
-              key={section.id}
-              className={cn(
-                "bg-card rounded-lg shadow-sm border",
-                activeTemplate.layoutMode === "vertical" && "mb-6",
-                activeTemplate.layoutMode === "horizontal" && "min-w-[400px] flex-shrink-0",
-                section.id === activeSectionId ? "ring-2 ring-blue-200" : ""
-              )}
-              onClick={() => setActiveSectionId(section.id)}
-            >
-              {/* Section Header */}
-              <div
-                className="px-4 py-2 font-bold text-center text-lg border-b"
-                style={{ backgroundColor: activeTemplate.globalStyles.headerColor, color: "#fff" }}
-              >
-                {section.name}
-              </div>
-
-              {/* Grid */}
-              <div className="overflow-x-auto p-1">
+        <div className="flex-1 overflow-auto p-4 bg-muted/50" ref={gridRef}>
+          <div className="bg-card rounded-lg shadow-sm border inline-block min-w-full">
+            {/* Row number header + column headers for resize */}
+            <div className="flex" style={{ direction: "rtl" }}>
+              {/* Corner cell */}
+              <div className="w-8 h-6 bg-muted border-b border-r border-border flex-shrink-0" />
+              {/* Column headers (for resize) */}
+              {activeTemplate.colWidths.map((w, cIdx) => (
                 <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: (section.colWidths || Array(section.cols || 5).fill(120)).map((w) => `${w}px`).join(" "),
-                    direction: "rtl",
-                    position: "relative",
-                  }}
+                  key={cIdx}
+                  className="relative h-6 bg-muted border-b border-r border-border flex items-center justify-center text-[10px] text-muted-foreground select-none"
+                  style={{ width: w, minWidth: w, flexShrink: 0 }}
                 >
-                  {/* Column resize handles */}
-                  {(section.colWidths || Array(section.cols || 5).fill(120)).map((w, cIdx) => {
-                    let leftPos = 0;
-                    for (let i = section.colWidths.length - 1; i > cIdx; i--) leftPos += section.colWidths[i];
-                    return (
-                      <div
-                        key={`resize-${cIdx}`}
-                        className="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-10"
-                        style={{ right: leftPos + w - 2 }}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setResizingCol({ sectionId: section.id, colIndex: cIdx, startX: e.clientX, startWidth: w });
-                        }}
-                      />
-                    );
-                  })}
-
-                  {(section.grid || []).flatMap((row, rIdx) =>
-                    row.map((cell, cIdx) => {
-                      if (cell.merged) return null;
-                      const isSelected = selectedCells.has(cell.id);
-                      const isEditing = editingCellId === cell.id;
-
-                      return (
-                        <div
-                          key={cell.id}
-                          className={cn(
-                            "relative group transition-shadow",
-                            isSelected && "ring-2 ring-blue-500 ring-inset z-10",
-                          )}
-                          style={{
-                            gridColumn: `${cIdx + 1} / span ${cell.colspan}`,
-                            gridRow: `${rIdx + 1} / span ${cell.rowspan}`,
-                            backgroundColor: cell.backgroundColor,
-                            color: cell.textColor,
-                            fontWeight: cell.fontWeight,
-                            textAlign: cell.textAlign,
-                            borderTop: cell.borderTop ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                            borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                            borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                            borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
-                            padding: "4px 6px",
-                            minHeight: "32px",
-                            fontSize: "13px",
-                            cursor: "pointer",
-                            userSelect: "none",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
-                          }}
-                          onClick={(e) => handleCellClick(cell.id, section.id, e)}
-                          onDoubleClick={() => handleCellDoubleClick(cell.id)}
-                          onContextMenu={(e) => handleCellContextMenu(e, section.id, rIdx, cIdx)}
-                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = "2px dashed #3b82f6"; }}
-                          onDragLeave={(e) => { e.currentTarget.style.outline = ""; }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.currentTarget.style.outline = "";
-                            handleDrop(section.id, rIdx, cIdx);
-                          }}
-                        >
-                          {isEditing ? (
-                            <input
-                              className="w-full h-full bg-transparent outline-none text-center"
-                              style={{ color: cell.textColor, fontWeight: cell.fontWeight, textAlign: cell.textAlign, fontSize: "13px" }}
-                              value={cell.value}
-                              onChange={(e) => handleCellEdit(section.id, cell.id, e.target.value)}
-                              onBlur={() => setEditingCellId(null)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === "Escape") setEditingCellId(null);
-                                if (e.key === "Tab") {
-                                  e.preventDefault();
-                                  setEditingCellId(null);
-                                  // Move to next cell
-                                  const nextCell = row[cIdx + 1];
-                                  if (nextCell && !nextCell.merged) {
-                                    setSelectedCells(new Set([nextCell.id]));
-                                    setEditingCellId(nextCell.id);
-                                  }
-                                }
-                              }}
-                              autoFocus
-                            />
-                          ) : isVariable(cell.value) ? (
-                            <div className="flex flex-wrap items-center gap-0.5 justify-center">
-                              {renderVariableChips(cell.value)}
-                            </div>
-                          ) : cell.value?.includes(" | ") ? (
-                            <div className="flex flex-wrap gap-0.5 justify-center">
-                              {cell.value.split(" | ").map((v: string, vi: number) => (
-                                <span key={vi} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-black/10 dark:bg-white/10 leading-tight">
-                                  {v}
-                                </span>
-                              ))}
-                            </div>
-                          ) : cell.type === "mission_reference" ? (
-                            <div className="flex flex-col items-center gap-0.5 w-full">
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium">📋 משימה</span>
-                              {cell.value && <span className="truncate text-[11px] font-medium">{cell.value}</span>}
-                            </div>
-                          ) : (
-                            <span className="truncate">{cell.value || (isSelected ? "" : "")}</span>
-                          )}
-
-                          {/* Merge indicator */}
-                          {(cell.colspan > 1 || cell.rowspan > 1) && (
-                            <span className="absolute top-0 left-0 text-[8px] text-blue-400 opacity-60 px-0.5">
-                              {cell.colspan}×{cell.rowspan}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
+                  {cIdx + 1}
+                  {/* Resize handle */}
+                  <div
+                    className="absolute top-0 bottom-0 left-0 w-1.5 cursor-col-resize hover:bg-blue-400 z-10"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setResizingCol({ colIndex: cIdx, startX: e.clientX, startWidth: w });
+                    }}
+                  />
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+
+            {/* Grid rows */}
+            {activeTemplate.grid.map((row, rIdx) => (
+              <div key={rIdx} className="flex" style={{ direction: "rtl" }}>
+                {/* Row number + resize handle */}
+                <div
+                  className="relative w-8 bg-muted border-b border-r border-border flex items-center justify-center text-[10px] text-muted-foreground select-none flex-shrink-0"
+                  style={{ height: activeTemplate.rowHeights[rIdx] || 36 }}
+                >
+                  {rIdx + 1}
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-blue-400 z-10"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setResizingRow({ rowIndex: rIdx, startY: e.clientY, startHeight: activeTemplate.rowHeights[rIdx] || 36 });
+                    }}
+                  />
+                </div>
+                {/* Cells */}
+                {row.map((cell, cIdx) => {
+                  if (cell.merged) return null;
+                  const isSelected = selectedCells.has(cell.id);
+                  const isEditing = editingCellId === cell.id;
+
+                  // Calculate width for merged cells
+                  let cellWidth = 0;
+                  for (let cc = cIdx; cc < cIdx + cell.colspan && cc < activeTemplate.cols; cc++) {
+                    cellWidth += activeTemplate.colWidths[cc] || 90;
+                  }
+                  let cellHeight = 0;
+                  for (let rr = rIdx; rr < rIdx + cell.rowspan && rr < activeTemplate.rows; rr++) {
+                    cellHeight += activeTemplate.rowHeights[rr] || 36;
+                  }
+
+                  return (
+                    <div
+                      key={cell.id}
+                      className={cn(
+                        "relative group flex-shrink-0",
+                        isSelected && "ring-2 ring-blue-500 ring-inset z-10",
+                      )}
+                      style={{
+                        width: cellWidth,
+                        minWidth: cellWidth,
+                        height: cellHeight,
+                        backgroundColor: cell.backgroundColor,
+                        color: cell.textColor,
+                        fontWeight: cell.fontWeight,
+                        textAlign: cell.textAlign,
+                        borderTop: cell.borderTop ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        borderBottom: cell.borderBottom ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        borderLeft: cell.borderLeft ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        borderRight: cell.borderRight ? `1px solid ${activeTemplate.globalStyles.borderColor}` : "none",
+                        padding: "2px 4px",
+                        fontSize: 13,
+                        cursor: "cell",
+                        userSelect: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "left" ? "flex-start" : "flex-end",
+                        overflow: "hidden",
+                      }}
+                      onMouseDown={(e) => handleCellMouseDown(cell.id, rIdx, cIdx, e)}
+                      onMouseEnter={() => handleCellMouseEnter(rIdx, cIdx)}
+                      onDoubleClick={() => handleCellDoubleClick(cell.id)}
+                      onContextMenu={(e) => handleCellContextMenu(e, rIdx, cIdx)}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = "2px dashed #3b82f6"; }}
+                      onDragLeave={(e) => { e.currentTarget.style.outline = ""; }}
+                      onDrop={(e) => { e.preventDefault(); e.currentTarget.style.outline = ""; handleDrop(rIdx, cIdx); }}
+                    >
+                      {isEditing ? (
+                        <input
+                          className="w-full h-full bg-transparent outline-none"
+                          style={{ color: cell.textColor, fontWeight: cell.fontWeight, textAlign: cell.textAlign, fontSize: 13 }}
+                          value={cell.value}
+                          onChange={(e) => handleCellEdit(cell.id, e.target.value)}
+                          onBlur={() => setEditingCellId(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === "Escape") setEditingCellId(null);
+                            if (e.key === "Tab") {
+                              e.preventDefault();
+                              setEditingCellId(null);
+                              const nextCell = row[cIdx + 1];
+                              if (nextCell && !nextCell.merged) {
+                                setSelectedCells(new Set([nextCell.id]));
+                                setEditingCellId(nextCell.id);
+                              }
+                            }
+                          }}
+                          autoFocus
+                        />
+                      ) : isVariable(cell.value) ? (
+                        <div className="flex flex-wrap items-center gap-0.5 justify-center">
+                          {renderVariableChips(cell.value)}
+                        </div>
+                      ) : (
+                        <span className="truncate">{cell.value}</span>
+                      )}
+
+                      {/* Merge indicator */}
+                      {(cell.colspan > 1 || cell.rowspan > 1) && (
+                        <span className="absolute top-0 left-0 text-[8px] text-blue-400/60 px-0.5">
+                          {cell.colspan}×{cell.rowspan}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Side Panel */}
         {showSidePanel && (
-          <div className="w-64 border-r bg-card overflow-y-auto flex-shrink-0">
+          <div className="w-60 border-r bg-card overflow-y-auto flex-shrink-0">
             {/* Mission Types */}
             <div className="border-b p-3">
               <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
@@ -1739,10 +1526,10 @@ export default function BoardTemplateEditor() {
                       key={mt.id}
                       className="flex items-center gap-2 px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs"
                       draggable
-                      onDragStart={() => handleDragStart("missionType", mt)}
+                      onDragStart={() => setDragItem({ type: "missionType", data: mt })}
                     >
                       <div className="w-3 h-3 rounded" style={{ backgroundColor: mt.color || "#6b7280" }} />
-                      <span>{typeof mt.name === 'object' ? ((mt.name as any).he || (mt.name as any).en || '') : mt.name}</span>
+                      <span>{getName(mt.name)}</span>
                     </div>
                   ))}
                 </div>
@@ -1764,9 +1551,9 @@ export default function BoardTemplateEditor() {
                       key={wr.id}
                       className="px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs"
                       draggable
-                      onDragStart={() => handleDragStart("workRole", wr)}
+                      onDragStart={() => setDragItem({ type: "workRole", data: wr })}
                     >
-                      {typeof wr.name === 'object' ? ((wr.name as any).he || (wr.name as any).en || '') : wr.name}
+                      {getName(wr.name)}
                     </div>
                   ))}
                 </div>
@@ -1781,21 +1568,21 @@ export default function BoardTemplateEditor() {
               </h3>
               <div className="space-y-1">
                 {[
-                  { label: "בוקר", start: "07:00", end: "15:00" },
-                  { label: "צהריים", start: "15:00", end: "23:00" },
-                  { label: "לילה", start: "23:00", end: "07:00" },
-                  { label: "4 שעות", start: "07:00", end: "11:00" },
-                  { label: "4 שעות", start: "11:00", end: "15:00" },
-                  { label: "4 שעות", start: "15:00", end: "19:00" },
-                  { label: "4 שעות", start: "19:00", end: "23:00" },
-                  { label: "4 שעות", start: "23:00", end: "03:00" },
-                  { label: "4 שעות", start: "03:00", end: "07:00" },
+                  { label: "בוקר 8h", start: "07:00", end: "15:00" },
+                  { label: "צהריים 8h", start: "15:00", end: "23:00" },
+                  { label: "לילה 8h", start: "23:00", end: "07:00" },
+                  { label: "4h", start: "07:00", end: "11:00" },
+                  { label: "4h", start: "11:00", end: "15:00" },
+                  { label: "4h", start: "15:00", end: "19:00" },
+                  { label: "4h", start: "19:00", end: "23:00" },
+                  { label: "4h", start: "23:00", end: "03:00" },
+                  { label: "4h", start: "03:00", end: "07:00" },
                 ].map((tr, i) => (
                   <div
                     key={i}
                     className="px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs flex justify-between"
                     draggable
-                    onDragStart={() => handleDragStart("timeRange", { start: tr.start, end: tr.end })}
+                    onDragStart={() => setDragItem({ type: "timeRange", data: { start: tr.start, end: tr.end } })}
                   >
                     <span>{tr.label}</span>
                     <span className="text-muted-foreground">{tr.start}-{tr.end}</span>
@@ -1811,7 +1598,7 @@ export default function BoardTemplateEditor() {
                 משתני תבנית
               </h3>
               <p className="text-[10px] text-muted-foreground mb-2">
-                גרור משתנה לתא — בעת יצירת לוח יומי הוא יוחלף בנתונים אמיתיים
+                גרור לתא — יוחלף בנתונים אמיתיים בעת יצירת לוח
               </p>
               <div className="space-y-1">
                 {TEMPLATE_VARIABLES.map((v) => (
@@ -1819,16 +1606,11 @@ export default function BoardTemplateEditor() {
                     key={v.key}
                     className="flex items-center gap-2 px-2 py-1.5 rounded border border-border cursor-grab hover:bg-muted/50 text-xs"
                     draggable
-                    onDragStart={() => handleDragStart("variable", v)}
+                    onDragStart={() => setDragItem({ type: "variable", data: v })}
                   >
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: v.color }}
-                    />
+                    <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: v.color }} />
                     <span className="font-medium">{v.label}</span>
-                    <span className="text-muted-foreground mr-auto text-[10px] font-mono" dir="ltr">
-                      {v.key}
-                    </span>
+                    <span className="text-muted-foreground mr-auto text-[10px] font-mono" dir="ltr">{v.key}</span>
                   </div>
                 ))}
               </div>
@@ -1865,60 +1647,43 @@ export default function BoardTemplateEditor() {
                     />
                   </div>
                   {selectedCell.type === "time" && (
-                    <>
-                      <div className="flex gap-1">
-                        <div className="flex-1">
-                          <Label className="text-xs">מ-</Label>
-                          <Input
-                            type="time"
-                            value={selectedCell.timeRange?.start || ""}
-                            onChange={(e) =>
-                              applyToSelected((c) => ({
-                                ...c,
-                                timeRange: { start: e.target.value, end: c.timeRange?.end || "" },
-                                value: `${e.target.value}-${c.timeRange?.end || ""}`,
-                              }))
-                            }
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <Label className="text-xs">עד</Label>
-                          <Input
-                            type="time"
-                            value={selectedCell.timeRange?.end || ""}
-                            onChange={(e) =>
-                              applyToSelected((c) => ({
-                                ...c,
-                                timeRange: { start: c.timeRange?.start || "", end: e.target.value },
-                                value: `${c.timeRange?.start || ""}-${e.target.value}`,
-                              }))
-                            }
-                            className="h-7 text-xs"
-                          />
-                        </div>
+                    <div className="flex gap-1">
+                      <div className="flex-1">
+                        <Label className="text-xs">מ-</Label>
+                        <Input
+                          type="time"
+                          value={selectedCell.timeRange?.start || ""}
+                          onChange={(e) =>
+                            applyToSelected((c) => ({
+                              ...c,
+                              timeRange: { start: e.target.value, end: c.timeRange?.end || "" },
+                              value: `${e.target.value}-${c.timeRange?.end || ""}`,
+                            }))
+                          }
+                          className="h-7 text-xs"
+                        />
                       </div>
-                      {selectedCell.timeRange?.start && selectedCell.timeRange?.end && (() => {
-                        const [sh, sm] = selectedCell.timeRange.start.split(":").map(Number);
-                        const [eh, em] = selectedCell.timeRange.end.split(":").map(Number);
-                        let dur = (eh * 60 + em) - (sh * 60 + sm);
-                        if (dur <= 0) dur += 24 * 60;
-                        const hours = dur / 60;
-                        const units = Math.round(hours / 4); // 4h = 1 unit
-                        return (
-                          <div className="text-[10px] text-muted-foreground pt-1">
-                            משך: {hours}h • {units} יחידות (4h=1)
-                          </div>
-                        );
-                      })()}
-                    </>
+                      <div className="flex-1">
+                        <Label className="text-xs">עד</Label>
+                        <Input
+                          type="time"
+                          value={selectedCell.timeRange?.end || ""}
+                          onChange={(e) =>
+                            applyToSelected((c) => ({
+                              ...c,
+                              timeRange: { start: c.timeRange?.start || "", end: e.target.value },
+                              value: `${c.timeRange?.start || ""}-${e.target.value}`,
+                            }))
+                          }
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </div>
                   )}
-                  <div className="pt-1 border-t">
-                    <span className="text-muted-foreground">
-                      מיזוג: {selectedCell.colspan}×{selectedCell.rowspan}
-                      {selectedCell.missionTypeId && " • משימה מקושרת"}
-                      {selectedCell.workRoleId && " • תפקיד מקושר"}
-                    </span>
+                  <div className="pt-1 border-t text-muted-foreground">
+                    מיזוג: {selectedCell.colspan}×{selectedCell.rowspan}
+                    {selectedCell.missionTypeId && " • משימה מקושרת"}
+                    {selectedCell.workRoleId && " • תפקיד מקושר"}
                   </div>
                 </div>
               </div>
@@ -1938,39 +1703,28 @@ export default function BoardTemplateEditor() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              המערכת תיצור לוח יומי לכל יום בטווח שנבחר, תוך החלפת משתני התבנית בנתונים אמיתיים ממערכת השיבוצים.
+              המערכת תיצור לוח יומי לכל יום בטווח, עם החלפת משתנים בנתונים אמיתיים.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>מתאריך</Label>
-                <Input
-                  type="date"
-                  value={generateDateFrom}
-                  onChange={(e) => setGenerateDateFrom(e.target.value)}
-                  dir="ltr"
-                />
+                <Input type="date" value={generateDateFrom} onChange={(e) => setGenerateDateFrom(e.target.value)} dir="ltr" />
               </div>
               <div className="space-y-2">
                 <Label>עד תאריך</Label>
-                <Input
-                  type="date"
-                  value={generateDateTo}
-                  onChange={(e) => setGenerateDateTo(e.target.value)}
-                  dir="ltr"
-                />
+                <Input type="date" value={generateDateTo} onChange={(e) => setGenerateDateTo(e.target.value)} dir="ltr" />
               </div>
             </div>
             {generateDateFrom && generateDateTo && (
               <div className="text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2">
-                📅 ייווצרו {Math.max(1, Math.ceil((new Date(generateDateTo).getTime() - new Date(generateDateFrom).getTime()) / 86400000) + 1)} לוחות יומיים
+                📅 ייווצרו {Math.max(1, Math.ceil((new Date(generateDateTo).getTime() - new Date(generateDateFrom).getTime()) / 86400000) + 1)} לוחות
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowGenerateDialog(false)}>ביטול</Button>
             <Button onClick={generateBoard} disabled={generating || !generateDateFrom || !generateDateTo}>
-              <Calendar className="w-4 h-4 ml-1" />
-              {generating ? "מייצר..." : "צור לוחות"}
+              <Calendar className="w-4 h-4 ml-1" />{generating ? "מייצר..." : "צור לוחות"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1983,61 +1737,28 @@ export default function BoardTemplateEditor() {
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           items={[
+            { label: "מזג תאים", icon: <Grid3X3 className="w-3 h-3" />, onClick: mergeCells, disabled: selectedCells.size < 2 },
             {
-              label: "מזג תאים",
-              icon: <Grid3X3 className="w-3 h-3" />,
-              onClick: mergeCells,
-              disabled: selectedCells.size < 2,
-            },
-            {
-              label: "פצל תא",
-              icon: <SplitSquareHorizontal className="w-3 h-3" />,
+              label: "פצל תא", icon: <SplitSquareHorizontal className="w-3 h-3" />,
               onClick: () => {
-                const cell = activeSection?.grid[contextMenu.row]?.[contextMenu.col];
-                if (cell) splitCell(contextMenu.sectionId, cell.id);
+                const cell = activeTemplate.grid[contextMenu.row]?.[contextMenu.col];
+                if (cell) splitCell(cell.id);
               },
-              disabled: (() => {
-                const cell = activeSection?.grid[contextMenu.row]?.[contextMenu.col];
-                return !cell || (cell.colspan <= 1 && cell.rowspan <= 1);
-              })(),
+              disabled: (() => { const c = activeTemplate.grid[contextMenu.row]?.[contextMenu.col]; return !c || (c.colspan <= 1 && c.rowspan <= 1); })(),
             },
             { label: "", separator: true, onClick: () => {} },
-            {
-              label: "הוסף שורה למעלה",
-              icon: <Plus className="w-3 h-3" />,
-              onClick: () => addRow(contextMenu.sectionId, contextMenu.row - 1),
-            },
-            {
-              label: "הוסף שורה למטה",
-              icon: <Plus className="w-3 h-3" />,
-              onClick: () => addRow(contextMenu.sectionId, contextMenu.row),
-            },
-            {
-              label: "הוסף עמודה מימין",
-              icon: <Plus className="w-3 h-3" />,
-              onClick: () => addCol(contextMenu.sectionId, contextMenu.col - 1),
-            },
-            {
-              label: "הוסף עמודה משמאל",
-              icon: <Plus className="w-3 h-3" />,
-              onClick: () => addCol(contextMenu.sectionId, contextMenu.col),
-            },
+            { label: "הוסף שורה למעלה", icon: <Plus className="w-3 h-3" />, onClick: () => addRow(contextMenu.row - 1) },
+            { label: "הוסף שורה למטה", icon: <Plus className="w-3 h-3" />, onClick: () => addRow(contextMenu.row) },
+            { label: "הוסף עמודה מימין", icon: <Plus className="w-3 h-3" />, onClick: () => addCol(contextMenu.col - 1) },
+            { label: "הוסף עמודה משמאל", icon: <Plus className="w-3 h-3" />, onClick: () => addCol(contextMenu.col) },
             { label: "", separator: true, onClick: () => {} },
-            {
-              label: "מחק שורה",
-              icon: <Trash2 className="w-3 h-3" />,
-              onClick: () => deleteRow(contextMenu.sectionId, contextMenu.row),
-            },
-            {
-              label: "מחק עמודה",
-              icon: <Trash2 className="w-3 h-3" />,
-              onClick: () => deleteCol(contextMenu.sectionId, contextMenu.col),
-            },
+            { label: "מחק שורה", icon: <Trash2 className="w-3 h-3" />, onClick: () => deleteRow(contextMenu.row) },
+            { label: "מחק עמודה", icon: <Trash2 className="w-3 h-3" />, onClick: () => deleteCol(contextMenu.col) },
             { label: "", separator: true, onClick: () => {} },
+            { label: "נקה תוכן", icon: <Minus className="w-3 h-3" />, onClick: () => applyToSelected((c) => ({ ...c, value: "" })) },
             {
-              label: "נקה תוכן",
-              icon: <Minus className="w-3 h-3" />,
-              onClick: () => applyToSelected((c) => ({ ...c, value: "" })),
+              label: "צבע כותרת ירוקה", icon: <Square className="w-3 h-3" />,
+              onClick: () => applyToSelected((c) => ({ ...c, backgroundColor: "#166534", textColor: "#ffffff", fontWeight: "bold", type: "header" as CellType })),
             },
           ]}
         />
