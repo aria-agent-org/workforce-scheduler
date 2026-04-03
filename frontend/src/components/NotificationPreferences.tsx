@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import ToggleSwitch from "@/components/ui/toggle-switch";
 import { Bell, Save } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
 
@@ -139,19 +140,12 @@ export default function NotificationPreferences() {
                       <td key={ch.key} className="py-3 text-center">
                         <button
                           onClick={() => toggleChannel(setting.event_type, ch.key)}
-                          className={`w-10 h-6 rounded-full transition-colors relative inline-flex items-center ${
-                            setting.channels[ch.key]
-                              ? "bg-primary-500"
-                              : "bg-gray-300 dark:bg-gray-600"
-                          }`}
-                          role="switch"
-                          aria-checked={setting.channels[ch.key]}
-                        >
-                          <span
-                            className="absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-all"
-                            style={{ insetInlineStart: setting.channels[ch.key] ? '18px' : '2px' }}
-                          />
-                        </button>
+                          className="hidden" />
+                        <ToggleSwitch
+                          checked={setting.channels[ch.key]}
+                          onChange={() => toggleChannel(setting.event_type, ch.key)}
+                          size="sm"
+                        />
                       </td>
                     ))}
                   </tr>

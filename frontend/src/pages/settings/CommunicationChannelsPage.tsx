@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import ToggleSwitch from "@/components/ui/toggle-switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -197,14 +198,10 @@ export default function CommunicationChannelsPage() {
                           {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "🧪 בדוק"}
                         </Button>
                       )}
-                      <button
-                        onClick={() => toggleEnabled(ch.channel, !ch.is_enabled)}
-                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                          ch.is_enabled ? "bg-primary-500" : "bg-muted"
-                        }`}
-                      >
-                        <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: ch.is_enabled ? '22px' : '2px' }} />
-                      </button>
+                      <ToggleSwitch
+                        checked={ch.is_enabled}
+                        onChange={() => toggleEnabled(ch.channel, !ch.is_enabled)}
+                      />
                     </div>
                   </div>
                 </CardContent>
@@ -547,14 +544,7 @@ export default function CommunicationChannelsPage() {
             {/* Enable toggle */}
             <div className="flex items-center justify-between pt-4 border-t">
               <Label className="font-semibold">ערוץ פעיל</Label>
-              <button
-                onClick={() => setEditEnabled(!editEnabled)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  editEnabled ? "bg-primary-500" : "bg-muted"
-                }`}
-              >
-                <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: editEnabled ? '22px' : '2px' }} />
-              </button>
+              <ToggleSwitch checked={editEnabled} onChange={setEditEnabled} />
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import ToggleSwitch from "@/components/ui/toggle-switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -156,21 +157,11 @@ export default function VisibilitySettingsPage() {
                 <p className="text-sm font-medium">{opt.label}</p>
                 <p className="text-xs text-muted-foreground">{opt.description}</p>
               </div>
-              <button
-                onClick={() => updateSetting(opt.key, !settings[opt.key])}
-                role="switch"
-                aria-checked={settings[opt.key]}
-                aria-label={opt.label}
-                className={`relative flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
-                  settings[opt.key] ? "bg-primary-500" : "bg-gray-300 dark:bg-gray-600"
-                }`}
-                style={{ width: '44px', height: '24px', minWidth: '44px' }}
-              >
-                <span
-                  className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-md transition-all duration-200"
-                  style={{ insetInlineStart: settings[opt.key] ? '24px' : '3px' }}
-                />
-              </button>
+              <ToggleSwitch
+                checked={settings[opt.key]}
+                onChange={() => updateSetting(opt.key, !settings[opt.key])}
+                label={opt.label}
+              />
             </div>
           ))}
         </CardContent>

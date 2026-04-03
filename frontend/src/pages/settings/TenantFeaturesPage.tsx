@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ToggleSwitch from "@/components/ui/toggle-switch";
 import { useToast } from "@/components/ui/toast";
 import { Save, Palette, Globe, Zap, Loader2 } from "lucide-react";
 import api, { tenantApi } from "@/lib/api";
@@ -156,23 +157,11 @@ export default function TenantFeaturesPage() {
                 </div>
               </div>
               {/* Toggle switch */}
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleFeature(f.key); }}
-                aria-label={`${f.label} ${f.enabled ? 'פעיל' : 'כבוי'}`}
-                aria-checked={f.enabled}
-                role="switch"
-                className={`relative rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
-                  f.enabled ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
-                }`}
-                style={{ width: '44px', height: '24px', minWidth: '44px' }}
-              >
-                <span
-                  className="absolute top-[2px] h-[20px] w-[20px] rounded-full bg-white shadow-md transition-all duration-200"
-                  style={{
-                    insetInlineStart: f.enabled ? '22px' : '2px',
-                  }}
-                />
-              </button>
+              <ToggleSwitch
+                checked={f.enabled}
+                onChange={() => toggleFeature(f.key)}
+                label={`${f.label} ${f.enabled ? 'פעיל' : 'כבוי'}`}
+              />
             </div>
           ))}
         </div>

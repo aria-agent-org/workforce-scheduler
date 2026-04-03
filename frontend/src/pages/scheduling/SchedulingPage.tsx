@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import DailyBoardView from "@/components/scheduling/DailyBoardView";
+import ToggleSwitch from "@/components/ui/toggle-switch";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -1746,19 +1747,17 @@ export default function SchedulingPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     {/* Active/Inactive Toggle */}
-                    <button
-                      onClick={async () => {
+                    <ToggleSwitch
+                      checked={tmpl.is_active !== false}
+                      onChange={async () => {
                         try {
-                          await api.patch(tenantApi(`/mission-templates/${tmpl.id}`), { is_active: tmpl.is_active === false ? true : false });
-                          toast("success", tmpl.is_active === false ? "תבנית הופעלה" : "תבנית הושבתה — משימות שכבר נוצרו יישארו");
+                          await api.patch(tenantApi(`/mission-templates/${tmpl.id}`), { is_active: tmpl.is_active === false });
+                          toast("success", tmpl.is_active === false ? "תבנית הופעלה" : "תבנית הושבתה");
                           if (selectedWindow) loadWindowData(selectedWindow.id);
                         } catch (e: any) { toast("error", getErrorMessage(e, "שגיאה")); }
                       }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
-                      title={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}
-                    >
-                      <span className="absolute top-[2px] h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: tmpl.is_active === false ? '2px' : '22px' }} />
-                    </button>
+                      label={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}
+                    />
                     <Button size="sm" variant="outline" className="min-h-[40px]" disabled={tmpl.is_active === false} onClick={() => {
                       setGenerateForm({ template_id: tmpl.id, start_date: selectedWindow?.start_date || "", end_date: selectedWindow?.end_date || "" });
                       setShowGenerateModal(true);

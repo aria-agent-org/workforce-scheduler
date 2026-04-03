@@ -190,6 +190,34 @@ async def update_integration(
     await db.commit()
     await db.refresh(config)
 
+    # Auto-register Telegram webhook when bot token is saved
+    if key == "telegram_bot_token" and body.value:
+        try:
+            webhook_url = "https://shavtzak.site/webhooks/telegram"
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"https://api.telegram.org/bot{body.value}/setWebhook",
+                    json={"url": webhook_url, "allowed_updates": ["message", "callback_query"]},
+                )
+                data = resp.json()
+                if data.get("ok"):
+                    logger.info(f"Telegram webhook auto-registered: {webhook_url}")
+                    # Save webhook URL
+                    wh_result = await db.execute(
+                        select(IntegrationConfig).where(IntegrationConfig.key == "telegram_webhook_url")
+                    )
+                    wh_cfg = wh_result.scalar_one_or_none()
+                    if not wh_cfg:
+                        wh_cfg = IntegrationConfig(key="telegram_webhook_url", value=webhook_url, category="telegram")
+                        db.add(wh_cfg)
+                    else:
+                        wh_cfg.value = webhook_url
+                    await db.commit()
+                else:
+                    logger.warning(f"Telegram webhook auto-register failed: {data.get('description')}")
+        except Exception as e:
+            logger.warning(f"Telegram webhook auto-register error: {e}")
+
     return IntegrationValueOut(
         key=key,
         value=config.get_masked_value(),
