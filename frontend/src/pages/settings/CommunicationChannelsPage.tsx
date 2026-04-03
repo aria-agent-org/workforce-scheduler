@@ -121,25 +121,19 @@ export default function CommunicationChannelsPage() {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-primary-500">{enabledCount}</p>
-            <p className="text-xs text-muted-foreground">ערוצים פעילים</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-green-600">{verifiedCount}</p>
-            <p className="text-xs text-muted-foreground">מאומתים</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-blue-600">{channels.length}</p>
-            <p className="text-xs text-muted-foreground">סה״כ ערוצים</p>
-          </CardContent>
-        </Card>
+      <div className="flex gap-2 sm:gap-3">
+        <div className="flex-1 rounded-lg border bg-card p-2 sm:p-3 text-center">
+          <p className="text-lg sm:text-2xl font-bold text-primary-500">{enabledCount}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">פעילים</p>
+        </div>
+        <div className="flex-1 rounded-lg border bg-card p-2 sm:p-3 text-center">
+          <p className="text-lg sm:text-2xl font-bold text-green-600">{verifiedCount}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">מאומתים</p>
+        </div>
+        <div className="flex-1 rounded-lg border bg-card p-2 sm:p-3 text-center">
+          <p className="text-lg sm:text-2xl font-bold text-blue-600">{channels.length}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">סה״כ</p>
+        </div>
       </div>
 
       {/* Channel cards */}
@@ -160,15 +154,15 @@ export default function CommunicationChannelsPage() {
                 key={ch.channel}
                 className={`transition-all ${ch.is_enabled ? "ring-2 ring-primary-200 dark:ring-primary-800" : "opacity-70"}`}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="h-11 w-11 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: meta.color }}>
-                        <Icon className="h-5 w-5" />
+                <CardContent className="p-2.5 sm:p-4">
+                  <div className="flex items-start justify-between gap-2 sm:gap-4">
+                    <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+                      <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: meta.color }}>
+                        <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold">{meta.label}</h3>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                          <h3 className="font-semibold text-sm sm:text-base">{meta.label}</h3>
                           {ch.is_enabled && (
                             <Badge className="bg-green-100 text-green-700 text-[10px]">פעיל</Badge>
                           )}

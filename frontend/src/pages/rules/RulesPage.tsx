@@ -516,41 +516,41 @@ export default function RulesPage() {
           </Card>
         ) : rules.map(rule => (
           <Card key={rule.id} className="hover:shadow-md transition-all">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            <CardContent className="p-2.5 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                  <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 ${
                     rule.severity === "hard" ? "bg-red-100 dark:bg-red-900/30" : "bg-yellow-100 dark:bg-yellow-900/30"
                   }`}>
                     {rule.severity === "hard"
-                      ? <Shield className="h-5 w-5 text-red-500" />
-                      : <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                      ? <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
+                      : <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
                     }
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-semibold">{rule.name?.[lang] || rule.name?.he}</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                    <h3 className="font-semibold text-sm sm:text-base">{typeof rule.name === "object" ? (rule.name?.he || rule.name?.en || "") : String(rule.name || "")}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
                       {buildConditionSummary(rule) || "ללא תנאים"}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      <Badge className={rule.severity === "hard" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}>
-                        {rule.severity === "hard" ? "חמור — חוסם" : "רך — אזהרה"}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      <Badge className={`text-[10px] sm:text-xs ${rule.severity === "hard" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                        {rule.severity === "hard" ? "חמור" : "רך"}
                       </Badge>
-                      <Badge className="bg-muted text-muted-foreground">
+                      <Badge className="text-[10px] sm:text-xs bg-muted text-muted-foreground">
                         {CATEGORY_OPTIONS.find(c => c.value === rule.category)?.label || rule.category}
                       </Badge>
-                      <Badge className={rule.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}>
-                        {rule.is_active ? "פעיל" : "מושבת"}
+                      <Badge className={`text-[10px] sm:text-xs ${rule.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        {rule.is_active ? "פעיל" : "כבוי"}
                       </Badge>
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px]" onClick={() => openEdit(rule)}>
-                    <Pencil className="h-4 w-4" />
+                <div className="flex gap-0.5 flex-shrink-0">
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(rule)}>
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px]" onClick={() => deleteRule(rule.id)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => deleteRule(rule.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
                   </Button>
                 </div>
               </div>

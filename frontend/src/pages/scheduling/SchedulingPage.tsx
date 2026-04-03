@@ -1001,17 +1001,17 @@ export default function SchedulingPage() {
 
             return (
             <Card key={w.id} className={`hover:shadow-lg transition-all cursor-pointer group border-s-4 ${isActive ? "ring-2 ring-green-400 dark:ring-green-600" : ""}`} style={{ borderInlineStartColor: isActive ? "#22c55e" : w.status === "paused" ? "#eab308" : w.status === "archived" ? "#6366f1" : "#9ca3af" }} onClick={() => openWindowBoard(w)}>
-              <CardContent className="p-5">
+              <CardContent className="p-3 sm:p-5">
                 {isActive && (
-                  <div className="flex items-center gap-2 mb-2 text-green-700 dark:text-green-400">
+                  <div className="flex items-center gap-1.5 mb-1 sm:mb-2 text-green-700 dark:text-green-400">
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-bold">לוח פעיל — מרכז הפעולות הנוכחי</span>
+                    <span className="text-[10px] sm:text-xs font-bold">לוח פעיל</span>
                   </div>
                 )}
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-bold">{w.name}</h3>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1 sm:space-y-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm sm:text-lg font-bold truncate">{w.name}</h3>
                       <Badge className={`${isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 font-bold" : statusColors[w.status] || ""} text-xs`}>
                         {isActive ? "✅ לוח פעיל" : t(`status.${w.status}`)}
                       </Badge>
@@ -1030,28 +1030,28 @@ export default function SchedulingPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     {w.status === "draft" && (
-                      <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "activate")} title="הפעל">
-                        <Play className="h-3.5 w-3.5 me-1" />הפעל
+                      <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-green-300 text-green-700 hover:bg-green-50 text-xs" onClick={() => windowAction(w.id, "activate")} title="הפעל">
+                        <Play className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">הפעל</span>
                       </Button>
                     )}
                     {w.status === "active" && (
-                      <Button size="sm" variant="outline" className="min-h-[40px] border-yellow-300 text-yellow-700 hover:bg-yellow-50" onClick={() => windowAction(w.id, "pause")} title="השהה">
-                        <Pause className="h-3.5 w-3.5 me-1" />השהה
+                      <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-yellow-300 text-yellow-700 hover:bg-yellow-50 text-xs" onClick={() => windowAction(w.id, "pause")} title="השהה">
+                        <Pause className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">השהה</span>
                       </Button>
                     )}
                     {w.status === "paused" && (
-                      <Button size="sm" variant="outline" className="min-h-[40px] border-green-300 text-green-700 hover:bg-green-50" onClick={() => windowAction(w.id, "resume")} title="המשך">
-                        <Play className="h-3.5 w-3.5 me-1" />המשך
+                      <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-green-300 text-green-700 hover:bg-green-50 text-xs" onClick={() => windowAction(w.id, "resume")} title="המשך">
+                        <Play className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">המשך</span>
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="min-h-[40px] border-purple-300 text-purple-700 hover:bg-purple-50" onClick={() => windowAction(w.id, "copy")} title="העתק">
-                      <Copy className="h-3.5 w-3.5 me-1" />העתק
+                    <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-purple-300 text-purple-700 hover:bg-purple-50 text-xs" onClick={() => windowAction(w.id, "copy")} title="העתק">
+                      <Copy className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">העתק</span>
                     </Button>
                     {w.status !== "archived" && (
-                      <Button size="sm" variant="ghost" className="min-h-[40px] text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
-                        <Archive className="h-3.5 w-3.5" />
+                      <Button size="sm" variant="ghost" className="h-8 sm:min-h-[40px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => windowAction(w.id, "archive")} title="ארכיון">
+                        <Archive className="h-3 w-3" />
                       </Button>
                     )}
                   </div>
@@ -1208,7 +1208,7 @@ export default function SchedulingPage() {
             
             return (
               <Card className="border-primary-200 dark:border-primary-800 bg-gradient-to-br from-primary-50/50 to-transparent dark:from-primary-900/10">
-                <CardContent className="p-4">
+                <CardContent className="p-2.5 sm:p-4">
                   <h3 className="text-sm font-bold text-muted-foreground mb-3 flex items-center gap-1.5">📊 סטטיסטיקת לוח</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                     <div className="text-center">
@@ -1435,23 +1435,23 @@ export default function SchedulingPage() {
 
                 return (
                 <Card key={m.id} className="hover:shadow-lg transition-all border-s-4 group" style={{ borderInlineStartColor: mtColor }}>
-                  <CardContent className="p-4">
+                  <CardContent className="p-2.5 sm:p-4">
                     <div className="flex items-center justify-between cursor-pointer"
                          onClick={() => setExpandedMission(expandedMission === m.id ? null : m.id)}>
-                      <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ backgroundColor: mtColor + "18" }}>
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl flex items-center justify-center text-base sm:text-lg flex-shrink-0" style={{ backgroundColor: mtColor + "18" }}>
                           {mt?.icon || "📋"}
                         </div>
-                        <div>
-                          <p className="font-semibold text-base">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm sm:text-base">
                             <button
-                              className="hover:underline hover:text-primary-600 transition-colors text-start"
+                              className="hover:underline hover:text-primary-600 transition-colors text-start truncate block"
                               onClick={(e) => { e.stopPropagation(); navigate(`/missions/${m.id}`); }}
                             >
                               {m.name}
                             </button>
                           </p>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground mt-0.5">
                             <span>📅 {m.date}</span>
                             <span>⏰ {m.start_time?.slice(0, 5)}–{m.end_time?.slice(0, 5)}</span>
                             <span className={`font-medium ${fillPercent === 100 ? "text-green-600" : fillPercent > 0 ? "text-yellow-600" : "text-red-500"}`}>
@@ -1660,7 +1660,7 @@ export default function SchedulingPage() {
             </CardContent></Card>
           ) : missionTypes.map((mt) => (
             <Card key={mt.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
+              <CardContent className="p-2.5 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: (mt.color || "#3b82f6") + "20" }}>
@@ -1723,7 +1723,7 @@ export default function SchedulingPage() {
           </div>
           {templates.map((tmpl) => (
             <Card key={tmpl.id} className={`hover:shadow-md transition-all ${tmpl.is_active === false ? "opacity-60" : ""}`}>
-              <CardContent className="p-4">
+              <CardContent className="p-2.5 sm:p-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tmpl.is_active === false ? "bg-gray-100 dark:bg-gray-800" : "bg-purple-100 dark:bg-purple-900/30"}`}>
