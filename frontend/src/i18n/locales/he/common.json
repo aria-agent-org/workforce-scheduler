@@ -53,7 +53,9 @@
     "myPortal": "הפורטל שלי",
     "profile": "הפרופיל שלי",
     "users": "משתמשים",
-    "registration": "קודי הרשמה"
+    "registration": "קודי הרשמה",
+    "chat": "צ'אט",
+    "webhooks": "Webhooks"
   },
   "pagination": {
     "page": "עמוד",

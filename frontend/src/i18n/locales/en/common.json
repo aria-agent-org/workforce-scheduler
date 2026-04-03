@@ -51,7 +51,9 @@
     "onboarding": "Setup",
     "profile": "My Profile",
     "myPortal": "My Portal",
-    "help": "Help Center"
+    "help": "Help Center",
+    "chat": "Chat",
+    "webhooks": "Webhooks"
   },
   "pagination": {
     "page": "Page",

@@ -49,6 +49,9 @@ const MySettingsPage = lazy(() => import("./pages/my/MySettingsPage"));
 const GpsCheckinPage = lazy(() => import("./pages/my/GpsCheckinPage"));
 const CompliancePage = lazy(() => import("./pages/settings/CompliancePage"));
 const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
+const KioskPage = lazy(() => import("./pages/kiosk/KioskPage"));
+const ChatPage = lazy(() => import("./pages/chat/ChatPage"));
+const WebhooksPage = lazy(() => import("./pages/webhooks/WebhooksPage"));
 
 function App() {
   const { i18n } = useTranslation();
@@ -74,6 +77,7 @@ function App() {
                 <Route path="/join/:token" element={<AcceptInvitationPage />} />
                 <Route path="/join-tenant" element={<SelfRegistrationPage />} />
                 <Route path="/onboarding" element={<OnboardingWizard />} />
+                <Route path="/kiosk" element={<KioskPage />} />
 
                 {/* Main admin/manager layout — all guarded */}
                 <Route path="/" element={<AppLayout />}>
@@ -149,6 +153,16 @@ function App() {
                   {/* Analytics — commander+ */}
                   <Route path="analytics" element={
                     <PermissionGuard page="reports"><AnalyticsPage /></PermissionGuard>
+                  } />
+
+                  {/* Chat — everyone */}
+                  <Route path="chat" element={
+                    <PermissionGuard page="dashboard"><ChatPage /></PermissionGuard>
+                  } />
+
+                  {/* Webhooks — admin */}
+                  <Route path="webhooks" element={
+                    <PermissionGuard page="settings"><WebhooksPage /></PermissionGuard>
                   } />
 
                   {/* Help / profile — everyone */}

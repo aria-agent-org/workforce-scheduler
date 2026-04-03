@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, Calendar, ClipboardList, ShieldCheck,
   Bell, BarChart3, Settings, ArrowLeftRight, History, Shield,
   HelpCircle, UserCircle, Building2, CreditCard, Activity, UserCog,
+  MessageSquare, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -34,6 +35,8 @@ const allNavItems: NavItem[] = [
 const allSecondaryItems: NavItem[] = [
   { key: "swaps", path: "/swaps", icon: ArrowLeftRight },
   { key: "auditLog", pageKey: "audit-log", path: "/audit-log", icon: History },
+  { key: "chat", pageKey: "dashboard", path: "/chat", icon: MessageSquare },
+  { key: "webhooks", pageKey: "settings", path: "/webhooks", icon: ExternalLink },
   { key: "help", path: "/help", icon: HelpCircle },
   { key: "profile", path: "/profile", icon: UserCog },
   { key: "myPortal", pageKey: "my", path: "/my/schedule", icon: UserCircle },
