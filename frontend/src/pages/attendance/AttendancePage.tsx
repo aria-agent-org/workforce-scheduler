@@ -265,7 +265,7 @@ export default function AttendancePage() {
       return { backgroundColor: def.color + "30", color: def.color, borderColor: def.color };
     }
     const fallback: Record<string, string> = {
-      present: "#22c55e", home: "#3b82f6", sick: "#ef4444",
+      present: "#22c55e", home: "#6B7F3B", sick: "#ef4444",
       vacation: "#eab308", reserve: "#a855f7", training: "#f97316",
     };
     const c = fallback[code] || "#6b7280";
@@ -634,7 +634,7 @@ export default function AttendancePage() {
                       onClick={() => setCalendarExpandedDay(isExpanded ? null : date)}
                       className={`rounded-lg border p-1 sm:p-2 text-start min-h-[60px] sm:min-h-[80px] transition-all hover:shadow-sm ${
                         isToday ? "ring-2 ring-primary-500 bg-primary-50/50 dark:bg-primary-900/10" : "hover:bg-muted/30"
-                      } ${isExpanded ? "ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
+                      } ${isExpanded ? "ring-2 ring-primary-500 bg-primary-50/50 dark:bg-primary-900/10" : ""}`}
                     >
                       <div className="text-xs sm:text-sm font-bold mb-0.5">{parseInt(date.slice(8))}</div>
                       {/* Status dots - compact mobile */}

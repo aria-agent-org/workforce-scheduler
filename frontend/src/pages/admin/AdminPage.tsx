@@ -873,7 +873,7 @@ export default function AdminPage() {
                         <tr key={u.id} className="border-b hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 text-sm">{u.email}</td>
                           <td className="px-4 py-3 text-sm">{u.tenant_name || "—"}</td>
-                          <td className="px-4 py-3"><Badge className="bg-blue-100 text-blue-700">{u.role_name || "—"}</Badge></td>
+                          <td className="px-4 py-3"><Badge className="bg-primary-100 text-primary-700">{u.role_name || "—"}</Badge></td>
                           <td className="px-4 py-3"><Badge className={u.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>{u.is_active ? "פעיל" : "מושבת"}</Badge></td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">{u.last_login?.slice(0, 16) || "—"}</td>
                           <td className="px-4 py-3">
@@ -912,7 +912,7 @@ export default function AdminPage() {
                           <Badge className={u.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>
                             {u.is_active ? "פעיל" : "מושבת"}
                           </Badge>
-                          <Badge className="bg-blue-100 text-blue-700 text-[10px]">{u.role_name || "—"}</Badge>
+                          <Badge className="bg-primary-100 text-primary-700 text-[10px]">{u.role_name || "—"}</Badge>
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">כניסה אחרונה: {u.last_login?.slice(0, 16) || "אף פעם"}</p>
@@ -1127,15 +1127,15 @@ export default function AdminPage() {
                 if (!role) return null;
                 const permKeys = role.permissions ? Object.keys(role.permissions) : [];
                 return (
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-xs space-y-1">
-                    <p className="font-medium text-blue-700 dark:text-blue-300">{role.label?.he || role.name}</p>
+                  <div className="rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 p-3 text-xs space-y-1">
+                    <p className="font-medium text-primary-700 dark:text-primary-300">{role.label?.he || role.name}</p>
                     {permKeys.length > 0 && (
-                      <p className="text-blue-600 dark:text-blue-400">
+                      <p className="text-primary-600 dark:text-primary-400">
                         הרשאות: {permKeys.join(", ")}
                       </p>
                     )}
                     {role.user_count !== undefined && (
-                      <p className="text-blue-500">{role.user_count} משתמשים עם תפקיד זה</p>
+                      <p className="text-primary-500">{role.user_count} משתמשים עם תפקיד זה</p>
                     )}
                   </div>
                 );

@@ -252,18 +252,18 @@ export default function GoogleSheetsPage() {
 
       {/* Service Account Info — tells tenant which email to share with */}
       {serviceAccountConfigured && serviceAccountEmail ? (
-        <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20">
+        <Card className="border-primary-200 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-900/20">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 text-blue-600 text-xl">📧</div>
+              <div className="mt-0.5 text-primary-600 text-xl">📧</div>
               <div className="flex-1">
-                <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-1">שיתוף גיליון עם המערכת</h3>
-                <p className="text-sm text-blue-800 dark:text-blue-300 mb-2">
+                <h3 className="font-semibold text-primary-900 dark:text-primary-200 mb-1">שיתוף גיליון עם המערכת</h3>
+                <p className="text-sm text-primary-800 dark:text-primary-300 mb-2">
                   כדי שהמערכת תוכל לקרוא ולעדכן את הגיליון, שתף אותו עם האימייל הבא ב-Google Sheets:
                 </p>
                 <div className="flex items-center gap-2">
                   <code
-                    className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded px-3 py-1.5 text-sm font-mono select-all cursor-pointer"
+                    className="bg-white dark:bg-gray-800 border border-primary-200 dark:border-primary-700 rounded px-3 py-1.5 text-sm font-mono select-all cursor-pointer"
                     dir="ltr"
                     onClick={() => {
                       navigator.clipboard.writeText(serviceAccountEmail);
@@ -285,7 +285,7 @@ export default function GoogleSheetsPage() {
                     העתק
                   </Button>
                 </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                <p className="text-xs text-primary-600 dark:text-primary-400 mt-2">
                   💡 ב-Google Sheets: לחץ על "שיתוף" → הדבק את האימייל → תן הרשאת "עורך" (Editor)
                 </p>
               </div>

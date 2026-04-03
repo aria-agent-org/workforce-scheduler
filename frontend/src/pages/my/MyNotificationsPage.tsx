@@ -39,7 +39,7 @@ const eventIcons: Record<string, string> = {
 };
 
 const channelConfig = [
-  { key: "push", label: "Push", icon: Smartphone, color: "text-blue-500" },
+  { key: "push", label: "Push", icon: Smartphone, color: "text-primary-500" },
   { key: "email", label: "אימייל", icon: Mail, color: "text-orange-500" },
   { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-green-500" },
 ];

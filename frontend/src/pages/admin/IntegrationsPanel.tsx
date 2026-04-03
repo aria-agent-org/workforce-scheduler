@@ -206,7 +206,7 @@ export default function IntegrationsPanel() {
                 <button
                   onClick={handleSetWebhook}
                   disabled={settingWebhook}
-                  className="px-4 py-2 text-sm rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 text-sm rounded-xl bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {settingWebhook ? <span className="animate-spin">⏳</span> : <span>🔗</span>}
                   רישום Webhook
@@ -228,7 +228,7 @@ export default function IntegrationsPanel() {
 
           {/* WhatsApp webhook URL hint */}
           {activeCategory.category === "whatsapp" && (
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm">
+            <div className="p-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 text-sm">
               <strong>Webhook URL להגדרה ב-Meta Business Console:</strong>
               <code className="block mt-1 bg-white dark:bg-gray-800 p-2 rounded font-mono text-xs select-all">
                 https://shavtzak.site/webhooks/whatsapp

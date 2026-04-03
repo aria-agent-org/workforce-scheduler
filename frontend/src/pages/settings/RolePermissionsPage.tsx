@@ -398,7 +398,7 @@ export default function RolePermissionsPage({ mode }: Props) {
                       }).map(r => {
                         const perms = role.permissions[r.key] as string[];
                         return (
-                          <span key={r.key} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
+                          <span key={r.key} className="text-[10px] bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-1.5 py-0.5 rounded-full">
                             {r.icon} {r.label[lang]} ({perms.length})
                           </span>
                         );
@@ -603,7 +603,7 @@ export default function RolePermissionsPage({ mode }: Props) {
                   const perms = formPermissions[r.key] || [];
                   if (perms.length === 0) return null;
                   return (
-                    <span key={r.key} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
+                    <span key={r.key} className="text-[10px] bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-1.5 py-0.5 rounded-full">
                       {r.icon} {r.label[lang]}: {perms.map(p => {
                         const act = ACTIONS.find(a => a.key === p);
                         return act?.label[lang] || p;

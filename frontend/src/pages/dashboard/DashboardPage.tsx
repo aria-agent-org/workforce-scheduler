@@ -158,7 +158,7 @@ export default function DashboardPage() {
   const statCards = [
     { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, gradient: "from-violet-500 to-purple-600", bgLight: "bg-violet-50 dark:bg-violet-900/20", link: "/scheduling", suffix: "היום" },
     { key: "unfilledSlots", value: unfilledSlots, icon: AlertTriangle, gradient: unfilledSlots > 0 ? "from-red-500 to-rose-600" : "from-emerald-500 to-green-600", bgLight: unfilledSlots > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20", link: "/scheduling", suffix: "משבצות" },
-    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, gradient: "from-blue-500 to-cyan-600", bgLight: "bg-blue-50 dark:bg-blue-900/20", link: "/soldiers", suffix: "חיילים" },
+    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, gradient: "from-primary-400 to-primary-600", bgLight: "bg-primary-50 dark:bg-primary-900/20", link: "/soldiers", suffix: "חיילים" },
     { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, gradient: "from-green-500 to-emerald-600", bgLight: "bg-green-50 dark:bg-green-900/20", link: "/attendance", suffix: "נוכחים" },
     { key: "pendingSwaps_kpi", value: pendingSwapsCount, icon: ArrowLeftRight, gradient: "from-orange-500 to-amber-600", bgLight: "bg-orange-50 dark:bg-orange-900/20", link: "/swaps", suffix: "בקשות" },
   ];
@@ -249,8 +249,8 @@ export default function DashboardPage() {
                       <Badge className={
                         m.status === "approved" ? "bg-green-100 text-green-700" :
                         m.status === "draft" ? "bg-gray-100 text-gray-700" :
-                        m.status === "proposed" ? "bg-purple-100 text-purple-700" :
-                        "bg-blue-100 text-blue-700"
+                        m.status === "proposed" ? "bg-amber-100 text-amber-700" :
+                        "bg-primary-100 text-primary-700"
                       }>
                         {m.status}
                       </Badge>
@@ -352,8 +352,8 @@ export default function DashboardPage() {
                     <Badge className={
                       m.status === "approved" ? "bg-green-100 text-green-700" :
                       m.status === "draft" ? "bg-gray-100 text-gray-700" :
-                      m.status === "proposed" ? "bg-purple-100 text-purple-700" :
-                      "bg-blue-100 text-blue-700"
+                      m.status === "proposed" ? "bg-amber-100 text-amber-700" :
+                      "bg-primary-100 text-primary-700"
                     }>
                       {m.status}
                     </Badge>

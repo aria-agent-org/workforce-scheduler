@@ -220,7 +220,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
       setRoleResolutions(res.data.new_roles.map((r: string) => ({
         role_name: r,
         action: "create",
-        color: "#3b82f6",
+        color: "#6B7F3B",
       })));
 
       // Determine next step
@@ -367,11 +367,11 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
           {/* ─── Step 2: Column Mapping ─── */}
           {step === 2 && (
             <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm">
-                <p className="font-medium text-blue-800 dark:text-blue-200">
+              <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3 text-sm">
+                <p className="font-medium text-primary-800 dark:text-primary-200">
                   📝 נמצאו {totalRows} שורות ו-{columns.length} עמודות
                 </p>
-                <p className="text-blue-600 dark:text-blue-300 mt-1">
+                <p className="text-primary-600 dark:text-primary-300 mt-1">
                   מפה כל עמודה לשדה המתאים. שדות עם * הם חובה.
                 </p>
               </div>
@@ -545,11 +545,11 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
               {/* New roles resolution */}
               {newRoles.length > 0 && (
                 <>
-                  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 text-sm">
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm">
                     <p className="font-medium text-purple-800 dark:text-purple-200">
                       🏷️ נמצאו {newRoles.length} תפקידים שלא קיימים במערכת
                     </p>
-                    <p className="text-purple-600 dark:text-purple-300">
+                    <p className="text-amber-600 dark:text-amber-300">
                       בחר האם ליצור אותם או לדלג
                     </p>
                   </div>
@@ -559,7 +559,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                       <CardContent className="p-3">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <Badge className="bg-purple-100 text-purple-700">{res.role_name}</Badge>
+                            <Badge className="bg-amber-100 text-amber-700">{res.role_name}</Badge>
                           </div>
                           <div className="flex items-center gap-2">
                             <Select
@@ -743,7 +743,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                 </Card>
                 <Card>
                   <CardContent className="p-3 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{importResults.updated}</p>
+                    <p className="text-2xl font-bold text-primary-600">{importResults.updated}</p>
                     <p className="text-xs text-muted-foreground">עודכנו</p>
                   </CardContent>
                 </Card>
@@ -755,23 +755,23 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                 </Card>
                 <Card>
                   <CardContent className="p-3 text-center">
-                    <p className="text-2xl font-bold text-purple-600">{importResults.invitations_sent}</p>
+                    <p className="text-2xl font-bold text-amber-600">{importResults.invitations_sent}</p>
                     <p className="text-xs text-muted-foreground">הזמנות נשלחו</p>
                   </CardContent>
                 </Card>
               </div>
 
               {/* Download Registration Links */}
-              <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
-                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">📥 הורדת קובץ לינקים</p>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
+              <div className="border rounded-lg p-4 bg-primary-50 dark:bg-primary-900/20 space-y-3">
+                <p className="text-sm font-semibold text-primary-800 dark:text-primary-200">📥 הורדת קובץ לינקים</p>
+                <p className="text-xs text-primary-700 dark:text-primary-300">
                   הורד קובץ CSV עם קישורי הרשמה ייחודיים לכל עובד — שתף עם העובדים להרשמה עצמאית
                 </p>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={downloadRegistrationLinks}
-                  className="min-h-[44px] border-blue-300 text-blue-700 hover:bg-blue-100"
+                  className="min-h-[44px] border-primary-300 text-primary-700 hover:bg-primary-100"
                 >
                   <Download className="me-1 h-4 w-4" />
                   הורדת קובץ לינקים

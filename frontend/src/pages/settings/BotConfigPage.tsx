@@ -206,7 +206,7 @@ export default function BotConfigPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6 text-purple-600" />
+            <Bot className="h-6 w-6 text-amber-600" />
             {lang === "he" ? "הגדרות בוט" : "Bot Configuration"}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -251,7 +251,7 @@ export default function BotConfigPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-blue-500" /> Telegram Bot
+              <Send className="h-5 w-5 text-primary-500" /> Telegram Bot
             </CardTitle>
             <button onClick={() => setTelegram(prev => ({ ...prev, is_enabled: !prev.is_enabled }))}>
               {telegram.is_enabled ? <ToggleRight className="h-8 w-8 text-green-500" /> : <ToggleLeft className="h-8 w-8 text-muted-foreground" />}
@@ -320,7 +320,7 @@ export default function BotConfigPage() {
         </CardHeader>
         {aiEnabled && (
           <CardContent className="space-y-4">
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-200">
+            <div className="rounded-lg bg-primary-50 dark:bg-primary-900/30 p-3 text-sm text-primary-800 dark:text-primary-200">
               💡 {lang === "he" ? "הבוט ישתמש ב-AI רק אם גם ערוץ תקשורת (Telegram/WhatsApp) מוגדר ופעיל" : "The bot uses AI only if a communication channel (Telegram/WhatsApp) is configured and enabled"}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">

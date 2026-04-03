@@ -48,7 +48,7 @@ function getTimeIcon(time: string) {
   const h = parseInt(time?.split(":")[0] || "12");
   if (h >= 6 && h < 12) return <Sunrise className="h-4 w-4 text-orange-500" />;
   if (h >= 12 && h < 18) return <Sun className="h-4 w-4 text-yellow-500" />;
-  return <Moon className="h-4 w-4 text-indigo-500" />;
+  return <Moon className="h-4 w-4 text-primary-400" />;
 }
 
 export default function MySchedulePage() {
@@ -199,13 +199,13 @@ export default function MySchedulePage() {
       {/* Quick Stats */}
       {stats && (
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-2.5 text-center">
-            <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{stats.week_missions}</p>
-            <p className="text-[10px] text-blue-600 dark:text-blue-400">השבוע</p>
+          <div className="rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 p-2.5 text-center">
+            <p className="text-xl font-bold text-primary-700 dark:text-primary-300">{stats.week_missions}</p>
+            <p className="text-[10px] text-primary-600 dark:text-primary-400">השבוע</p>
           </div>
-          <div className="rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-2.5 text-center">
-            <p className="text-xl font-bold text-purple-700 dark:text-purple-300">{stats.upcoming_missions}</p>
-            <p className="text-[10px] text-purple-600 dark:text-purple-400">עתידיות</p>
+          <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2.5 text-center">
+            <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{stats.upcoming_missions}</p>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">עתידיות</p>
           </div>
           <div className="rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-2.5 text-center">
             <p className="text-xl font-bold text-green-700 dark:text-green-300">{stats.total_missions}</p>
@@ -345,7 +345,7 @@ export default function MySchedulePage() {
               ? (a.mission_type_name?.he || a.mission_type_name?.en || "")
               : (a.mission_type_name || "");
             const isActive = currentMission?.assignment_id === a.assignment_id;
-            const color = a.mission_type_color || "#3b82f6";
+            const color = a.mission_type_color || "#6B7F3B";
 
             return (
               <Card
@@ -377,7 +377,7 @@ export default function MySchedulePage() {
                       </div>
                       <Badge className={`text-[10px] flex-shrink-0 ${
                         a.status === "assigned" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
-                        a.status === "proposed" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-700"
+                        a.status === "proposed" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-700"
                       }`}>
                         {a.status === "assigned" ? "✓ משובץ" : a.status === "proposed" ? "מוצע" : a.status}
                       </Badge>

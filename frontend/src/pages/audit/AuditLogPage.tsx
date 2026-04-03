@@ -14,16 +14,16 @@ import api, { tenantApi } from "@/lib/api";
 
 const actionColors: Record<string, string> = {
   create: "bg-green-100 text-green-700",
-  update: "bg-blue-100 text-blue-700",
+  update: "bg-primary-100 text-primary-700",
   delete: "bg-red-100 text-red-700",
-  assign: "bg-purple-100 text-purple-700",
+  assign: "bg-amber-100 text-amber-700",
   set_attendance: "bg-yellow-100 text-yellow-700",
   bulk_import: "bg-orange-100 text-orange-700",
   reset: "bg-red-100 text-red-700",
-  import_template: "bg-teal-100 text-teal-700",
-  import_employees: "bg-teal-100 text-teal-700",
+  import_template: "bg-primary-100 text-primary-700",
+  import_employees: "bg-primary-100 text-primary-700",
   override_conflict: "bg-amber-100 text-amber-700",
-  mark_activated: "bg-indigo-100 text-indigo-700",
+  mark_activated: "bg-primary-100 text-primary-700",
   update_attendance: "bg-yellow-100 text-yellow-700",
 };
 

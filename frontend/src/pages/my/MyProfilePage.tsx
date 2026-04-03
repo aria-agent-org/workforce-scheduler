@@ -83,7 +83,7 @@ function TelegramRegistration() {
             href={`https://t.me/WorkforceSchedulerBot?start=${token}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:underline"
           >
             <Send className="h-3.5 w-3.5" />
             פתח בוט Telegram
@@ -465,7 +465,7 @@ export default function MyProfilePage() {
                  pushPermission === "denied" ? "❌ חסום" :
                  "⏳ לא נשאל"}
               </Badge>
-              {pushSubscribed && <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">📡 פעיל</Badge>}
+              {pushSubscribed && <Badge className="bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">📡 פעיל</Badge>}
             </div>
             <div className="flex flex-wrap gap-2">
               {!pushSubscribed && isPushSupported() && pushPermission !== "denied" && (

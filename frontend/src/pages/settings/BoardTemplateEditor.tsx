@@ -73,7 +73,7 @@ interface TemplateVariable {
 }
 
 const TEMPLATE_VARIABLES: TemplateVariable[] = [
-  { key: "{{mission_name}}", label: "שם משימה", example: "סיור", color: "#3b82f6" },
+  { key: "{{mission_name}}", label: "שם משימה", example: "סיור", color: "#6B7F3B" },
   { key: "{{soldier_name}}", label: "שם חייל", example: "ישראל ישראלי", color: "#22c55e" },
   { key: "{{time_start}}", label: "שעת התחלה", example: "07:00", color: "#f97316" },
   { key: "{{time_end}}", label: "שעת סיום", example: "15:00", color: "#f97316" },
@@ -415,7 +415,7 @@ const PRESET_COLORS = [
   "#fff7ed", "#ffedd5", "#fed7aa", "#fdba74", "#fb923c", "#f97316", "#ea580c", "#c2410c", "#9a3412", "#7c2d12",
   "#fefce8", "#fef9c3", "#fef08a", "#fde047", "#facc15", "#eab308", "#ca8a04", "#a16207", "#854d0e", "#713f12",
   "#f0fdf4", "#dcfce7", "#bbf7d0", "#86efac", "#4ade80", "#22c55e", "#16a34a", "#15803d", "#166534", "#14532d",
-  "#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa", "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af", "#1e3a8a",
+  "#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa", "#6B7F3B", "#5A6B32", "#1d4ed8", "#1e40af", "#1e3a8a",
   "#f5f3ff", "#ede9fe", "#ddd6fe", "#c4b5fd", "#a78bfa", "#8b5cf6", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95",
   "#fdf2f8", "#fce7f3", "#fbcfe8", "#f9a8d4", "#f472b6", "#ec4899", "#db2777", "#be185d", "#9d174d", "#831843",
 ];
@@ -449,7 +449,7 @@ function ColorPickerPopover({ color, onChange, label }: { color: string; onChang
             {PRESET_COLORS.map((c) => (
               <button
                 key={c}
-                className={cn("w-5 h-5 rounded border transition-transform hover:scale-125", c === color ? "ring-2 ring-blue-500 ring-offset-1" : "border-border")}
+                className={cn("w-5 h-5 rounded border transition-transform hover:scale-125", c === color ? "ring-2 ring-primary-500 ring-offset-1" : "border-border")}
                 style={{ backgroundColor: c }}
                 onClick={() => { onChange(c); setOpen(false); }}
               />
@@ -1083,7 +1083,7 @@ export default function BoardTemplateEditor() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map((t) => (
-              <Card key={t.id} className="cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group" onClick={() => openTemplate(t)}>
+              <Card key={t.id} className="cursor-pointer hover:border-primary-300 hover:shadow-md transition-all group" onClick={() => openTemplate(t)}>
                 <CardContent className="py-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
@@ -1386,7 +1386,7 @@ export default function BoardTemplateEditor() {
                   {cIdx + 1}
                   {/* Resize handle */}
                   <div
-                    className="absolute top-0 bottom-0 left-0 w-1.5 cursor-col-resize hover:bg-blue-400 z-10"
+                    className="absolute top-0 bottom-0 left-0 w-1.5 cursor-col-resize hover:bg-primary-400 z-10"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setResizingCol({ colIndex: cIdx, startX: e.clientX, startWidth: w });
@@ -1406,7 +1406,7 @@ export default function BoardTemplateEditor() {
                 >
                   {rIdx + 1}
                   <div
-                    className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-blue-400 z-10"
+                    className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-primary-400 z-10"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setResizingRow({ rowIndex: rIdx, startY: e.clientY, startHeight: activeTemplate.rowHeights[rIdx] || 36 });
@@ -1434,7 +1434,7 @@ export default function BoardTemplateEditor() {
                       key={cell.id}
                       className={cn(
                         "relative group flex-shrink-0",
-                        isSelected && "ring-2 ring-blue-500 ring-inset z-10",
+                        isSelected && "ring-2 ring-primary-500 ring-inset z-10",
                       )}
                       style={{
                         width: cellWidth,
@@ -1461,7 +1461,7 @@ export default function BoardTemplateEditor() {
                       onMouseEnter={() => handleCellMouseEnter(rIdx, cIdx)}
                       onDoubleClick={() => handleCellDoubleClick(cell.id)}
                       onContextMenu={(e) => handleCellContextMenu(e, rIdx, cIdx)}
-                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = "2px dashed #3b82f6"; }}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.outline = "2px dashed #6B7F3B"; }}
                       onDragLeave={(e) => { e.currentTarget.style.outline = ""; }}
                       onDrop={(e) => { e.preventDefault(); e.currentTarget.style.outline = ""; handleDrop(rIdx, cIdx); }}
                     >
@@ -1496,7 +1496,7 @@ export default function BoardTemplateEditor() {
 
                       {/* Merge indicator */}
                       {(cell.colspan > 1 || cell.rowspan > 1) && (
-                        <span className="absolute top-0 left-0 text-[8px] text-blue-400/60 px-0.5">
+                        <span className="absolute top-0 left-0 text-[8px] text-primary-400/60 px-0.5">
                           {cell.colspan}×{cell.rowspan}
                         </span>
                       )}
@@ -1716,7 +1716,7 @@ export default function BoardTemplateEditor() {
               </div>
             </div>
             {generateDateFrom && generateDateTo && (
-              <div className="text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2">
+              <div className="text-xs bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded p-2">
                 📅 ייווצרו {Math.max(1, Math.ceil((new Date(generateDateTo).getTime() - new Date(generateDateFrom).getTime()) / 86400000) + 1)} לוחות
               </div>
             )}

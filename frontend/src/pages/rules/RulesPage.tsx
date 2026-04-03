@@ -38,7 +38,7 @@ const OPERATORS = [
 
 const CATEGORY_OPTIONS = [
   { value: "general", label: "כללי", icon: ShieldCheck, color: "text-gray-500" },
-  { value: "rest", label: "מנוחה", icon: Clock, color: "text-blue-500" },
+  { value: "rest", label: "מנוחה", icon: Clock, color: "text-primary-500" },
   { value: "fairness", label: "הוגנות", icon: Scale, color: "text-green-500" },
   { value: "safety", label: "בטיחות", icon: Shield, color: "text-red-500" },
 ];
@@ -761,7 +761,7 @@ export default function RulesPage() {
 
                   <div className={`rounded-xl border-2 p-3 space-y-2 ${
                     group.logicOperator === "or"
-                      ? "border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10"
+                      ? "border-primary-200 dark:border-primary-800 bg-primary-50/30 dark:bg-primary-900/10"
                       : "border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-900/10"
                   }`}>
                     {/* Group header */}
@@ -784,8 +784,8 @@ export default function RulesPage() {
                         <button
                           className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
                             group.logicOperator === "or"
-                              ? "bg-blue-500 text-white"
-                              : "bg-muted text-muted-foreground hover:bg-blue-100"
+                              ? "bg-primary-500 text-white"
+                              : "bg-muted text-muted-foreground hover:bg-primary-100"
                           }`}
                           onClick={() => {
                             const groups = [...form.conditionGroups];
@@ -852,7 +852,7 @@ export default function RulesPage() {
                             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                               <div className="flex-1 border-t" />
                               <span className={`px-2 py-0.5 rounded-full font-medium ${
-                                group.logicOperator === "and" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                                group.logicOperator === "and" ? "bg-green-100 text-green-700" : "bg-primary-100 text-primary-700"
                               }`}>
                                 {group.logicOperator === "and" ? "וגם (AND)" : "או (OR)"}
                               </span>

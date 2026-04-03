@@ -621,8 +621,8 @@ export default function NotificationsPage() {
             <Card key={tmpl.id} className="hover:shadow-md transition-all group">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1">
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tmpl.is_active ? "bg-blue-100 dark:bg-blue-900/30" : "bg-gray-100 dark:bg-gray-800"}`}>
-                    <Bell className={`h-5 w-5 ${tmpl.is_active ? "text-blue-500" : "text-gray-400"}`} />
+                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tmpl.is_active ? "bg-primary-100 dark:bg-primary-900/30" : "bg-gray-100 dark:bg-gray-800"}`}>
+                    <Bell className={`h-5 w-5 ${tmpl.is_active ? "text-primary-500" : "text-gray-400"}`} />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-semibold">{tmpl.name}</h3>
@@ -667,8 +667,8 @@ export default function NotificationsPage() {
           <Card className="border-primary-200 dark:border-primary-800">
             <CardContent className="p-5 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <Bell className="h-5 w-5 text-blue-500" />
+                <div className="h-10 w-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                  <Bell className="h-5 w-5 text-primary-500" />
                 </div>
                 <div>
                   <h3 className="font-bold text-base">התראות Push בדפדפן</h3>
@@ -682,7 +682,7 @@ export default function NotificationsPage() {
                   <span className="text-green-700 dark:text-green-400">✅ התראות Push פעילות</span>
                 )}
                 {pushStatus === 'ios-not-installed' && (
-                  <span className="text-blue-700 dark:text-blue-400">📱 הוסף למסך הבית לקבלת התראות</span>
+                  <span className="text-primary-700 dark:text-primary-400">📱 הוסף למסך הבית לקבלת התראות</span>
                 )}
                 {pushStatus === 'prompt' && (
                   <span className="text-amber-700 dark:text-amber-400">🔔 לחץ להפעלת התראות</span>
@@ -697,7 +697,7 @@ export default function NotificationsPage() {
 
               {/* iOS not installed to Home Screen — show instructions */}
               {pushStatus === 'ios-not-installed' && (
-                <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm text-blue-700 dark:text-blue-300 space-y-2">
+                <div className="rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 p-4 text-sm text-primary-700 dark:text-primary-300 space-y-2">
                   <p className="font-bold">📱 כדי לקבל התראות Push באייפון, הוסף את שבצק למסך הבית</p>
                   <ol className="list-decimal list-inside space-y-1 text-xs">
                     <li>לחץ על כפתור השיתוף (Share) <span className="font-mono">⎙</span> בתחתית Safari</li>
@@ -729,7 +729,7 @@ export default function NotificationsPage() {
                        pushPermission === "denied" ? "❌ חסום" :
                        "⏳ לא נשאל"}
                     </Badge>
-                    {pushSubscribed && <Badge className="bg-blue-100 text-blue-700">📡 מנוי פעיל</Badge>}
+                    {pushSubscribed && <Badge className="bg-primary-100 text-primary-700">📡 מנוי פעיל</Badge>}
                   </div>
 
                   {pushPermission === "denied" && (
@@ -1153,9 +1153,9 @@ export default function NotificationsPage() {
                                 key={v.code}
                                 type="button"
                                 onClick={() => insertVariable(v.code)}
-                                className="group/chip flex flex-col items-center gap-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 hover:scale-105 transition-all cursor-pointer"
+                                className="group/chip flex flex-col items-center gap-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2.5 py-1.5 rounded-lg border border-primary-200 dark:border-primary-800 hover:bg-primary-100 dark:hover:bg-primary-800/50 hover:scale-105 transition-all cursor-pointer"
                               >
-                                <span className="text-[10px] text-blue-500 dark:text-blue-400 leading-none">{v.label}</span>
+                                <span className="text-[10px] text-primary-500 dark:text-primary-400 leading-none">{v.label}</span>
                                 <span className="text-xs font-mono font-medium leading-none">{v.code}</span>
                               </button>
                             ))}

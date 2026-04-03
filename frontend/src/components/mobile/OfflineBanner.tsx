@@ -71,7 +71,7 @@ export default function OfflineBanner() {
 
   return (
     <div className={`fixed top-0 inset-x-0 z-[60] safe-area-top transition-all ${
-      syncInfo ? "bg-blue-500" : online ? "bg-green-500" : "bg-red-500"
+      syncInfo ? "bg-primary-500" : online ? "bg-green-500" : "bg-red-500"
     }`}>
       <div className="flex items-center justify-center gap-2 py-1 text-white text-xs font-medium">
         {syncInfo ? (

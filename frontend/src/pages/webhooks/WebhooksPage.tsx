@@ -78,7 +78,7 @@ export default function WebhooksPage() {
                   </div>
                   <p className="text-xs text-muted-foreground truncate mt-0.5" dir="ltr">{wh.url}</p>
                   <div className="flex gap-1 mt-1 flex-wrap">
-                    {(wh.events || []).map((ev: string) => <Badge key={ev} className="text-[10px] bg-blue-50 text-blue-700">{ev}</Badge>)}
+                    {(wh.events || []).map((ev: string) => <Badge key={ev} className="text-[10px] bg-primary-50 text-primary-700">{ev}</Badge>)}
                   </div>
                 </div>
                 <div className="flex gap-1">

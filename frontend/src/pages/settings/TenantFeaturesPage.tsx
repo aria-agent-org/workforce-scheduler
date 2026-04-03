@@ -37,7 +37,7 @@ export default function TenantFeaturesPage() {
     logo_url: "",
     favicon_url: "",
     app_name: "",
-    primary_color: "#3b82f6",
+    primary_color: "#6B7F3B",
     secondary_color: "#6b7280",
     accent_color: "#f59e0b",
     login_background_url: "",
@@ -185,9 +185,9 @@ export default function TenantFeaturesPage() {
                 placeholder="schedule.mycompany.com"
                 dir="ltr"
               />
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-sm space-y-2">
-                <p className="font-medium text-blue-800 dark:text-blue-200">🌐 הגדרת DNS — הוראות:</p>
-                <ol className="space-y-1 text-blue-700 dark:text-blue-300 text-xs list-decimal list-inside">
+              <div className="rounded-lg bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 p-3 text-sm space-y-2">
+                <p className="font-medium text-primary-800 dark:text-primary-200">🌐 הגדרת DNS — הוראות:</p>
+                <ol className="space-y-1 text-primary-700 dark:text-primary-300 text-xs list-decimal list-inside">
                   <li>כנס ללוח הניהול של ספק הדומיין שלך (Cloudflare, GoDaddy, וכו׳)</li>
                   <li>הוסף רשומת DNS מסוג CNAME:</li>
                 </ol>
@@ -331,7 +331,7 @@ export default function TenantFeaturesPage() {
             </div>
 
             {/* Preview */}
-            {(branding.logo_url || branding.primary_color !== "#3b82f6") && (
+            {(branding.logo_url || branding.primary_color !== "#6B7F3B") && (
               <div className="border rounded-lg p-4 space-y-3">
                 <p className="text-xs font-medium text-muted-foreground">תצוגה מקדימה:</p>
                 <div className="flex items-center gap-3">

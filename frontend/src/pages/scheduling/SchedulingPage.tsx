@@ -31,11 +31,11 @@ const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
   active: "bg-green-100 text-green-700",
   paused: "bg-yellow-100 text-yellow-700",
-  archived: "bg-blue-100 text-blue-700",
+  archived: "bg-primary-100 text-primary-700",
   approved: "bg-green-100 text-green-700",
-  completed: "bg-blue-100 text-blue-700",
+  completed: "bg-primary-100 text-primary-700",
   cancelled: "bg-red-100 text-red-700",
-  proposed: "bg-purple-100 text-purple-700",
+  proposed: "bg-amber-100 text-amber-700",
 };
 
 const SHIFT_PRESETS = [
@@ -131,7 +131,7 @@ export default function SchedulingPage() {
     schedule_window_id: "", mission_type_id: "", name: "", date: "", start_time: "08:00", end_time: "16:00",
   });
   const [typeForm, setTypeForm] = useState({
-    name_he: "", name_en: "", color: "#3b82f6", icon: "📋", duration_hours: 8, is_standby: false,
+    name_he: "", name_en: "", color: "#6B7F3B", icon: "📋", duration_hours: 8, is_standby: false,
     standby_can_count_as_rest: false,
     required_slots: [] as Array<{ slot_id: string; work_role_id: string; count: number; label_he: string; label_en: string; role_mode?: "specific" | "all" | "all_except"; exclude_role_ids?: string[] }>,
     pre_mission_events: [] as Array<{ offset_minutes: number; label_he: string; label_en: string; location_he: string }>,
@@ -337,7 +337,7 @@ export default function SchedulingPage() {
     setTypeForm({
       name_he: mt.name?.he || "",
       name_en: mt.name?.en || "",
-      color: mt.color || "#3b82f6",
+      color: mt.color || "#6B7F3B",
       icon: mt.icon || "📋",
       duration_hours: mt.duration_hours || 8,
       is_standby: mt.is_standby || false,
@@ -370,7 +370,7 @@ export default function SchedulingPage() {
     setEditingTypeId(null);
     setTypeFormErrors({});
     setTypeForm({
-      name_he: "", name_en: "", color: "#3b82f6", icon: "📋", duration_hours: 8, is_standby: false,
+      name_he: "", name_en: "", color: "#6B7F3B", icon: "📋", duration_hours: 8, is_standby: false,
       standby_can_count_as_rest: false,
       required_slots: [], pre_mission_events: [], post_mission_rule: null, timeline_items: [],
     });
@@ -1046,7 +1046,7 @@ export default function SchedulingPage() {
                         <Play className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">המשך</span>
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-purple-300 text-purple-700 hover:bg-purple-50 text-xs" onClick={() => windowAction(w.id, "copy")} title="העתק">
+                    <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-amber-300 text-amber-700 hover:bg-amber-50 text-xs" onClick={() => windowAction(w.id, "copy")} title="העתק">
                       <Copy className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">העתק</span>
                     </Button>
                     {w.status !== "archived" && (
@@ -1326,7 +1326,7 @@ export default function SchedulingPage() {
                     const typeGroups: Record<string, { color: string; count: number }> = {};
                     dayMissions.forEach(m => {
                       const mt = missionTypes.find(mt2 => mt2.id === m.mission_type_id);
-                      const color = mt?.color || "#3b82f6";
+                      const color = mt?.color || "#6B7F3B";
                       if (!typeGroups[color]) typeGroups[color] = { color, count: 0 };
                       typeGroups[color].count++;
                     });
@@ -1385,7 +1385,7 @@ export default function SchedulingPage() {
                           return (
                             <div key={m.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors cursor-pointer"
                               onClick={() => { setBoardView("day"); setBoardDate(calendarSelectedDay); setExpandedMission(m.id); }}>
-                              <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ backgroundColor: (mt?.color || "#3b82f6") + "18" }}>
+                              <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ backgroundColor: (mt?.color || "#6B7F3B") + "18" }}>
                                 {mt?.icon || "📋"}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -1428,7 +1428,7 @@ export default function SchedulingPage() {
             <div className="space-y-3">
               {boardMissions.map((m) => {
                 const mt = missionTypes.find(mt => mt.id === m.mission_type_id);
-                const mtColor = mt?.color || "#3b82f6";
+                const mtColor = mt?.color || "#6B7F3B";
                 const slotsTotal = mt?.required_slots?.reduce((sum: number, s: any) => sum + (s.count || 1), 0) || 0;
                 const assignedCount = m.assignments?.length || 0;
                 const fillPercent = slotsTotal > 0 ? Math.round((assignedCount / slotsTotal) * 100) : 0;
@@ -1533,7 +1533,7 @@ export default function SchedulingPage() {
                             </Button>
                           )}
                           {m.is_activated && !m.deactivated_at && (
-                            <Button size="sm" variant="outline" className="min-h-[40px] border-blue-300 text-blue-700 hover:bg-blue-50" onClick={async () => {
+                            <Button size="sm" variant="outline" className="min-h-[40px] border-primary-300 text-primary-700 hover:bg-primary-50" onClick={async () => {
                               try {
                                 await api.post(tenantApi(`/missions/${m.id}/mark-deactivated`));
                                 toast("success", "✅ ההקפצה הסתיימה");
@@ -1544,7 +1544,7 @@ export default function SchedulingPage() {
                             </Button>
                           )}
                           {m.is_activated && (
-                            <Badge className={m.deactivated_at ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700 animate-pulse"}>
+                            <Badge className={m.deactivated_at ? "bg-primary-100 text-primary-700" : "bg-red-100 text-red-700 animate-pulse"}>
                               {m.deactivated_at ? "הוקפצה (הסתיימה)" : "🚨 הוקפצה"}
                             </Badge>
                           )}
@@ -1663,7 +1663,7 @@ export default function SchedulingPage() {
               <CardContent className="p-2.5 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: (mt.color || "#3b82f6") + "20" }}>
+                    <div className="h-8 w-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: (mt.color || "#6B7F3B") + "20" }}>
                       {mt.icon || "📋"}
                     </div>
                     <h3 className="font-semibold">{mt.name[lang] || mt.name.he}</h3>
@@ -1726,7 +1726,7 @@ export default function SchedulingPage() {
               <CardContent className="p-2.5 sm:p-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tmpl.is_active === false ? "bg-gray-100 dark:bg-gray-800" : "bg-purple-100 dark:bg-purple-900/30"}`}>
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${tmpl.is_active === false ? "bg-gray-100 dark:bg-gray-800" : "bg-amber-100 dark:bg-amber-900/30"}`}>
                       <Copy className={`h-5 w-5 ${tmpl.is_active === false ? "text-gray-400" : "text-purple-500"}`} />
                     </div>
                     <div className="min-w-0">
@@ -1781,7 +1781,7 @@ export default function SchedulingPage() {
                     }}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px] text-blue-500 hover:bg-blue-50" title="עדכן משימות עתידיות שנוצרו מתבנית זו" onClick={() => {
+                    <Button size="sm" variant="ghost" className="min-h-[40px] min-w-[40px] text-primary-500 hover:bg-primary-50" title="עדכן משימות עתידיות שנוצרו מתבנית זו" onClick={() => {
                       if (confirm("האם לעדכן את כל המשימות העתידיות שנוצרו מתבנית זו?")) {
                         propagateTemplateUpdate(tmpl.id);
                       }
@@ -2237,8 +2237,8 @@ export default function SchedulingPage() {
               </label>
               {typeForm.post_mission_rule && (
                 <div className="space-y-3 ms-4 animate-in slide-in-from-top-1 border-s-2 border-primary-200 ps-4">
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <div className="rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 p-3">
+                    <p className="text-sm text-primary-800 dark:text-primary-200">
                       🔄 לאחר סיום המשימה, תיווצר אוטומטית משימת המשך{typeForm.post_mission_rule.auto_transition_to_mission_type_id ? ` מסוג "${missionTypes.find(mt => mt.id === typeForm.post_mission_rule.auto_transition_to_mission_type_id)?.name?.[lang] || missionTypes.find(mt => mt.id === typeForm.post_mission_rule.auto_transition_to_mission_type_id)?.name?.he || ""}"` : ""} עם אותו צוות.
                     </p>
                   </div>
@@ -2580,13 +2580,13 @@ export default function SchedulingPage() {
                             <Badge className="bg-green-100 text-green-700 text-[10px] border border-green-300">✓ חבר מועדף</Badge>
                           )}
                           {missionTypePref?.preference === "prefer" && (
-                            <Badge className="bg-blue-100 text-blue-700 text-[10px] border border-blue-300">👍 מעדיף משימה</Badge>
+                            <Badge className="bg-primary-100 text-primary-700 text-[10px] border border-primary-300">👍 מעדיף משימה</Badge>
                           )}
                           {missionTypePref?.preference === "avoid" && (
                             <Badge className="bg-orange-100 text-orange-700 text-[10px] border border-orange-300">⚠️ מעדיף להימנע</Badge>
                           )}
                           {timeSlotPref?.preference === "prefer" && (
-                            <Badge className="bg-blue-100 text-blue-700 text-[10px] border border-blue-300">⏰ מעדיף זמן</Badge>
+                            <Badge className="bg-primary-100 text-primary-700 text-[10px] border border-primary-300">⏰ מעדיף זמן</Badge>
                           )}
                           {timeSlotPref?.preference === "avoid" && (
                             <Badge className="bg-orange-100 text-orange-700 text-[10px] border border-orange-300">⏰ מעדיף זמן אחר</Badge>
@@ -2944,8 +2944,8 @@ export default function SchedulingPage() {
                   ))}
                 </Select>
                 {importPreviousWindowId && (
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-sm">
-                    <p className="text-blue-800 dark:text-blue-200">
+                  <div className="rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 p-3 text-sm">
+                    <p className="text-primary-800 dark:text-primary-200">
                       כל החיילים מהלוח "{windows.find(w => w.id === importPreviousWindowId)?.name}" יועתקו ללוח הנוכחי.
                     </p>
                   </div>
@@ -3299,7 +3299,7 @@ export default function SchedulingPage() {
                         <div className="flex flex-col gap-0.5">
                           <span className="font-medium">{typeof s.employee_name === "object" ? (s.employee_name?.he || s.employee_name?.en || "") : (s.full_name || s.employee_name || "")}</span>
                           <div className="flex flex-wrap gap-1">
-                            {s.score != null && <Badge className="text-[10px] bg-blue-100 text-blue-700">ציון: {s.score}</Badge>}
+                            {s.score != null && <Badge className="text-[10px] bg-primary-100 text-primary-700">ציון: {s.score}</Badge>}
                             {s.rest_hours != null && <Badge className="text-[10px] bg-gray-100 text-gray-600">מנוחה: {s.rest_hours}ש</Badge>}
                             {s.has_partner_preference && <Badge className="text-[10px] bg-green-100 text-green-700">✓ חבר מועדף</Badge>}
                             {s.warnings?.length > 0 && <Badge className="text-[10px] bg-yellow-100 text-yellow-700">⚠️ {s.warnings.length} אזהרות</Badge>}

@@ -75,7 +75,7 @@ function BrandingSection({ initialColor, initialLogo, initialFavicon, onSave }: 
               <Input
                 value={color}
                 onChange={e => setColor(e.target.value)}
-                placeholder="#3b82f6"
+                placeholder="#6B7F3B"
                 className="w-32 min-h-[44px] font-mono text-sm"
               />
               <div className="h-8 w-8 rounded-lg" style={{ backgroundColor: color }} />
@@ -206,7 +206,7 @@ export default function SettingsPage() {
 
   // Modals
   const [showWRModal, setShowWRModal] = useState(false);
-  const [wrForm, setWrForm] = useState({ name_he: "", name_en: "", color: "#3b82f6" });
+  const [wrForm, setWrForm] = useState({ name_he: "", name_en: "", color: "#6B7F3B" });
   const [editingWR, setEditingWR] = useState<any>(null);
 
 
@@ -314,7 +314,7 @@ export default function SettingsPage() {
           const legacyColor = unwrap(settings.find((s: any) => s.key === "branding_primary_color")?.value);
           const legacyLogo = unwrap(settings.find((s: any) => s.key === "branding_logo_url")?.value);
           const legacyFavicon = unwrap(settings.find((s: any) => s.key === "branding_favicon_url")?.value);
-          const brandColor = String(brandingSetting.primary_color || legacyColor || "#3b82f6");
+          const brandColor = String(brandingSetting.primary_color || legacyColor || "#6B7F3B");
           const brandLogo = String(brandingSetting.logo_url || legacyLogo || "");
           const brandFavicon = String(brandingSetting.favicon_url || legacyFavicon || "");
 
@@ -466,7 +466,7 @@ export default function SettingsPage() {
           <div className="flex justify-end">
             <Button size="sm" onClick={() => {
               setEditingWR(null);
-              setWrForm({ name_he: "", name_en: "", color: "#3b82f6" });
+              setWrForm({ name_he: "", name_en: "", color: "#6B7F3B" });
               setShowWRModal(true);
             }} className="min-h-[44px]">
               <Plus className="me-1 h-4 w-4" />תפקיד חדש
@@ -488,7 +488,7 @@ export default function SettingsPage() {
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="min-h-[44px] min-w-[44px]" onClick={() => {
                         setEditingWR(wr);
-                        setWrForm({ name_he: wr.name?.he || "", name_en: wr.name?.en || "", color: wr.color || "#3b82f6" });
+                        setWrForm({ name_he: wr.name?.he || "", name_en: wr.name?.en || "", color: wr.color || "#6B7F3B" });
                         setShowWRModal(true);
                       }}>
                         <Pencil className="h-4 w-4" />

@@ -100,7 +100,7 @@ export default function SelfRegistrationPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-50 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
       <Card className="w-full max-w-md shadow-xl">
         {/* Checking */}
         {step === "checking" && (
@@ -132,8 +132,8 @@ export default function SelfRegistrationPage() {
             <h2 className="text-xl font-bold mb-2">ההרשמה הושלמה!</h2>
             {matchedEmployee?.tenant && (
               <div className="flex items-center justify-center gap-2 mb-3">
-                <Building2 className="h-4 w-4 text-blue-500" />
-                <p className="text-sm font-medium text-blue-600">
+                <Building2 className="h-4 w-4 text-primary-500" />
+                <p className="text-sm font-medium text-primary-600">
                   הצטרפת ל-{matchedEmployee.tenant}
                 </p>
               </div>

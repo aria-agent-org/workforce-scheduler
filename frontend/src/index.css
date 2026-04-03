@@ -725,7 +725,7 @@
   .bg-green-100 { background-color: #dcfce7 !important; }
   .bg-red-100 { background-color: #fee2e2 !important; }
   .bg-yellow-100 { background-color: #fef3c7 !important; }
-  .bg-blue-100 { background-color: #dbeafe !important; }
+  .bg-primary-100 { background-color: #E4EBCF !important; }
 
   @page { size: A4 landscape; margin: 1.5cm; }
 

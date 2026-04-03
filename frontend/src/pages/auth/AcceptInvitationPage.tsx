@@ -94,7 +94,7 @@ export default function AcceptInvitationPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-50 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
       <Card className="w-full max-w-md shadow-xl">
         {/* Loading */}
         {step === "loading" && (

@@ -138,7 +138,7 @@ function PreferencePermissions({ employeeId }: { employeeId: string }) {
                 <span>{pt.icon}</span>
                 <span className="text-sm">{pt.label}</span>
                 {isOverridden && (
-                  <Badge className="text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <Badge className="text-[9px] bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
                     מותאם
                   </Badge>
                 )}

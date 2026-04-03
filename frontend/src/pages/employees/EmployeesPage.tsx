@@ -79,7 +79,7 @@ export default function EmployeesPage() {
     // Fallback Hebrew labels for common statuses
     const fallbacks: Record<string, { label: string; color: string }> = {
       present: { label: "✅ נוכח", color: "#22c55e" },
-      home: { label: "🏠 בית", color: "#3b82f6" },
+      home: { label: "🏠 בית", color: "#6B7F3B" },
       sick: { label: "🤒 חולה", color: "#ef4444" },
       vacation: { label: "🏖️ חופשה", color: "#eab308" },
       reserve: { label: "🎖️ מילואים", color: "#a855f7" },

@@ -168,8 +168,8 @@ export default function VisibilitySettingsPage() {
       </Card>
 
       {/* Info Card */}
-      <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
-        <CardContent className="p-4 text-sm text-blue-700 dark:text-blue-300">
+      <Card className="border-primary-200 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-900/10">
+        <CardContent className="p-4 text-sm text-primary-700 dark:text-primary-300">
           <p className="font-medium mb-1">💡 שים לב:</p>
           <ul className="list-disc list-inside space-y-1 text-xs">
             <li>הגדרות אלה חלות על חיילים בלבד — משבצים ומנהלים רואים תמיד הכל</li>

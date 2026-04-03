@@ -278,7 +278,7 @@ export default function LoginPage() {
     ? { backgroundImage: `url(${branding.login_background_url})`, backgroundSize: "cover", backgroundPosition: "center" }
     : { background: "linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)" };
 
-  const primaryColor = branding?.primary_color || "#3b82f6";
+  const primaryColor = branding?.primary_color || "#6B7F3B";
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" dir="rtl" style={bgStyle}>
@@ -286,9 +286,9 @@ export default function LoginPage() {
       {!branding?.login_background_url && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
           {/* Glowing orbs */}
-          <div className="absolute top-1/4 start-1/4 h-64 w-64 rounded-full bg-blue-600/20 blur-[80px] animate-float" />
+          <div className="absolute top-1/4 start-1/4 h-64 w-64 rounded-full bg-primary-600/20 blur-[80px] animate-float" />
           <div className="absolute bottom-1/4 end-1/4 h-80 w-80 rounded-full bg-purple-600/15 blur-[100px] animate-float" style={{ animationDelay: "1.5s" }} />
-          <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-full bg-indigo-500/10 blur-[60px] animate-pulse-subtle" />
+          <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-full bg-primary-500/10 blur-[60px] animate-pulse-subtle" />
           {/* Grid pattern */}
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(hsl(220 30% 50%) 1px, transparent 1px), linear-gradient(90deg, hsl(220 30% 50%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
         </div>
@@ -430,7 +430,7 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
-              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+              <div className="rounded-md bg-primary-50 p-3 text-sm text-primary-800 dark:bg-primary-900/20 dark:text-primary-200">
                 {t("twoFactor.enterCode", "הזן את הקוד מאפליקציית האימות שלך")}
               </div>
               <div className="space-y-2">
@@ -477,7 +477,7 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
-              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+              <div className="rounded-md bg-primary-50 p-3 text-sm text-primary-800 dark:bg-primary-900/20 dark:text-primary-200">
                 <Mail className="inline-block me-1 h-4 w-4" />
                 {t("forgotPasswordInstruction", "הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס סיסמה")}
               </div>
@@ -540,7 +540,7 @@ export default function LoginPage() {
           {view === "magic-link-sent" && (
             <div className="space-y-4 text-center">
               <div className="flex justify-center">
-                <Mail className="h-16 w-16 text-blue-500" />
+                <Mail className="h-16 w-16 text-primary-500" />
               </div>
               <p className="text-sm text-muted-foreground">
                 {t("magicLinkSentMsg", {

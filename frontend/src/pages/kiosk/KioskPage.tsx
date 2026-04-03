@@ -29,7 +29,7 @@ export default function KioskPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-900 to-primary-950 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardContent className="p-8 space-y-6 text-center">
           <div className="text-5xl mb-2">🎖️</div>

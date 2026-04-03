@@ -203,7 +203,7 @@ function TelegramBanner() {
   };
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300">
+    <div className="flex items-center gap-2 rounded-lg border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/30 px-2.5 py-1.5 text-xs text-primary-700 dark:text-primary-300">
       <a
         href={`https://t.me/${botUsername}`}
         target="_blank"

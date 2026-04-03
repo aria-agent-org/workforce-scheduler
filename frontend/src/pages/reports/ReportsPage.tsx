@@ -38,7 +38,7 @@ const STATUS_HE: Record<string, string> = {
 
 const hebrewStatus = (status: string) => STATUS_HE[status] || status;
 
-const COLORS = ["#2563eb", "#22c55e", "#ef4444", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
+const COLORS = ["#5A6B32", "#22c55e", "#ef4444", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
 
 export default function ReportsPage() {
   const { t } = useTranslation();
@@ -203,7 +203,7 @@ export default function ReportsPage() {
                       <XAxis type="number" tick={{ fontSize: 10 }} />
                       <YAxis dataKey="employee_name" type="category" width={90} tick={{ fontSize: 10 }} />
                       <RechartsTooltip formatter={(value: any) => [`${value} שעות`, "שעות"]} labelFormatter={(label: any) => `עובד: ${label}`} />
-                      <Bar dataKey="total_hours" fill="#2563eb" radius={[0, 4, 4, 0]} name="שעות עבודה">
+                      <Bar dataKey="total_hours" fill="#5A6B32" radius={[0, 4, 4, 0]} name="שעות עבודה">
                         {(data.employees || []).map((_: any, i: number) => (
                           <Cell key={i} fill={COLORS[i % COLORS.length]} />
                         ))}
@@ -249,7 +249,7 @@ export default function ReportsPage() {
                             </td>
                             <td className="px-4 py-3 text-center">
                               {(emp.night_shift_hours ?? 0) > 0 ? (
-                                <span className="text-purple-600 font-medium">🌙 {emp.night_shift_hours}</span>
+                                <span className="text-amber-600 font-medium">🌙 {emp.night_shift_hours}</span>
                               ) : (
                                 <span className="text-muted-foreground">0</span>
                               )}
@@ -351,7 +351,7 @@ export default function ReportsPage() {
                         <XAxis dataKey="name" label={{ value: "סטטוס", position: "insideBottom", offset: -5 }} />
                         <YAxis label={{ value: "כמות", angle: -90, position: "insideLeft" }} />
                         <RechartsTooltip formatter={(value: any) => [`${value}`, "כמות"]} />
-                        <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} name="כמות">
+                        <Bar dataKey="count" fill="#5A6B32" radius={[4, 4, 0, 0]} name="כמות">
                           {Object.keys(data.by_status || {}).map((_, i) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
@@ -432,7 +432,7 @@ export default function ReportsPage() {
                         <XAxis dataKey="name" label={{ value: "סטטוס", position: "insideBottom", offset: -5 }} />
                         <YAxis label={{ value: "כמות", angle: -90, position: "insideLeft" }} />
                         <RechartsTooltip formatter={(value: any) => [`${value}`, "כמות"]} />
-                        <Area type="monotone" dataKey="count" stroke="#2563eb" fill="#2563eb30" name="כמות" />
+                        <Area type="monotone" dataKey="count" stroke="#5A6B32" fill="#6B7F3B30" name="כמות" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -511,7 +511,7 @@ export default function ReportsPage() {
                         <YAxis label={{ value: "כמות הודעות", angle: -90, position: "insideLeft" }} />
                         <RechartsTooltip formatter={(value: any, name?: string | number) => [`${value}`, name === "messages" ? "הודעות" : String(name ?? "")]} />
                         <Legend />
-                        <Bar dataKey="messages" fill="#2563eb" name="הודעות" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="messages" fill="#5A6B32" name="הודעות" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>

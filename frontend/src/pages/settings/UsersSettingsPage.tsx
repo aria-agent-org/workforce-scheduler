@@ -367,7 +367,7 @@ export default function UsersSettingsPage() {
                       <td className="px-4 py-3 text-sm font-medium">{u.email}</td>
                       <td className="px-4 py-3">
                         {u.role_name ? (
-                          <Badge className="bg-blue-100 text-blue-700">
+                          <Badge className="bg-primary-100 text-primary-700">
                             {u.role_label?.he || ROLE_LABELS_HE[u.role_name] || u.role_name}
                           </Badge>
                         ) : (

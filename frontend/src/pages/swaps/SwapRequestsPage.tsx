@@ -180,8 +180,8 @@ export default function SwapRequestsPage() {
                   {/* Main Row */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                        <ArrowLeftRight className="h-5 w-5 text-blue-500" />
+                      <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+                        <ArrowLeftRight className="h-5 w-5 text-primary-500" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">

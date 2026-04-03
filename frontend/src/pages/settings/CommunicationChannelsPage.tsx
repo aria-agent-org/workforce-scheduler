@@ -131,7 +131,7 @@ export default function CommunicationChannelsPage() {
           <p className="text-[10px] sm:text-xs text-muted-foreground">מאומתים</p>
         </div>
         <div className="flex-1 rounded-lg border bg-card p-2 sm:p-3 text-center">
-          <p className="text-lg sm:text-2xl font-bold text-blue-600">{channels.length}</p>
+          <p className="text-lg sm:text-2xl font-bold text-primary-600">{channels.length}</p>
           <p className="text-[10px] sm:text-xs text-muted-foreground">סה״כ</p>
         </div>
       </div>
@@ -167,7 +167,7 @@ export default function CommunicationChannelsPage() {
                             <Badge className="bg-green-100 text-green-700 text-[10px]">פעיל</Badge>
                           )}
                           {ch.verified && (
-                            <Badge className="bg-blue-100 text-blue-700 text-[10px]">
+                            <Badge className="bg-primary-100 text-primary-700 text-[10px]">
                               <CheckCircle2 className="inline h-3 w-3 me-0.5" />מאומת
                             </Badge>
                           )}

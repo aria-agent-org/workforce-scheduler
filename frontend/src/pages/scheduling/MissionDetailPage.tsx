@@ -19,9 +19,9 @@ const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
   approved: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  completed: "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300",
   cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  proposed: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  proposed: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
 };
 
@@ -154,7 +154,7 @@ export default function MissionDetailPage() {
   const mtName = missionType?.name
     ? (typeof missionType.name === "object" ? (missionType.name.he || missionType.name.en || "") : missionType.name)
     : "";
-  const mtColor = missionType?.color || "#3b82f6";
+  const mtColor = missionType?.color || "#6B7F3B";
   const mtIcon = missionType?.icon || "📋";
 
   // Timeline items from mission type

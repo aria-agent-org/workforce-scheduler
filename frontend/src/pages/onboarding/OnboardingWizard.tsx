@@ -109,12 +109,12 @@ const defaultState: WizardState = {
   tenant: { name: "", timezone: "Asia/Jerusalem", language: "he" },
   workRoles: [
     { name_he: "לוחם", name_en: "Fighter", color: "#ef4444" },
-    { name_he: "מפקד", name_en: "Commander", color: "#3b82f6" },
+    { name_he: "מפקד", name_en: "Commander", color: "#6B7F3B" },
     { name_he: "קצין", name_en: "Officer", color: "#8b5cf6" },
   ],
   statuses: [
     { code: "present", name_he: "נוכח", name_en: "Present", color: "#22c55e", icon: "✅", counts_as_present: true },
-    { code: "home", name_he: "בית", name_en: "Home", color: "#3b82f6", icon: "🏠", counts_as_present: false },
+    { code: "home", name_he: "בית", name_en: "Home", color: "#6B7F3B", icon: "🏠", counts_as_present: false },
     { code: "sick", name_he: "חולה", name_en: "Sick", color: "#ef4444", icon: "🤒", counts_as_present: false },
     { code: "vacation", name_he: "חופשה", name_en: "Vacation", color: "#eab308", icon: "🏖️", counts_as_present: false },
     { code: "reserve", name_he: "מילואים", name_en: "Reserve", color: "#a855f7", icon: "🎖️", counts_as_present: false },
@@ -719,15 +719,15 @@ export default function OnboardingWizard() {
               </CardContent>
             </Card>
             <Card
-              className="cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+              className="cursor-pointer hover:border-primary-300 hover:shadow-md transition-all"
               onClick={() => {
                 if (!isCompleted) { setMode("setup"); }
                 else { toast("info", "ההגדרה הראשונית הושלמה. ניתן לערוך הגדרות מעמוד ההגדרות."); navigate("/settings"); }
               }}
             >
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                  <Settings className="h-6 w-6 text-blue-500" />
+                <div className="h-12 w-12 rounded-xl bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center">
+                  <Settings className="h-6 w-6 text-primary-500" />
                 </div>
                 <div>
                   <p className="font-semibold">הגדרה ראשונית</p>
@@ -979,8 +979,8 @@ export default function OnboardingWizard() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                      <Users className="h-6 w-6 text-blue-500" />
+                    <div className="h-12 w-12 rounded-xl bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center">
+                      <Users className="h-6 w-6 text-primary-500" />
                     </div>
                     <div>
                       <h2 className="text-xl font-bold">תפקידי עבודה</h2>
@@ -1076,7 +1076,7 @@ export default function OnboardingWizard() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                    <div className="h-12 w-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
                       <UserPlus className="h-6 w-6 text-purple-500" />
                     </div>
                     <div>
