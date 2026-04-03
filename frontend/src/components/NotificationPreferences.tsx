@@ -148,9 +148,8 @@ export default function NotificationPreferences() {
                           aria-checked={setting.channels[ch.key]}
                         >
                           <span
-                            className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform ${
-                              setting.channels[ch.key] ? "translate-x-5 rtl:-translate-x-5" : "translate-x-1 rtl:-translate-x-1"
-                            }`}
+                            className="absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-all"
+                            style={{ insetInlineStart: setting.channels[ch.key] ? '18px' : '2px' }}
                           />
                         </button>
                       </td>

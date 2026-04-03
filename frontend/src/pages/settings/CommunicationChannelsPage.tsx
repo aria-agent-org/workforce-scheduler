@@ -203,9 +203,7 @@ export default function CommunicationChannelsPage() {
                           ch.is_enabled ? "bg-primary-500" : "bg-muted"
                         }`}
                       >
-                        <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                          ch.is_enabled ? "translate-x-5 rtl:-translate-x-5" : "translate-x-0.5 rtl:-translate-x-0.5"
-                        }`} />
+                        <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: ch.is_enabled ? '22px' : '2px' }} />
                       </button>
                     </div>
                   </div>
@@ -555,9 +553,7 @@ export default function CommunicationChannelsPage() {
                   editEnabled ? "bg-primary-500" : "bg-muted"
                 }`}
               >
-                <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                  editEnabled ? "translate-x-5 rtl:-translate-x-5" : "translate-x-0.5 rtl:-translate-x-0.5"
-                }`} />
+                <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: editEnabled ? '22px' : '2px' }} />
               </button>
             </div>
           </div>

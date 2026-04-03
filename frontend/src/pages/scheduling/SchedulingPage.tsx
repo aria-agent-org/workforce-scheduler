@@ -1757,7 +1757,7 @@ export default function SchedulingPage() {
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${tmpl.is_active === false ? "bg-gray-300 dark:bg-gray-600" : "bg-green-500"}`}
                       title={tmpl.is_active === false ? "הפעל תבנית" : "השבת תבנית"}
                     >
-                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${tmpl.is_active === false ? "translate-x-1 rtl:-translate-x-1" : "translate-x-6 rtl:-translate-x-6"}`} />
+                      <span className="absolute top-[2px] h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: tmpl.is_active === false ? '2px' : '22px' }} />
                     </button>
                     <Button size="sm" variant="outline" className="min-h-[40px]" disabled={tmpl.is_active === false} onClick={() => {
                       setGenerateForm({ template_id: tmpl.id, start_date: selectedWindow?.start_date || "", end_date: selectedWindow?.end_date || "" });

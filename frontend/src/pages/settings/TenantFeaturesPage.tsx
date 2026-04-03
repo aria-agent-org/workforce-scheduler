@@ -167,9 +167,10 @@ export default function TenantFeaturesPage() {
                 style={{ width: '44px', height: '24px', minWidth: '44px' }}
               >
                 <span
-                  className={`absolute top-[2px] h-[20px] w-[20px] rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    f.enabled ? "translate-x-[20px] rtl:-translate-x-[20px]" : "translate-x-[2px] rtl:-translate-x-[2px]"
-                  }`}
+                  className="absolute top-[2px] h-[20px] w-[20px] rounded-full bg-white shadow-md transition-all duration-200"
+                  style={{
+                    insetInlineStart: f.enabled ? '22px' : '2px',
+                  }}
                 />
               </button>
             </div>

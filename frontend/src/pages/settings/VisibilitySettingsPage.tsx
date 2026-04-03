@@ -167,9 +167,8 @@ export default function VisibilitySettingsPage() {
                 style={{ width: '44px', height: '24px', minWidth: '44px' }}
               >
                 <span
-                  className={`absolute top-[3px] h-[22px] w-[22px] transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    settings[opt.key] ? "translate-x-[24px] rtl:-translate-x-[24px]" : "translate-x-[3px] rtl:-translate-x-[3px]"
-                  }`}
+                  className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-md transition-all duration-200"
+                  style={{ insetInlineStart: settings[opt.key] ? '24px' : '3px' }}
                 />
               </button>
             </div>
