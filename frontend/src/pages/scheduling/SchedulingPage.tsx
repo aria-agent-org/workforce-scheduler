@@ -84,6 +84,10 @@ export default function SchedulingPage() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  // Smart form toggles
+  const [showEnglishFields, setShowEnglishFields] = useState(false);
+  const [showPreMission, setShowPreMission] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
   const [showAutoAssignResults, setShowAutoAssignResults] = useState(false);
   const [autoAssignResults, setAutoAssignResults] = useState<any>(null);
   const [deleteTypeTarget, setDeleteTypeTarget] = useState<any>(null);
@@ -355,6 +359,10 @@ export default function SchedulingPage() {
       })),
     });
     setShowTypeModal(true);
+    // Smart: auto-expand sections that have data
+    setShowEnglishFields(!!mt.name?.en);
+    setShowPreMission((mt.pre_mission_events || []).length > 0);
+    setShowTimeline((mt.timeline_items || []).length > 0);
   };
 
   const openCreateType = () => {
@@ -366,6 +374,10 @@ export default function SchedulingPage() {
       required_slots: [], pre_mission_events: [], post_mission_rule: null, timeline_items: [],
     });
     setShowTypeModal(true);
+    // Smart: collapse optional sections for new types
+    setShowEnglishFields(false);
+    setShowPreMission(false);
+    setShowTimeline(false);
   };
 
   const deleteMissionType = async (mt: any) => {
@@ -1940,7 +1952,13 @@ export default function SchedulingPage() {
                 <Input value={typeForm.name_he} onChange={e => { setTypeForm({...typeForm, name_he: e.target.value}); if (typeFormErrors.name_he) setTypeFormErrors(prev => ({...prev, name_he: ""})); }} className={`min-h-[44px] ${typeFormErrors.name_he ? "border-red-500 ring-1 ring-red-500" : ""}`} />
                 {typeFormErrors.name_he && <p className="text-sm text-red-600">{typeFormErrors.name_he}</p>}
               </div>
-              <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={typeForm.name_en} onChange={e => setTypeForm({...typeForm, name_en: e.target.value})} className="min-h-[44px]" /></div>
+              {showEnglishFields ? (
+                <div className="space-y-2"><Label>שם (אנגלית)</Label><Input value={typeForm.name_en} onChange={e => setTypeForm({...typeForm, name_en: e.target.value})} className="min-h-[44px]" /></div>
+              ) : (
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground self-end mb-2" onClick={() => setShowEnglishFields(true)}>
+                  + שם באנגלית
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <div className="space-y-2"><Label>צבע</Label><Input type="color" value={typeForm.color} onChange={e => setTypeForm({...typeForm, color: e.target.value})} /></div>
@@ -2015,7 +2033,7 @@ export default function SchedulingPage() {
                 <div key={i} className="p-3 bg-muted/30 rounded space-y-2">
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
                     <div><Label className="text-xs">שם (עב)</Label><Input value={slot.label_he} placeholder="יתמלא אוטומטית מהתפקיד" onChange={e => { const s = [...typeForm.required_slots]; s[i].label_he = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
-                    <div><Label className="text-xs">שם (en)</Label><Input value={slot.label_en} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_en = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>
+                    {showEnglishFields && <div><Label className="text-xs">שם (en)</Label><Input value={slot.label_en} onChange={e => { const s = [...typeForm.required_slots]; s[i].label_en = e.target.value; setTypeForm({...typeForm, required_slots: s}); }} /></div>}
                     <div>
                       <Label className="text-xs">תפקיד</Label>
                       <Select value={slot.role_mode || "specific"} onChange={e => {
@@ -2098,7 +2116,13 @@ export default function SchedulingPage() {
               ))}
             </div>
 
-            {/* Pre-Mission Events */}
+            {/* Pre-Mission Events — collapsible */}
+            {!showPreMission && typeForm.pre_mission_events.length === 0 ? (
+              <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground border border-dashed rounded-lg p-3 hover:bg-muted/50 transition-colors text-start"
+                onClick={() => { setShowPreMission(true); setTypeForm({...typeForm, pre_mission_events: [...typeForm.pre_mission_events, { offset_minutes: -30, label_he: "", label_en: "", location_he: "" }]}); }}>
+                + הוסף אירועים לפני משימה (תדריך, בדיקת ציוד...)
+              </button>
+            ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -2124,8 +2148,15 @@ export default function SchedulingPage() {
                 </div>
               ))}
             </div>
+            )}
 
-            {/* Timeline Items */}
+            {/* Timeline Items — collapsible */}
+            {!showTimeline && typeForm.timeline_items.length === 0 ? (
+              <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground border border-dashed rounded-lg p-3 hover:bg-muted/50 transition-colors text-start"
+                onClick={() => { setShowTimeline(true); setTypeForm({...typeForm, timeline_items: [...typeForm.timeline_items, { item_id: `t1`, offset_minutes: 30, label_he: "", label_en: "", time_mode: "relative" as const, exact_time: "08:00" }]}); }}>
+                + הוסף פריטי ציר זמן (ארוחה, החלפת משמרת...)
+              </button>
+            ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -2164,7 +2195,7 @@ export default function SchedulingPage() {
                       <div><Label className="text-xs">שעה מדויקת</Label><Input type="time" value={ti.exact_time} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].exact_time = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
                     )}
                     <div><Label className="text-xs">שם (עב)</Label><Input value={ti.label_he} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_he = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
-                    <div><Label className="text-xs">שם (en)</Label><Input value={ti.label_en} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_en = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>
+                    {showEnglishFields && <div><Label className="text-xs">שם (en)</Label><Input value={ti.label_en} onChange={e => { const arr = [...typeForm.timeline_items]; arr[i].label_en = e.target.value; setTypeForm({...typeForm, timeline_items: arr}); }} /></div>}
                     <Button size="sm" variant="ghost" onClick={() => setTypeForm({...typeForm, timeline_items: typeForm.timeline_items.filter((_, j) => j !== i)})}>
                       <Trash2 className="h-3 w-3 text-red-500" />
                     </Button>
@@ -2172,6 +2203,7 @@ export default function SchedulingPage() {
                 </div>
               ))}
             </div>
+            )}
 
             {/* Post-Mission Rule */}
             <div className="space-y-3 border-t pt-4">
