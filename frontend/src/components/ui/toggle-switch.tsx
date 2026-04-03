@@ -41,7 +41,7 @@ export default function ToggleSwitch({
       className={cn(
         "relative inline-flex flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
-        checked ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600",
+        checked ? "bg-primary" : "bg-gray-300 dark:bg-gray-600",
         disabled && "opacity-50 cursor-not-allowed",
         s.track,
         className,

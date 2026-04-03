@@ -1,6 +1,6 @@
-// Build: 2026-04-03T15:30:00Z — v10 force refresh for mobile compact UI
-const BUILD_TS = '20260403-1530';
-const CACHE_VERSION = `v10-${BUILD_TS}`;
+// Build: 2026-04-03T17:30:00Z — v11 IDF Olive theme redesign
+const BUILD_TS = '20260403-1730';
+const CACHE_VERSION = `v11-${BUILD_TS}`;
 const STATIC_CACHE = `shavtzak-static-${CACHE_VERSION}`;
 const API_CACHE = `shavtzak-api-${CACHE_VERSION}`;
 const OFFLINE_PAGE = '/index.html';
