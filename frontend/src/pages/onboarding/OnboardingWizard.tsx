@@ -1123,8 +1123,8 @@ export default function OnboardingWizard() {
             {state.currentStep === 5 && (
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
-                    <Sheet className="h-6 w-6 text-emerald-500" />
+                  <div className="h-12 w-12 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                    <Sheet className="h-6 w-6 text-green-500" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">חיבור Google Sheets</h2>
@@ -1154,8 +1154,8 @@ export default function OnboardingWizard() {
             {state.currentStep === 6 && (
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center">
-                    <Bot className="h-6 w-6 text-orange-500" />
+                  <div className="h-12 w-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Bot className="h-6 w-6 text-amber-500" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">חיבור בוט</h2>

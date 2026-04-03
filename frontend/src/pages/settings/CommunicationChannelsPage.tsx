@@ -172,7 +172,7 @@ export default function CommunicationChannelsPage() {
                             </Badge>
                           )}
                           {ch.is_enabled && !ch.verified && (
-                            <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">
+                            <Badge className="bg-amber-100 text-amber-700 text-[10px]">
                               <AlertTriangle className="inline h-3 w-3 me-0.5" />לא מאומת
                             </Badge>
                           )}
@@ -259,7 +259,7 @@ export default function CommunicationChannelsPage() {
                 )}
                 {editProvider === "qr_session" && (
                   <div className="space-y-3">
-                    <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 p-3 text-sm text-yellow-700">
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 p-3 text-sm text-amber-700">
                       ⚠️ חיבור QR — יש לסרוק מטלפון מחובר ל-WhatsApp. החיבור עלול להתנתק אם הטלפון כבוי.
                     </div>
                     <Button size="sm" variant="outline" onClick={async () => {

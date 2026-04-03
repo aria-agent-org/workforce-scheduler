@@ -293,12 +293,12 @@ export default function GoogleSheetsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-900/20">
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20">
           <CardContent className="p-4 flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
             <div>
-              <span className="text-yellow-800 dark:text-yellow-200 font-medium">Google Sheets לא מוגדר במערכת</span>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
+              <span className="text-amber-800 dark:text-amber-200 font-medium">Google Sheets לא מוגדר במערכת</span>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
                 יש לבקש ממנהל המערכת להגדיר חשבון שירות (Service Account) באינטגרציות
               </p>
             </div>

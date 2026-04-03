@@ -165,7 +165,7 @@ export default function IntegrationsPanel() {
             {cat.items.every(i => i.configured) ? (
               <span className="w-2 h-2 rounded-full bg-green-400" />
             ) : cat.items.some(i => i.configured) ? (
-              <span className="w-2 h-2 rounded-full bg-yellow-400" />
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
             ) : (
               <span className="w-2 h-2 rounded-full bg-red-400" />
             )}

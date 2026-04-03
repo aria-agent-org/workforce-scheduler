@@ -30,7 +30,7 @@ type Tab = "windows" | "board" | "types" | "templates";
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
   active: "bg-green-100 text-green-700",
-  paused: "bg-yellow-100 text-yellow-700",
+  paused: "bg-amber-100 text-amber-700",
   archived: "bg-primary-100 text-primary-700",
   approved: "bg-green-100 text-green-700",
   completed: "bg-primary-100 text-primary-700",
@@ -796,8 +796,8 @@ export default function SchedulingPage() {
 
   if (loadError && windows.length === 0) return (
     <div className="empty-state">
-      <div className="h-20 w-20 rounded-2xl bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center mb-6 shadow-elevation-1">
-        <AlertTriangle className="h-10 w-10 text-yellow-500" />
+      <div className="h-20 w-20 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mb-6 shadow-elevation-1">
+        <AlertTriangle className="h-10 w-10 text-amber-500" />
       </div>
       <p className="empty-state-title">שגיאה בטעינת נתוני שיבוצים</p>
       <p className="empty-state-description mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
@@ -1037,7 +1037,7 @@ export default function SchedulingPage() {
                       </Button>
                     )}
                     {w.status === "active" && (
-                      <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-yellow-300 text-yellow-700 hover:bg-yellow-50 text-xs" onClick={() => windowAction(w.id, "pause")} title="השהה">
+                      <Button size="sm" variant="outline" className="h-8 sm:min-h-[40px] px-2 sm:px-3 border-amber-300 text-amber-700 hover:bg-amber-50 text-xs" onClick={() => windowAction(w.id, "pause")} title="השהה">
                         <Pause className="h-3 w-3 sm:me-1" /><span className="hidden sm:inline">השהה</span>
                       </Button>
                     )}
@@ -1454,7 +1454,7 @@ export default function SchedulingPage() {
                           <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground mt-0.5">
                             <span>📅 {m.date}</span>
                             <span>⏰ {m.start_time?.slice(0, 5)}–{m.end_time?.slice(0, 5)}</span>
-                            <span className={`font-medium ${fillPercent === 100 ? "text-green-600" : fillPercent > 0 ? "text-yellow-600" : "text-red-500"}`}>
+                            <span className={`font-medium ${fillPercent === 100 ? "text-green-600" : fillPercent > 0 ? "text-amber-600" : "text-red-500"}`}>
                               👥 {assignedCount}/{slotsTotal || "?"}
                             </span>
                           </div>
@@ -1467,10 +1467,10 @@ export default function SchedulingPage() {
                           {editingUsers[`mission:${m.id}`] && (
                             <div className="flex items-center gap-1 mt-1">
                               <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                               </span>
-                              <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                                 {editingUsers[`mission:${m.id}`].user_name} עורך כעת
                               </span>
                             </div>
@@ -1548,7 +1548,7 @@ export default function SchedulingPage() {
                               {m.deactivated_at ? "הוקפצה (הסתיימה)" : "🚨 הוקפצה"}
                             </Badge>
                           )}
-                          <Button size="sm" variant="ghost" className="min-h-[40px] text-orange-500 hover:bg-orange-50 hover:text-orange-600" onClick={async () => {
+                          <Button size="sm" variant="ghost" className="min-h-[40px] text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={async () => {
                             try {
                               await api.patch(tenantApi(`/missions/${m.id}`), { status: "archived" });
                               toast("success", "משימה הועברה לארכיון");
@@ -1574,7 +1574,7 @@ export default function SchedulingPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-muted-foreground">{(() => { const mt2 = missionTypes.find((t: any) => t.id === missions.find((m2: any) => m2.assignments?.some((a2: any) => a2.id === a.id))?.mission_type_id); const sl = mt2?.required_slots?.find((s: any) => s.slot_id === a.slot_id); return sl?.label?.[lang] || sl?.label?.he || a.slot_id; })()}</span>
                                   {a.conflicts_detected?.length > 0 && (
-                                    <Badge className="bg-yellow-100 text-yellow-700">
+                                    <Badge className="bg-amber-100 text-amber-700">
                                       <AlertTriangle className="inline h-3 w-3 me-1" />{a.conflicts_detected.length} אזהרות
                                     </Badge>
                                   )}
@@ -1681,7 +1681,7 @@ export default function SchedulingPage() {
                   {mt.duration_hours && (
                     <p className="text-muted-foreground"><Clock className="inline h-3 w-3" /> {mt.duration_hours} שעות</p>
                   )}
-                  {mt.is_standby && <Badge className="bg-orange-100 text-orange-700">כוננות</Badge>}
+                  {mt.is_standby && <Badge className="bg-amber-100 text-amber-700">כוננות</Badge>}
                   {mt.required_slots?.length > 0 && (
                     <div className="mt-2 space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">סלוטים:</p>
@@ -1984,8 +1984,8 @@ export default function SchedulingPage() {
                 </label>
                 {typeForm.is_standby && (
                   <>
-                    <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-3 ms-4 animate-in slide-in-from-top-1">
-                      <p className="text-sm text-orange-800 dark:text-orange-200">
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 ms-4 animate-in slide-in-from-top-1">
+                      <p className="text-sm text-amber-800 dark:text-amber-200">
                         ⚡ משימת כוננות: חיילים בכוננות ממתינים להקפצה. ניתן להגדיר אם הכוננות נחשבת למנוחה.
                       </p>
                     </div>
@@ -2569,7 +2569,7 @@ export default function SchedulingPage() {
                           {isMatch ? (
                             <Badge className="bg-green-100 text-green-700 text-[10px]">✓ תואם</Badge>
                           ) : requiredRoleId ? (
-                            <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">תפקיד לא תואם</Badge>
+                            <Badge className="bg-amber-100 text-amber-700 text-[10px]">תפקיד לא תואם</Badge>
                           ) : null}
                         </div>
                       </div>
@@ -2583,13 +2583,13 @@ export default function SchedulingPage() {
                             <Badge className="bg-primary-100 text-primary-700 text-[10px] border border-primary-300">👍 מעדיף משימה</Badge>
                           )}
                           {missionTypePref?.preference === "avoid" && (
-                            <Badge className="bg-orange-100 text-orange-700 text-[10px] border border-orange-300">⚠️ מעדיף להימנע</Badge>
+                            <Badge className="bg-amber-100 text-amber-700 text-[10px] border border-amber-300">⚠️ מעדיף להימנע</Badge>
                           )}
                           {timeSlotPref?.preference === "prefer" && (
                             <Badge className="bg-primary-100 text-primary-700 text-[10px] border border-primary-300">⏰ מעדיף זמן</Badge>
                           )}
                           {timeSlotPref?.preference === "avoid" && (
-                            <Badge className="bg-orange-100 text-orange-700 text-[10px] border border-orange-300">⏰ מעדיף זמן אחר</Badge>
+                            <Badge className="bg-amber-100 text-amber-700 text-[10px] border border-amber-300">⏰ מעדיף זמן אחר</Badge>
                           )}
                         </div>
                       )}
@@ -2663,7 +2663,7 @@ export default function SchedulingPage() {
               </div>
             ) : (
               <div className="space-y-3 animate-in slide-in-from-top-2">
-                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 p-3 text-sm text-amber-700 dark:text-amber-300">
                   ⚠️ אתה עומד לעקוף חוק חמור. הסבר סיבה — הפעולה תירשם ביומן.
                 </div>
                 <div className="space-y-2">
@@ -2734,7 +2734,7 @@ export default function SchedulingPage() {
                   <p className="text-sm text-muted-foreground">שובצו בהצלחה</p>
                 </CardContent></Card>
                 <Card><CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-yellow-600">{autoAssignResults.total_soft_warnings}</p>
+                  <p className="text-2xl font-bold text-amber-600">{autoAssignResults.total_soft_warnings}</p>
                   <p className="text-sm text-muted-foreground">אזהרות רכות</p>
                 </CardContent></Card>
                 <Card><CardContent className="p-4 text-center">
@@ -2769,7 +2769,7 @@ export default function SchedulingPage() {
                       <div className="flex items-center gap-1">
                         <Badge className="text-xs">ציון: {a.score}</Badge>
                         {a.soft_warnings?.length > 0 && (
-                          <Badge className="bg-yellow-100 text-yellow-700 text-xs">
+                          <Badge className="bg-amber-100 text-amber-700 text-xs">
                             {a.soft_warnings.length} אזהרות
                           </Badge>
                         )}
@@ -3302,7 +3302,7 @@ export default function SchedulingPage() {
                             {s.score != null && <Badge className="text-[10px] bg-primary-100 text-primary-700">ציון: {s.score}</Badge>}
                             {s.rest_hours != null && <Badge className="text-[10px] bg-gray-100 text-gray-600">מנוחה: {s.rest_hours}ש</Badge>}
                             {s.has_partner_preference && <Badge className="text-[10px] bg-green-100 text-green-700">✓ חבר מועדף</Badge>}
-                            {s.warnings?.length > 0 && <Badge className="text-[10px] bg-yellow-100 text-yellow-700">⚠️ {s.warnings.length} אזהרות</Badge>}
+                            {s.warnings?.length > 0 && <Badge className="text-[10px] bg-amber-100 text-amber-700">⚠️ {s.warnings.length} אזהרות</Badge>}
                           </div>
                         </div>
                         <Button size="sm" variant="outline" className="min-h-[36px] shrink-0">

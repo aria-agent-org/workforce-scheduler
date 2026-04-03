@@ -290,7 +290,7 @@ export default function AttendancePage() {
 
   if (loadError && employees.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <CalendarDays className="h-16 w-16 text-yellow-500 mb-4" />
+      <CalendarDays className="h-16 w-16 text-amber-500 mb-4" />
       <h2 className="text-xl font-bold mb-2">שגיאה בטעינת נוכחות</h2>
       <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
       <button onClick={load} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 text-white px-4 py-2 text-sm hover:bg-primary-600 transition-colors">
@@ -512,7 +512,7 @@ export default function AttendancePage() {
                       <th
                         key={date}
                         className={`px-1 py-2 text-center font-medium min-w-[80px] text-xs ${
-                          isToday ? "bg-primary-50 dark:bg-primary-900/20" : isShabbat ? "bg-yellow-50 dark:bg-yellow-900/10" : ""
+                          isToday ? "bg-primary-50 dark:bg-primary-900/20" : isShabbat ? "bg-amber-50 dark:bg-amber-900/10" : ""
                         }`}
                       >
                         <div className="font-bold">{dayNames[dayIdx]}</div>

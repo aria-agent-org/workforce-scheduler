@@ -46,8 +46,8 @@ function formatTimeLeft(targetDate: string, targetTime: string): string {
 
 function getTimeIcon(time: string) {
   const h = parseInt(time?.split(":")[0] || "12");
-  if (h >= 6 && h < 12) return <Sunrise className="h-4 w-4 text-orange-500" />;
-  if (h >= 12 && h < 18) return <Sun className="h-4 w-4 text-yellow-500" />;
+  if (h >= 6 && h < 12) return <Sunrise className="h-4 w-4 text-amber-500" />;
+  if (h >= 12 && h < 18) return <Sun className="h-4 w-4 text-amber-500" />;
   return <Moon className="h-4 w-4 text-primary-400" />;
 }
 
@@ -396,9 +396,9 @@ export default function MySchedulePage() {
 
                     {/* Conflicts */}
                     {a.conflicts_detected?.length > 0 && (
-                      <div className="flex items-center gap-1 mb-2 p-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800" role="alert">
-                        <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
-                        <span className="text-xs text-yellow-700 dark:text-yellow-300">{a.conflicts_detected.length} אזהרות</span>
+                      <div className="flex items-center gap-1 mb-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" role="alert">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        <span className="text-xs text-amber-700 dark:text-amber-300">{a.conflicts_detected.length} אזהרות</span>
                       </div>
                     )}
 

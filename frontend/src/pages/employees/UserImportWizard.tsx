@@ -443,7 +443,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                 </CardContent></Card>
                 {warningCount > 0 && (
                   <Card><CardContent className="p-3 text-center">
-                    <p className="text-xl font-bold text-orange-500">{warningCount}</p>
+                    <p className="text-xl font-bold text-amber-500">{warningCount}</p>
                     <p className="text-xs text-muted-foreground">אזהרות</p>
                   </CardContent></Card>
                 )}
@@ -455,7 +455,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                 )}
                 {duplicateCount > 0 && (
                   <Card><CardContent className="p-3 text-center">
-                    <p className="text-xl font-bold text-yellow-600">{duplicateCount}</p>
+                    <p className="text-xl font-bold text-amber-600">{duplicateCount}</p>
                     <p className="text-xs text-muted-foreground">כפולים</p>
                   </CardContent></Card>
                 )}
@@ -502,16 +502,16 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
               {/* Phone validation warnings */}
               {(invalidRows.concat(warningRows)).some(r => r.phone && validateIsraeliPhone(r.phone) !== "valid") && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-yellow-600 flex items-center gap-1">
+                  <h3 className="text-sm font-semibold text-amber-600 flex items-center gap-1">
                     <Phone className="h-4 w-4" /> בדיקת טלפונים ישראלים
                   </h3>
                   <div className="space-y-1 max-h-[120px] overflow-y-auto text-xs">
                     {[...invalidRows, ...warningRows].filter(r => r.phone && validateIsraeliPhone(r.phone) !== "valid").map(row => {
                       const validity = validateIsraeliPhone(row.phone);
                       return (
-                        <div key={row.id} className="flex items-center justify-between p-2 rounded bg-yellow-50 dark:bg-yellow-900/20">
+                        <div key={row.id} className="flex items-center justify-between p-2 rounded bg-amber-50 dark:bg-amber-900/20">
                           <span>#{row.row_number} {row.full_name}: {row.phone}</span>
-                          <Badge className={validity === "non-israeli" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}>
+                          <Badge className={validity === "non-israeli" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}>
                             {validity === "non-israeli" ? "⚠️ לא ישראלי" : "❌ לא תקין"}
                           </Badge>
                         </div>
@@ -525,15 +525,15 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
               {/* Warning rows (valid but with warnings) */}
               {warningRows.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-orange-600 flex items-center gap-1">
+                  <h3 className="text-sm font-semibold text-amber-600 flex items-center gap-1">
                     <AlertTriangle className="h-4 w-4" /> אזהרות ({warningRows.length})
                   </h3>
                   <div className="space-y-1 max-h-[150px] overflow-y-auto">
                     {warningRows.map(row => (
-                      <div key={row.id} className="flex items-center gap-2 text-xs p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
+                      <div key={row.id} className="flex items-center gap-2 text-xs p-2 bg-amber-50 dark:bg-amber-900/20 rounded">
                         <span className="font-medium">#{row.row_number} {row.full_name}</span>
                         {row.errors.filter(e => e.severity === "warning").map((err, i) => (
-                          <span key={i} className="text-orange-600">⚠️ {err.message}</span>
+                          <span key={i} className="text-amber-600">⚠️ {err.message}</span>
                         ))}
                       </div>
                     ))}
@@ -627,7 +627,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                 </Card>
                 <Card>
                   <CardContent className="p-3 text-center">
-                    <p className="text-2xl font-bold text-yellow-600">{duplicateCount}</p>
+                    <p className="text-2xl font-bold text-amber-600">{duplicateCount}</p>
                     <p className="text-xs text-muted-foreground">כפולים</p>
                   </CardContent>
                 </Card>
@@ -644,7 +644,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                   <Label className="text-sm font-medium">כפילויות — בחר פעולה לכל שורה:</Label>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {duplicateRows.map(row => (
-                      <Card key={row.id} className="border-yellow-200">
+                      <Card key={row.id} className="border-amber-200">
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div>
@@ -653,7 +653,7 @@ export default function UserImportWizard({ open, onClose, onComplete }: Props) {
                                 {row.phone && <span>📱 {row.phone} </span>}
                                 {row.email && <span>✉️ {row.email}</span>}
                               </p>
-                              <Badge className="bg-yellow-100 text-yellow-700 text-[10px] mt-1">
+                              <Badge className="bg-amber-100 text-amber-700 text-[10px] mt-1">
                                 {row.conflict_type === "phone_exists" ? "טלפון כבר קיים" :
                                  row.conflict_type === "email_exists" ? "אימייל כבר קיים" :
                                  "מספר עובד כבר קיים"}

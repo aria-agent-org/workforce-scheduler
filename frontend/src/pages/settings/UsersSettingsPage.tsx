@@ -589,7 +589,7 @@ export default function UsersSettingsPage() {
               const linkedUser = users.find(u => u.employee_id === linkEmployeeId && u.id !== linkUserId);
               if (!linkedUser) return null;
               return (
-                <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-300">
                   ⚠️ חייל זה כבר מקושר למשתמש <strong>{linkedUser.email}</strong>. קישור חדש ייכשל.
                 </div>
               );
@@ -732,9 +732,9 @@ export default function UsersSettingsPage() {
                   <p className="text-2xl font-bold text-green-700 dark:text-green-300">{importResult.created}</p>
                   <p className="text-xs text-green-600 dark:text-green-400">נוצרו</p>
                 </div>
-                <div className="flex-1 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-center">
-                  <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{importResult.skipped}</p>
-                  <p className="text-xs text-yellow-600 dark:text-yellow-400">דולגו</p>
+                <div className="flex-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-center">
+                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{importResult.skipped}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">דולגו</p>
                 </div>
                 <div className="flex-1 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-center">
                   <p className="text-2xl font-bold text-red-700 dark:text-red-300">{importResult.errors.length}</p>

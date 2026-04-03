@@ -316,7 +316,7 @@ export default function MySettingsPage() {
                   {passkeyLoading ? "רושם..." : passkeys.length >= 5 ? "הגעת למקסימום מפתחות (5)" : "הוסף מפתח אבטחה"}
                 </Button>
               ) : (
-                <p className="text-sm text-yellow-600">הדפדפן שלך לא תומך במפתחות אבטחה</p>
+                <p className="text-sm text-amber-600">הדפדפן שלך לא תומך במפתחות אבטחה</p>
               )}
             </div>
 

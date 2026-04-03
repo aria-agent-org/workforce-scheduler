@@ -17,7 +17,7 @@ interface SwapRequest {
 }
 
 const statusMap: Record<string, { label: string; cls: string }> = {
-  pending: { label: "ממתין", cls: "bg-yellow-100 text-yellow-700" },
+  pending: { label: "ממתין", cls: "bg-amber-100 text-amber-700" },
   approved: { label: "אושר", cls: "bg-green-100 text-green-700" },
   rejected: { label: "נדחה", cls: "bg-red-100 text-red-700" },
 };

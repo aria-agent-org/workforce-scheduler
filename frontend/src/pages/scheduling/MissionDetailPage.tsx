@@ -22,7 +22,7 @@ const statusColors: Record<string, string> = {
   completed: "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300",
   cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   proposed: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  paused: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+  paused: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
 };
 
 const statusLabels: Record<string, string> = {
@@ -299,7 +299,7 @@ export default function MissionDetailPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {a.conflicts_detected?.length > 0 && (
-                          <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs">
+                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-xs">
                             <AlertTriangle className="inline h-3 w-3 me-1" />
                             {a.conflicts_detected.length} התנגשויות
                           </Badge>

@@ -44,7 +44,7 @@ const CATEGORY_OPTIONS = [
 ];
 
 const SEVERITY_OPTIONS = [
-  { value: "soft", label: "רך — אזהרה בלבד", description: "המשבץ יראה אזהרה אבל יוכל לשבץ בכל זאת", color: "bg-yellow-100 text-yellow-700" },
+  { value: "soft", label: "רך — אזהרה בלבד", description: "המשבץ יראה אזהרה אבל יוכל לשבץ בכל זאת", color: "bg-amber-100 text-amber-700" },
   { value: "hard", label: "חמור — חוסם שיבוץ", description: "המערכת לא תאפשר שיבוץ שמפר את החוק", color: "bg-red-100 text-red-700" },
 ];
 
@@ -431,7 +431,8 @@ export default function RulesPage() {
       const fieldLabel = fieldInfo?.label?.[lang] || fieldInfo?.label?.he || c.field;
       const op = OPERATORS.find(o => o.value === c.operator);
       const opLabel = op ? (lang === "he" ? op.label_he : op.label_en) : c.operator;
-      return `${fieldLabel} ${opLabel} ${c.value}`;
+      const val = c.value != null ? (typeof c.value === "object" ? JSON.stringify(c.value) : String(c.value)) : "";
+      return `${fieldLabel} ${opLabel} ${val}`;
     }).join(" וגם ");
   };
 
@@ -463,7 +464,7 @@ export default function RulesPage() {
 
   if (loadError && rules.length === 0) return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <ShieldCheck className="h-16 w-16 text-yellow-500 mb-4" />
+      <ShieldCheck className="h-16 w-16 text-amber-500 mb-4" />
       <h2 className="text-xl font-bold mb-2">שגיאה בטעינת חוקים</h2>
       <p className="text-muted-foreground mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
       <button onClick={load} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 text-white px-4 py-2 text-sm hover:bg-primary-600 transition-colors">
@@ -520,11 +521,11 @@ export default function RulesPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2 sm:gap-3 min-w-0">
                   <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    rule.severity === "hard" ? "bg-red-100 dark:bg-red-900/30" : "bg-yellow-100 dark:bg-yellow-900/30"
+                    rule.severity === "hard" ? "bg-red-100 dark:bg-red-900/30" : "bg-amber-100 dark:bg-amber-900/30"
                   }`}>
                     {rule.severity === "hard"
                       ? <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
-                      : <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
+                      : <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
                     }
                   </div>
                   <div className="min-w-0">
@@ -533,7 +534,7 @@ export default function RulesPage() {
                       {buildConditionSummary(rule) || "ללא תנאים"}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      <Badge className={`text-[10px] sm:text-xs ${rule.severity === "hard" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                      <Badge className={`text-[10px] sm:text-xs ${rule.severity === "hard" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
                         {rule.severity === "hard" ? "חמור" : "רך"}
                       </Badge>
                       <Badge className="text-[10px] sm:text-xs bg-muted text-muted-foreground">
@@ -594,7 +595,7 @@ export default function RulesPage() {
                         >
                           <div className="flex items-start gap-2">
                             <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                              tpl.severity === "hard" ? "bg-red-100 dark:bg-red-900/30" : "bg-yellow-100 dark:bg-yellow-900/30"
+                              tpl.severity === "hard" ? "bg-red-100 dark:bg-red-900/30" : "bg-amber-100 dark:bg-amber-900/30"
                             }`}>
                               <CatIcon className={`h-4 w-4 ${catOpt?.color || "text-gray-500"}`} />
                             </div>
@@ -602,7 +603,7 @@ export default function RulesPage() {
                               <p className="font-semibold text-sm">{tpl.name_he}</p>
                               <p className="text-xs text-muted-foreground mt-0.5">{tpl.description_he}</p>
                               <div className="flex gap-1 mt-1.5">
-                                <Badge className={tpl.severity === "hard" ? "bg-red-100 text-red-700 text-[10px]" : "bg-yellow-100 text-yellow-700 text-[10px]"}>
+                                <Badge className={tpl.severity === "hard" ? "bg-red-100 text-red-700 text-[10px]" : "bg-amber-100 text-amber-700 text-[10px]"}>
                                   {tpl.severity === "hard" ? "חמור" : "רך"}
                                 </Badge>
                                 <Badge className="bg-muted text-muted-foreground text-[10px]">
@@ -751,11 +752,11 @@ export default function RulesPage() {
                 <div key={gIdx} className="space-y-2">
                   {gIdx > 0 && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <div className="flex-1 border-t border-orange-300" />
-                      <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full font-bold text-xs">
+                      <div className="flex-1 border-t border-amber-300" />
+                      <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-3 py-1 rounded-full font-bold text-xs">
                         וגם (AND) בין הקבוצות
                       </span>
-                      <div className="flex-1 border-t border-orange-300" />
+                      <div className="flex-1 border-t border-amber-300" />
                     </div>
                   )}
 

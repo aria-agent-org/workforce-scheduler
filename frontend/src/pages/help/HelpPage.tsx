@@ -18,9 +18,9 @@ const categories = [
   { key: "getting-started", label: "מדריך למתחילים", icon: Lightbulb, color: "bg-primary-100 text-primary-700" },
   { key: "soldiers", label: "ניהול חיילים", icon: Users, color: "bg-green-100 text-green-700" },
   { key: "scheduling", label: "שיבוץ", icon: Calendar, color: "bg-amber-100 text-amber-700" },
-  { key: "rules", label: "חוקים", icon: ShieldCheck, color: "bg-orange-100 text-orange-700" },
+  { key: "rules", label: "חוקים", icon: ShieldCheck, color: "bg-amber-100 text-amber-700" },
   { key: "attendance", label: "נוכחות", icon: ClipboardList, color: "bg-primary-100 text-primary-700" },
-  { key: "swaps", label: "החלפות", icon: ArrowLeftRight, color: "bg-pink-100 text-pink-700" },
+  { key: "swaps", label: "החלפות", icon: ArrowLeftRight, color: "bg-red-300 text-red-300" },
   { key: "settings", label: "הגדרות", icon: Settings, color: "bg-gray-100 text-gray-700" },
 ];
 

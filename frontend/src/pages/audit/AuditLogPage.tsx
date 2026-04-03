@@ -17,14 +17,14 @@ const actionColors: Record<string, string> = {
   update: "bg-primary-100 text-primary-700",
   delete: "bg-red-100 text-red-700",
   assign: "bg-amber-100 text-amber-700",
-  set_attendance: "bg-yellow-100 text-yellow-700",
-  bulk_import: "bg-orange-100 text-orange-700",
+  set_attendance: "bg-amber-100 text-amber-700",
+  bulk_import: "bg-amber-100 text-amber-700",
   reset: "bg-red-100 text-red-700",
   import_template: "bg-primary-100 text-primary-700",
   import_employees: "bg-primary-100 text-primary-700",
   override_conflict: "bg-amber-100 text-amber-700",
   mark_activated: "bg-primary-100 text-primary-700",
-  update_attendance: "bg-yellow-100 text-yellow-700",
+  update_attendance: "bg-amber-100 text-amber-700",
 };
 
 const actionLabels: Record<string, string> = {

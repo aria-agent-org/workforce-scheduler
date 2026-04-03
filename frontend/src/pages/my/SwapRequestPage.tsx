@@ -36,7 +36,7 @@ interface Soldier {
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:   { label: "ממתין",  color: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  pending:   { label: "ממתין",  color: "bg-amber-100 text-amber-800 border-amber-200" },
   approved:  { label: "אושר",   color: "bg-green-100 text-green-800 border-green-200" },
   rejected:  { label: "נדחה",   color: "bg-red-100 text-red-800 border-red-200" },
   cancelled: { label: "בוטל",   color: "bg-gray-100 text-gray-700 border-gray-200" },

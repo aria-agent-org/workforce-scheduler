@@ -138,8 +138,8 @@ export default function DashboardPage() {
   if (error && !stats) {
     return (
       <div className="empty-state">
-        <div className="h-20 w-20 rounded-2xl bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center mb-6 shadow-elevation-1">
-          <AlertTriangle className="h-10 w-10 text-yellow-500" />
+        <div className="h-20 w-20 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mb-6 shadow-elevation-1">
+          <AlertTriangle className="h-10 w-10 text-amber-500" />
         </div>
         <p className="empty-state-title">שגיאה בטעינת לוח בקרה</p>
         <p className="empty-state-description mb-4">לא ניתן היה לטעון את הנתונים. נסה שוב.</p>
@@ -157,9 +157,9 @@ export default function DashboardPage() {
 
   const statCards = [
     { key: "missionsToday", label: "משימות היום", value: stats?.missions_today ?? 0, icon: Calendar, gradient: "from-primary-400 to-primary-600", bgLight: "bg-primary-50 dark:bg-primary-900/20", link: "/scheduling" },
-    { key: "unfilledSlots", label: "משבצות חסרות", value: unfilledSlots, icon: AlertTriangle, gradient: unfilledSlots > 0 ? "from-red-500 to-rose-600" : "from-emerald-500 to-green-600", bgLight: unfilledSlots > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20", link: "/scheduling" },
+    { key: "unfilledSlots", label: "משבצות חסרות", value: unfilledSlots, icon: AlertTriangle, gradient: unfilledSlots > 0 ? "from-red-500 to-red-500" : "from-green-500 to-green-600", bgLight: unfilledSlots > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-green-50 dark:bg-green-900/20", link: "/scheduling" },
     { key: "totalSoldiers", label: "חיילים", value: stats?.total_employees ?? 0, icon: Users, gradient: "from-primary-400 to-primary-600", bgLight: "bg-primary-50 dark:bg-primary-900/20", link: "/soldiers" },
-    { key: "present", label: "נוכחים", value: stats?.present_today ?? 0, icon: CheckCircle, gradient: "from-green-500 to-emerald-600", bgLight: "bg-green-50 dark:bg-green-900/20", link: "/attendance" },
+    { key: "present", label: "נוכחים", value: stats?.present_today ?? 0, icon: CheckCircle, gradient: "from-green-500 to-green-600", bgLight: "bg-green-50 dark:bg-green-900/20", link: "/attendance" },
     { key: "pendingSwaps", label: "החלפות ממתינות", value: pendingSwapsCount, icon: ArrowLeftRight, gradient: "from-amber-500 to-amber-600", bgLight: "bg-amber-50 dark:bg-amber-900/20", link: "/swaps" },
   ];
 

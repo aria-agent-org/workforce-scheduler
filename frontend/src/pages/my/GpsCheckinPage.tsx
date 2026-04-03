@@ -89,7 +89,7 @@ export default function GpsCheckinPage() {
   if (!gpsAvailable) {
     return (
       <div className="p-6 text-center">
-        <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
         <h2 className="text-lg font-bold mb-2">GPS לא זמין</h2>
         <p className="text-muted-foreground">המכשיר שלך לא תומך בGPS או שהדפדפן חוסם את הגישה למיקום.</p>
       </div>
@@ -157,12 +157,12 @@ export default function GpsCheckinPage() {
         <div className={`rounded-xl p-4 ${
           result.is_within_geofence
             ? "bg-green-50 dark:bg-green-900/20 border border-green-200"
-            : "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200"
+            : "bg-amber-50 dark:bg-amber-900/20 border border-amber-200"
         }`}>
           <div className="flex items-center gap-2 mb-1">
             {result.is_within_geofence
               ? <CheckCircle className="h-5 w-5 text-green-600" />
-              : <AlertTriangle className="h-5 w-5 text-yellow-600" />}
+              : <AlertTriangle className="h-5 w-5 text-amber-600" />}
             <span className="font-bold">{result.message}</span>
           </div>
           {result.distance_from_target_m && (

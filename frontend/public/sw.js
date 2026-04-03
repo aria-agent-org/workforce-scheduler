@@ -1,6 +1,6 @@
-// Build: 2026-04-03T17:30:00Z — v11 IDF Olive theme redesign
-const BUILD_TS = '20260403-1730';
-const CACHE_VERSION = `v11-${BUILD_TS}`;
+// Build: 2026-04-03T23:00:00Z — v12 Premium UI overhaul
+const BUILD_TS = '20260403-2300';
+const CACHE_VERSION = `v12-${BUILD_TS}`;
 const STATIC_CACHE = `shavtzak-static-${CACHE_VERSION}`;
 const API_CACHE = `shavtzak-api-${CACHE_VERSION}`;
 const OFFLINE_PAGE = '/index.html';

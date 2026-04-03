@@ -710,7 +710,7 @@ export default function NotificationsPage() {
 
               {/* Push unsupported */}
               {pushStatus === 'unsupported' && (
-                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-300">
                   ⚠️ הדפדפן שלך לא תומך בהתראות Push. נסה Chrome, Edge, או Safari 16.4+.
                 </div>
               )}
@@ -757,9 +757,9 @@ export default function NotificationsPage() {
 
                   {/* Debug info — show last error if exists */}
                   {getLastPushError() && (
-                    <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-3 text-sm">
-                      <p className="font-medium text-orange-800 dark:text-orange-200 mb-1">🔍 שגיאה אחרונה:</p>
-                      <p className="text-orange-700 dark:text-orange-300 font-mono text-xs break-all">{getLastPushError()}</p>
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm">
+                      <p className="font-medium text-amber-800 dark:text-amber-200 mb-1">🔍 שגיאה אחרונה:</p>
+                      <p className="text-amber-700 dark:text-amber-300 font-mono text-xs break-all">{getLastPushError()}</p>
                     </div>
                   )}
 

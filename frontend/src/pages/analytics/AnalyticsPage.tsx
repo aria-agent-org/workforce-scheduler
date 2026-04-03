@@ -153,7 +153,7 @@ export default function AnalyticsPage() {
             <span className={`text-xs px-3 py-1 rounded-full ${
               fairness.deviation_pct <= 30
                 ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
             }`}>
               סטייה: {fairness.deviation_pct}% | ממוצע: {fairness.average}
             </span>

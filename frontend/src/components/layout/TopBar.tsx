@@ -160,7 +160,7 @@ export default function TopBar() {
             <Button variant="ghost" size="sm" onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) loadNotifications(); }} className="relative" aria-label="התראות" aria-expanded={notifOpen}>
               {unreadCount > 0 ? <BellRing className="h-4 w-4 text-primary-500" aria-hidden="true" /> : <Bell className="h-4 w-4" aria-hidden="true" />}
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -end-0.5 h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold px-1" aria-live="polite" aria-label={`${unreadCount} התראות חדשות`}>
+                <span className="absolute -top-0.5 -end-0.5 h-4 min-w-[16px] flex items-center justify-center rounded-full bg-amber-500 text-[10px] text-black font-bold px-1" aria-live="polite" aria-label={`${unreadCount} התראות חדשות`}>
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
@@ -170,7 +170,7 @@ export default function TopBar() {
                 <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                   <h3 className="text-sm font-bold">התראות</h3>
                   {unreadCount > 0 && (
-                    <Badge className="bg-red-100 text-red-700 text-xs">{unreadCount} חדשות</Badge>
+                    <Badge className="bg-amber-100 text-amber-700 text-xs">{unreadCount} חדשות</Badge>
                   )}
                 </div>
                 <div className="max-h-80 overflow-y-auto">

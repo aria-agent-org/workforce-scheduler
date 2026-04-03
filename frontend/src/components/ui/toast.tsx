@@ -29,21 +29,21 @@ const icons = {
 const colors = {
   success: "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/40 dark:border-green-700 dark:text-green-200",
   error: "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/40 dark:border-red-700 dark:text-red-200",
-  warning: "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/40 dark:border-yellow-700 dark:text-yellow-200",
+  warning: "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/40 dark:border-amber-700 dark:text-amber-200",
   info: "bg-primary-50 border-primary-200 text-primary-800 dark:bg-primary-900/40 dark:border-primary-700 dark:text-primary-200",
 };
 
 const progressColors = {
   success: "bg-green-500",
   error: "bg-red-500",
-  warning: "bg-yellow-500",
+  warning: "bg-amber-500",
   info: "bg-primary-500",
 };
 
 const iconColors = {
   success: "text-green-500 dark:text-green-400",
   error: "text-red-500 dark:text-red-400",
-  warning: "text-yellow-500 dark:text-yellow-400",
+  warning: "text-amber-500 dark:text-amber-400",
   info: "text-primary-500 dark:text-primary-400",
 };
 

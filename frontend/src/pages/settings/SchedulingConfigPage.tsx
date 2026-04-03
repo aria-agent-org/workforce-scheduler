@@ -451,7 +451,7 @@ export default function SchedulingConfigPage() {
       <Card>
         <CardContent className="p-5 space-y-4">
           <h3 className="font-bold flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-500" />
+            <Zap className="h-5 w-5 text-amber-500" />
             הגדרות מתקדמות
           </h3>
 
@@ -498,7 +498,7 @@ export default function SchedulingConfigPage() {
             className="flex items-center gap-2 font-bold w-full text-right"
           >
             {showOverrides ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
             עקיפות לפי סוג משימה
             <Badge className="bg-muted text-muted-foreground text-xs mr-2">{overrides.length}</Badge>
           </button>
@@ -528,11 +528,11 @@ export default function SchedulingConfigPage() {
               )}
 
               {overrides.map((override, idx) => (
-                <Card key={override.mission_type_id} className="border-orange-200 dark:border-orange-800">
+                <Card key={override.mission_type_id} className="border-amber-200 dark:border-amber-800">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold flex items-center gap-2">
-                        <Badge className="bg-orange-100 text-orange-700">{override.mission_type_name}</Badge>
+                        <Badge className="bg-amber-100 text-amber-700">{override.mission_type_name}</Badge>
                       </h4>
                       <Button
                         variant="ghost"

@@ -31,7 +31,7 @@ interface CheckResult {
 
 const SEVERITY_COLORS: Record<string, string> = {
   error: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  warning: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   info: "bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
 };
 

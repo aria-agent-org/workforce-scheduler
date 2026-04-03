@@ -310,7 +310,7 @@ export default function BotConfigPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-yellow-500" />
+              <Sparkles className="h-5 w-5 text-amber-500" />
               {lang === "he" ? "בוט AI — הגדרות" : "AI Bot Configuration"}
             </CardTitle>
             <button onClick={() => setAiEnabled(!aiEnabled)}>
@@ -427,7 +427,7 @@ export default function BotConfigPage() {
                     {tok.used_at ? (
                       <Badge className="bg-green-100 text-green-700">נוצל</Badge>
                     ) : (
-                      <Badge className="bg-yellow-100 text-yellow-700">פעיל</Badge>
+                      <Badge className="bg-amber-100 text-amber-700">פעיל</Badge>
                     )}
                   </div>
                   <div className="flex gap-1">

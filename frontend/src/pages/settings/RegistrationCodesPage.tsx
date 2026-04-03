@@ -24,7 +24,7 @@ interface RegStatus {
 
 const statusStyles: Record<string, string> = {
   "רשום": "bg-green-100 text-green-700",
-  "ממתין לרישום": "bg-yellow-100 text-yellow-700",
+  "ממתין לרישום": "bg-amber-100 text-amber-700",
   "פג תוקף": "bg-red-100 text-red-700",
   "ללא קוד": "bg-gray-100 text-gray-700",
 };
@@ -139,7 +139,7 @@ export default function RegistrationCodesPage() {
           <p className="text-xs text-muted-foreground">רשומים</p>
         </CardContent></Card>
         <Card><CardContent className="p-3 text-center">
-          <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+          <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
           <p className="text-xs text-muted-foreground">ממתינים</p>
         </CardContent></Card>
         <Card><CardContent className="p-3 text-center">

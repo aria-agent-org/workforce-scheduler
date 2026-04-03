@@ -1198,7 +1198,7 @@ export default function BoardTemplateEditor() {
           <h2 className="text-lg font-bold">{activeTemplate.name}</h2>
           <Button variant="outline" size="sm" onClick={() => { setActiveTemplate(null); setShowTemplateList(true); }}>חזרה</Button>
         </div>
-        <p className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+        <p className="text-sm text-muted-foreground bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2">
           📱 תצוגה בלבד — העריכה זמינה במחשב שולחני
         </p>
         <div className="border rounded overflow-x-auto">

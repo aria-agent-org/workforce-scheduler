@@ -1183,3 +1183,114 @@ select {
   [class~="text-2xl"] { font-size: 1.25rem !important; }
   [class~="text-3xl"] { font-size: 1.5rem !important; }
 }
+
+/* ═══════════════════════════════════════════════════
+   PREMIUM DESIGN SYSTEM v2 — Military-Modern
+   Inspired by Linear, Notion, Arc Browser
+   ═══════════════════════════════════════════════════ */
+
+/* ── Premium Card ── */
+.card, [data-slot="card"], [class*="rounded-xl"][class*="border"][class*="bg-card"],
+[class*="rounded-lg"][class*="border"][class*="bg-card"] {
+  border-color: hsl(var(--border) / 0.5) !important;
+  transition: all 0.2s ease-out;
+}
+
+.card:hover, [class*="card-hover"]:hover {
+  border-color: hsl(var(--border) / 0.8) !important;
+  box-shadow: var(--shadow-elevation-1);
+}
+
+/* ── Premium Buttons ── */
+button:not([role="switch"]):not([class*="absolute"]):not([class*="ghost"]) {
+  transition: all 0.15s ease-out;
+}
+
+button:active:not([disabled]) {
+  transform: scale(0.97);
+}
+
+/* ── Premium Inputs ── */
+input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select,
+textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: hsl(var(--primary) / 0.5) !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1) !important;
+  outline: none;
+}
+
+/* ── Premium Badges — consistent pill style ── */
+[class*="Badge"], .badge, [class*="rounded-full"][class*="px-"] {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* ── Activity/List items — subtle separator ── */
+[class*="border-b"]:not(table):not(thead):not(tr) {
+  border-color: hsl(var(--border) / 0.4) !important;
+}
+
+/* ── Bottom Navigation — refined ── */
+nav[class*="fixed"][class*="bottom"] {
+  border-top-color: hsl(var(--border) / 0.3) !important;
+  background: hsl(var(--background) / 0.95) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Sidebar — premium dark ── */
+aside, nav[class*="w-64"], [class*="Sidebar"] {
+  border-color: hsl(var(--border) / 0.3) !important;
+}
+
+/* ── Dialog/Modal — refined ── */
+[role="dialog"] > div {
+  border-radius: 16px;
+  border-color: hsl(var(--border) / 0.4) !important;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.4), 0 0 0 1px hsl(var(--border) / 0.2);
+}
+
+/* ── Scrollbar styling (non-mobile) ── */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.2);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+}
+
+/* ── Selection color ── */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: inherit;
+}
+
+/* ── Focus visible — accessible but beautiful ── */
+:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* ── Smooth page transitions ── */
+.page-transition {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
