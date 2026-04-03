@@ -160,7 +160,7 @@ export default function CompliancePage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold flex items-center gap-2">
-                      {SEVERITY_ICONS[rule.severity]} {rule.name}
+                      {SEVERITY_ICONS[rule.severity]} {typeof rule.name === "object" ? (rule.name?.he || rule.name?.en || "") : String(rule.name || "")}
                       {rule.is_system && <span className="text-xs bg-muted px-2 py-0.5 rounded-full">מערכת</span>}
                     </h3>
                     <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>

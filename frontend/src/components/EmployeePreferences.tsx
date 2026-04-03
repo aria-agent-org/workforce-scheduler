@@ -343,7 +343,7 @@ export default function EmployeePreferences({ employeeId, selfService, compact }
               return (
                 <div key={mt.id} className="flex items-center gap-3 rounded-lg border p-2">
                   <span className="text-lg">{mt.icon || "📋"}</span>
-                  <span className="flex-1 text-sm font-medium">{mt.name?.he || mt.name}</span>
+                  <span className="flex-1 text-sm font-medium">{typeof mt.name === "object" ? (mt.name?.he || mt.name?.en || "") : String(mt.name || "")}</span>
                   <div className="flex gap-1">
                     {PREF_OPTIONS.map((opt) => (
                       <button
