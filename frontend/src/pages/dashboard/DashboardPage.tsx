@@ -156,11 +156,11 @@ export default function DashboardPage() {
   const unfilledSlots = missions.reduce((sum: number, m: any) => sum + (m.unfilled_slots || 0), 0);
 
   const statCards = [
-    { key: "missionsToday", value: stats?.missions_today ?? 0, icon: Calendar, gradient: "from-violet-500 to-purple-600", bgLight: "bg-violet-50 dark:bg-violet-900/20", link: "/scheduling", suffix: "היום" },
-    { key: "unfilledSlots", value: unfilledSlots, icon: AlertTriangle, gradient: unfilledSlots > 0 ? "from-red-500 to-rose-600" : "from-emerald-500 to-green-600", bgLight: unfilledSlots > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20", link: "/scheduling", suffix: "משבצות" },
-    { key: "totalSoldiers", value: stats?.total_employees ?? 0, icon: Users, gradient: "from-primary-400 to-primary-600", bgLight: "bg-primary-50 dark:bg-primary-900/20", link: "/soldiers", suffix: "חיילים" },
-    { key: "present", value: stats?.present_today ?? 0, icon: CheckCircle, gradient: "from-green-500 to-emerald-600", bgLight: "bg-green-50 dark:bg-green-900/20", link: "/attendance", suffix: "נוכחים" },
-    { key: "pendingSwaps_kpi", value: pendingSwapsCount, icon: ArrowLeftRight, gradient: "from-orange-500 to-amber-600", bgLight: "bg-orange-50 dark:bg-orange-900/20", link: "/swaps", suffix: "בקשות" },
+    { key: "missionsToday", label: "משימות היום", value: stats?.missions_today ?? 0, icon: Calendar, gradient: "from-primary-400 to-primary-600", bgLight: "bg-primary-50 dark:bg-primary-900/20", link: "/scheduling" },
+    { key: "unfilledSlots", label: "משבצות חסרות", value: unfilledSlots, icon: AlertTriangle, gradient: unfilledSlots > 0 ? "from-red-500 to-rose-600" : "from-emerald-500 to-green-600", bgLight: unfilledSlots > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20", link: "/scheduling" },
+    { key: "totalSoldiers", label: "חיילים", value: stats?.total_employees ?? 0, icon: Users, gradient: "from-primary-400 to-primary-600", bgLight: "bg-primary-50 dark:bg-primary-900/20", link: "/soldiers" },
+    { key: "present", label: "נוכחים", value: stats?.present_today ?? 0, icon: CheckCircle, gradient: "from-green-500 to-emerald-600", bgLight: "bg-green-50 dark:bg-green-900/20", link: "/attendance" },
+    { key: "pendingSwaps", label: "החלפות ממתינות", value: pendingSwapsCount, icon: ArrowLeftRight, gradient: "from-amber-500 to-amber-600", bgLight: "bg-amber-50 dark:bg-amber-900/20", link: "/swaps" },
   ];
 
   return (
@@ -177,30 +177,24 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {statCards.map(({ key, value, icon: Icon, gradient, bgLight, link }, idx) => (
-          <Card
+        {statCards.map(({ key, label, value, icon: Icon, gradient, bgLight, link }, idx) => (
+          <div
             key={key}
-            className="card-hover cursor-pointer stagger-item overflow-hidden group border-0 shadow-elevation-2"
+            className="group cursor-pointer rounded-xl border border-border/50 bg-card hover:bg-accent/30 transition-all duration-200 hover:shadow-sm p-3 sm:p-4"
             onClick={() => navigate(link)}
             role="link"
-            aria-label={`${t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}: ${value}`}
-            style={{ animationDelay: `${idx * 60}ms` }}
+            aria-label={`${label}: ${value}`}
           >
-            <CardContent className="p-2.5 sm:p-4 relative">
-              {/* Gradient accent top bar */}
-              <div className={`absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r ${gradient} opacity-80`} />
-              
-              <div className="flex items-center gap-2 sm:flex-col sm:items-start sm:gap-0">
-                <div className={`rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 sm:mb-2 ${bgLight} transition-transform group-hover:scale-110 duration-200`}>
-                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: `var(--tw-gradient-from, currentColor)` }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xl sm:text-3xl font-black tracking-tight leading-none">{value}</p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">{t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className={`rounded-lg p-2 ${bgLight} transition-transform group-hover:scale-105 duration-200`}>
+                <Icon className="h-4 w-4" />
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex-1 min-w-0">
+                <p className="text-2xl sm:text-3xl font-bold tracking-tight leading-none">{value}</p>
+                <p className="text-[11px] text-muted-foreground font-medium mt-0.5">{label}</p>
+              </div>
+            </div>
+          </div>
         ))}
       </div>
 
