@@ -186,19 +186,18 @@ export default function DashboardPage() {
             aria-label={`${t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}: ${value}`}
             style={{ animationDelay: `${idx * 60}ms` }}
           >
-            <CardContent className="p-4 relative">
+            <CardContent className="p-2.5 sm:p-4 relative">
               {/* Gradient accent top bar */}
               <div className={`absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r ${gradient} opacity-80`} />
               
-              <div className="flex items-start justify-between mb-3">
-                <div className={`rounded-xl p-2.5 ${bgLight} transition-transform group-hover:scale-110 duration-200`}>
-                  <Icon className="h-5 w-5" style={{ color: `var(--tw-gradient-from, currentColor)` }} />
+              <div className="flex items-center gap-2 sm:flex-col sm:items-start sm:gap-0">
+                <div className={`rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 sm:mb-2 ${bgLight} transition-transform group-hover:scale-110 duration-200`}>
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: `var(--tw-gradient-from, currentColor)` }} />
                 </div>
-              </div>
-              
-              <div>
-                <p className="text-2xl sm:text-3xl font-black tracking-tight leading-none mb-1">{value}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">{t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xl sm:text-3xl font-black tracking-tight leading-none">{value}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">{t(`stats.${key === 'pendingSwaps_kpi' ? 'pendingSwaps' : key}`)}</p>
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -267,7 +267,7 @@
 
   /* Mobile card style (replaces tables on mobile) */
   .mobile-card {
-    @apply rounded-xl border bg-card p-4;
+    @apply rounded-xl border bg-card p-2.5 sm:p-4;
     box-shadow: var(--shadow-elevation-1);
     transition: all var(--transition-fast) ease;
   }
@@ -405,7 +405,7 @@
     @apply hidden md:table-header-group;
   }
   .responsive-table tbody tr {
-    @apply block md:table-row mb-3 md:mb-0 rounded-xl md:rounded-none border md:border-0 md:border-b p-4 md:p-0 bg-card md:bg-transparent;
+    @apply block md:table-row mb-2 md:mb-0 rounded-xl md:rounded-none border md:border-0 md:border-b p-2.5 md:p-0 bg-card md:bg-transparent;
     box-shadow: var(--shadow-elevation-1);
   }
   @media (min-width: 768px) {
@@ -1124,4 +1124,43 @@ select {
   .onboarding-step-indicators::-webkit-scrollbar {
     display: none;
   }
+}
+
+
+/* ═══════════════════════════════════════════════════
+   MOBILE COMPACT — reduce bloat on small screens
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* ── Buttons: reduce from 44px to 36px on mobile ── */
+  [class*="min-h-[44px]"] {
+    min-height: 36px !important;
+  }
+  /* Submit buttons stay full size */
+  button[type="submit"] {
+    min-height: 44px !important;
+  }
+
+  /* ── Padding: tighter on mobile ── */
+  [class~="p-4"]:not(main):not(header):not(nav) { padding: 10px !important; }
+  [class~="p-6"]:not(main) { padding: 12px !important; }
+  [class~="p-5"]:not(main) { padding: 10px !important; }
+  [class~="py-4"] { padding-top: 8px !important; padding-bottom: 8px !important; }
+  [class~="py-3"] { padding-top: 6px !important; padding-bottom: 6px !important; }
+  [class~="px-4"]:not(main):not(header) { padding-left: 10px !important; padding-right: 10px !important; }
+
+  /* ── Gaps: tighter ── */
+  [class~="gap-4"] { gap: 8px !important; }
+  [class~="gap-6"] { gap: 10px !important; }
+  [class~="space-y-6"] > * + * { margin-top: 10px !important; }
+  [class~="space-y-4"] > * + * { margin-top: 6px !important; }
+  [class~="space-y-5"] > * + * { margin-top: 8px !important; }
+  [class~="mb-4"] { margin-bottom: 8px !important; }
+  [class~="mb-6"] { margin-bottom: 10px !important; }
+
+  /* ── Cards: compact ── */
+  [class*="CardContent"] { padding: 8px 10px !important; }
+  
+  /* ── Text: slightly smaller on mobile ── */
+  [class~="text-2xl"] { font-size: 1.25rem !important; }
+  [class~="text-3xl"] { font-size: 1.5rem !important; }
 }
