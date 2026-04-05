@@ -292,7 +292,9 @@ export default function MissionDetailPage() {
                               if (label) {
                                 return typeof label === "object" ? (label.he || label.en || a.slot_id) : label;
                               }
-                              return a.slot_label || a.slot_id;
+                              const label2 = a.slot_label || a.slot_id;
+                              const m = typeof label2 === 'string' && label2.match(/^s(\d+)$/);
+                              return m ? `תפקיד ${m[1]}` : label2;
                             })()}
                           </p>
                         </div>

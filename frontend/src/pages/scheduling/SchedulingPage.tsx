@@ -191,6 +191,30 @@ export default function SchedulingPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper: resolve slot display label with role name fallback
+  const resolveSlotName = (slot: any): string => {
+    // Try label object (API format: {he: "נהג", en: "Driver"})
+    const fromLabel = slot?.label?.[lang] || slot?.label?.he;
+    if (fromLabel) return fromLabel;
+    // Try flat label fields (form format)
+    if (slot?.label_he && lang === 'he') return slot.label_he;
+    if (slot?.label_en && lang === 'en') return slot.label_en;
+    if (slot?.label_he) return slot.label_he;
+    // Fallback: work role name
+    if (slot?.work_role_id && workRoles?.length) {
+      const role = workRoles.find((r: any) => r.id === slot.work_role_id);
+      if (role) {
+        const name = (role as any).name_he || (role as any).name?.he || role.name || (role as any).name_en;
+        if (name) return name;
+      }
+    }
+    // Last resort: friendly format instead of raw "s1"
+    const sid = slot?.slot_id || '';
+    const m = sid.match(/^s(\d+)$/);
+    if (m) return lang === 'he' ? `תפקיד ${m[1]}` : `Role ${m[1]}`;
+    return sid;
+  };
+
   // Broadcast editing state when a mission is expanded for editing
   useEffect(() => {
     if (expandedMission) {
@@ -286,14 +310,28 @@ export default function SchedulingPage() {
     setTypeFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
     try {
-      const slots = typeForm.required_slots.map((s, i) => ({
-        slot_id: s.slot_id || `s${i + 1}`,
-        work_role_id: (s.role_mode === "all" || s.role_mode === "all_except") ? null : (s.work_role_id || null),
-        count: s.count,
-        label: { he: s.label_he, en: s.label_en },
-        role_mode: s.role_mode || "specific",
-        exclude_role_ids: s.role_mode === "all_except" ? (s.exclude_role_ids || []) : undefined,
-      }));
+      const slots = typeForm.required_slots.map((s, i) => {
+        // Auto-populate empty labels from work role name
+        let labelHe = s.label_he;
+        let labelEn = s.label_en;
+        if (!labelHe && s.work_role_id) {
+          const role = workRoles.find(r => r.id === s.work_role_id);
+          if (role) {
+            labelHe = (role as any).name_he || (role as any).name?.he || role.name || '';
+            if (!labelEn) {
+              labelEn = (role as any).name_en || (role as any).name?.en || '';
+            }
+          }
+        }
+        return {
+          slot_id: s.slot_id || `s${i + 1}`,
+          work_role_id: (s.role_mode === "all" || s.role_mode === "all_except") ? null : (s.work_role_id || null),
+          count: s.count,
+          label: { he: labelHe, en: labelEn },
+          role_mode: s.role_mode || "specific",
+          exclude_role_ids: s.role_mode === "all_except" ? (s.exclude_role_ids || []) : undefined,
+        };
+      });
       const preMission = typeForm.pre_mission_events.map(e => ({
         offset_minutes: e.offset_minutes,
         label: { he: e.label_he, en: e.label_en },
@@ -1594,7 +1632,7 @@ export default function SchedulingPage() {
                                   emptySlots.push({
                                     slotId: s.slot_id,
                                     workRoleId: s.work_role_id || "",
-                                    label: s.label?.[lang] || s.label?.he || s.slot_id,
+                                    label: resolveSlotName(s),
                                     remaining,
                                   });
                                 }
@@ -1627,7 +1665,7 @@ export default function SchedulingPage() {
                                 >
                                   <span className="flex items-center gap-1.5">
                                     <UserPlus className="h-3.5 w-3.5" />
-                                    {s.label?.[lang] || s.label?.he || s.slot_id} — {s.count || 1} פנויים
+                                    {resolveSlotName(s)} — {s.count || 1} פנויים
                                   </span>
                                   <span className="text-xs">לחץ לשיבוץ</span>
                                 </button>
@@ -1687,7 +1725,7 @@ export default function SchedulingPage() {
                       <p className="text-xs font-medium text-muted-foreground">סלוטים:</p>
                       {mt.required_slots.map((s: any, i: number) => (
                         <div key={i} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1">
-                          <span>{s.label?.[lang] || s.label?.he || s.slot_id}</span>
+                          <span>{resolveSlotName(s)}</span>
                           <span>×{s.count}</span>
                         </div>
                       ))}
@@ -1885,7 +1923,7 @@ export default function SchedulingPage() {
                       {selectedMt.required_slots.map((s: any, i: number) => (
                         <div key={i} className="flex items-center gap-2">
                           <span className="text-primary">•</span>
-                          <span>{s.label?.[lang] || s.label?.he || s.slot_id}</span>
+                          <span>{resolveSlotName(s)}</span>
                           <span className="text-muted-foreground">×{s.count || 1}</span>
                         </div>
                       ))}
@@ -2480,7 +2518,7 @@ export default function SchedulingPage() {
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{s.label?.[lang] || s.label?.he || s.slot_id}</span>
+                            <span className="font-medium">{resolveSlotName(s)}</span>
                             {roleLabel && <Badge className="text-[10px]">{roleLabel}</Badge>}
                           </div>
                           <span className={`text-xs ${isFull ? "text-green-600" : "text-muted-foreground"}`}>
@@ -2762,7 +2800,7 @@ export default function SchedulingPage() {
                             return m && t.id === m.mission_type_id;
                           });
                           const sl = mt?.required_slots?.find((s: any) => s.slot_id === a.slot_id);
-                          const label = sl?.label?.[lang] || sl?.label?.he || a.slot_id;
+                          const label = resolveSlotName(sl || { slot_id: a.slot_id });
                           return ` (${label})`;
                         })()}
                       </span>

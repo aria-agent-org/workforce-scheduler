@@ -189,7 +189,11 @@ function BoardTable({ tableDef, missions, missionTypes, timeShifts }: BoardTable
         for (const slot of slots) {
           slotColumns.push({
             slotId: slot.slot_id,
-            slotLabel: getSlotLabel(slot.label) || slot.slot_id,
+            slotLabel: getSlotLabel(slot.label) || (() => {
+              // Friendly fallback instead of raw "s1"
+              const m = slot.slot_id.match(/^s(\d+)$/);
+              return m ? `תפקיד ${m[1]}` : slot.slot_id;
+            })(),
             roleLabel: getSlotLabel(slot.label) || slot.slot_id,
             missionTypeId: mt.id,
           });
