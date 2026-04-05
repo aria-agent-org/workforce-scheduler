@@ -489,8 +489,12 @@ export default function OnboardingWizard() {
         if (state.botConfig.telegram_token) await api.post(tenantApi("/settings"), { key: "bot_telegram_token", value: state.botConfig.telegram_token, group: "bot" }).catch(() => {});
       }
 
-      // Mark onboarding as completed in DB
-      await completeOnboardingApi();
+      // Mark onboarding as completed in DB (fail-open: don't block user if API fails)
+      try {
+        await completeOnboardingApi();
+      } catch {
+        // API error is non-fatal — localStorage will cache the completion anyway
+      }
 
       localStorage.removeItem(STORAGE_KEY);
       localStorage.setItem(COMPLETED_KEY, "true");
@@ -502,6 +506,8 @@ export default function OnboardingWizard() {
       setTourStep(0);
     } catch (e) {
       toast("error", getErrorMessage(e, "שגיאה בשמירת ההגדרות"));
+      // Even on error, if we got this far: ensure localStorage is set so user is not stuck
+      localStorage.setItem(COMPLETED_KEY, "true");
     } finally {
       setSaving(false);
     }
@@ -551,10 +557,11 @@ export default function OnboardingWizard() {
                 </Badge>
                 <button
                   onClick={async () => {
-                    await skipOnboardingApi();
+                    // Fail-open: set localStorage even if API fails
+                    try { await skipOnboardingApi(); } catch { /* ignore */ }
                     localStorage.setItem(COMPLETED_KEY, "true");
                     setIsCompleted(true);
-                    setMode("help");
+                    navigate("/dashboard");
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
@@ -626,7 +633,8 @@ export default function OnboardingWizard() {
                   ) : (
                     <Button
                       onClick={async () => {
-                        await skipOnboardingApi(); // mark tour as "done" too
+                        // Fail-open: localStorage is the source of truth
+                        try { await skipOnboardingApi(); } catch { /* ignore */ }
                         localStorage.setItem(COMPLETED_KEY, "true");
                         setIsCompleted(true);
                         toast("success", "מעולה! סיום מוצלח של הסיור 🎉");
@@ -845,10 +853,11 @@ export default function OnboardingWizard() {
         <div className="mb-8 text-center relative">
           <button
             onClick={async () => {
-              await skipOnboardingApi();
+              // Always set localStorage first (fail-open: even if API fails, user is not blocked)
+              try { await skipOnboardingApi(); } catch { /* ignore — non-blocking */ }
               localStorage.setItem(COMPLETED_KEY, "true");
               setIsCompleted(true);
-              setMode("help");
+              navigate("/dashboard");
             }}
             className="absolute end-0 top-0 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1 rounded-lg hover:bg-muted"
           >

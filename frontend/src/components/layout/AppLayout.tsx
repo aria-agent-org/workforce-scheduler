@@ -130,14 +130,16 @@ export default function AppLayout() {
         const res = await api.get(tenantApi("/onboarding/progress"));
         const status = res.data?.status;
         if (status === "completed" || status === "skipped") {
+          // Cache in localStorage so future mounts skip the API call
           localStorage.setItem("shavtzak_onboarding_completed", "true");
-        } else if (!cancelled) {
-          if (!status || status === "not_started") {
-            setShouldOnboard(true);
-          }
+          // Don't redirect — they're done
+        } else if (status === "not_started" || !status) {
+          // Only redirect if we have a clear "not started" signal
+          if (!cancelled) setShouldOnboard(true);
         }
+        // Any other status (e.g. "in_progress", unexpected) → let them through
       } catch {
-        // API error — don't redirect, let them use the app
+        // API error — FAIL OPEN: don't redirect to onboarding, let the user use the app
       }
       if (!cancelled) setOnboardingChecked(true);
     })();
